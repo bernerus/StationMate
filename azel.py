@@ -4,6 +4,8 @@ import locator.src.maidenhead as mh
 import threading
 
 import requests
+from p21_defs import *
+from p20_defs import *
 
 
 def sense2str(value):
@@ -47,33 +49,35 @@ class AzElControl:
 		self.socket_io = socket_io
 		self.az_hysteresis = hysteresis
 
-		self.p1 = PCF(0x21, {"AZ_IND_A": (0, INPUT),
-		                     "AZ_IND_B": (1, INPUT),
-		                     "EL_PULSE": (2, INPUT),
-		                     "AZ_STOP": (3, INPUT),
-		                     "MAN_CW": (4, INPUT),
-		                     "MAN_CCW": (5, INPUT),
-		                     "MAN_UP": (6, INPUT),
-		                     "MAN_DN": (7, INPUT),
-		                     })
-		self.p0 = PCF(0x20, {"AZ_TIMER": (0, OUTPUT),
-		                     "STOP_AZ": (1, OUTPUT),
-		                     "ROTATE_CW": (2, OUTPUT),
-		                     "RUN_EL": (3, OUTPUT),
-		                     "EL_UP": (4, OUTPUT),
-		                     "CW_KEY": (5, OUTPUT),
-		                     "UNUSED_6": (6, INPUT),
-		                     "UNUSED_7": (7, INPUT),
-		                     })
+		self.p21 = PCF(P21_I2C_ADDRESS,
+		              {P21_AZ_IND_A: (0, INPUT),
+		               P21_AZ_IND_B: (1, INPUT),
+		               P21_EL_PULSE: (2, INPUT),
+		               P21_AZ_STOP: (3, INPUT),
+		               P21_MAN_CW: (4, INPUT),
+		               P21_MAN_CCW: (5, INPUT),
+		               P21_MAN_UP: (6, INPUT),
+		               P21_MAN_DN: (7, INPUT),
+		               })
+		self.p20 = PCF(P20_I2C_ADDRESS,
+		              {P20_AZ_TIMER: (0, OUTPUT),
+		               P20_STOP_AZ: (1, OUTPUT),
+		               P20_ROTATE_CW: (2, OUTPUT),
+		               P20_RUN_EL: (3, OUTPUT),
+		               P20_EL_UP: (4, OUTPUT),
+		               P20_CW_KEY: (5, OUTPUT),
+		               P20_UNUSED_6: (6, INPUT),
+		               P20_UNUSED_7: (7, INPUT),
+		               })
 
 		# GPIO Interrupt pin
 		self.AZ_INT = 17
 
-		self.AZ_CCW_MECH_STOP:int = 0
-		self.AZ_CW_MECH_STOP:int = 734
+		self.AZ_CCW_MECH_STOP: int = 0
+		self.AZ_CW_MECH_STOP: int = 734
 
-		self.CCW_BEARING_STOP:int = 273  # 278   273
-		self.CW_BEARING_STOP:int = 278  # 283   278
+		self.CCW_BEARING_STOP: int = 273  # 278   273
+		self.CW_BEARING_STOP: int = 278  # 283   278
 
 		self.BEARING_OVERLAP = abs(self.CW_BEARING_STOP - self.CCW_BEARING_STOP)
 
@@ -224,10 +228,10 @@ class AzElControl:
 
 	def stop_interrupt(self, _last, _current):
 
-		if not self.p0.bit_read("STOP_AZ"):
+		if not self.p20.bit_read(P20_STOP_AZ):
 			print("Stop interrupt skipped. timer is cleared")
 			return  # Timed is cleared
-		if self.p0.bit_read("AZ_TIMER") and not self.calibrating and not self.rotating_cw and not self.rotating_ccw:
+		if self.p20.bit_read(P20_AZ_TIMER) and not self.calibrating and not self.rotating_cw and not self.rotating_ccw:
 			print("Stop interrupt skipped. No rotation going on, retrig=%s, cw=%s, ccw=%s, calibrating=%s" %
 			      (self.retriggering, self.rotating_cw, self.rotating_ccw, self.calibrating))
 			return  # We are not rotating
@@ -236,7 +240,7 @@ class AzElControl:
 		# time.sleep(1)
 		# We ran into a mech stop
 
-		if not self.p0.bit_read("ROTATE_CW"):
+		if not self.p20.bit_read(P20_ROTATE_CW):
 			# print("Mechanical stop clockwise")
 			self.az = self.AZ_CW_MECH_STOP
 		else:
@@ -295,8 +299,8 @@ class AzElControl:
 		self.rotating_ccw = False
 		self.rotating_cw = False
 		# self.p0.byte_write(0xff, ~self.STOP_AZ)
-		self.p0.bit_write("STOP_AZ", LOW)
-		self.p0.bit_write("ROTATE_CW", HIGH)
+		self.p20.bit_write(P20_STOP_AZ, LOW)
+		self.p20.bit_write(P20_ROTATE_CW, HIGH)
 		# print("Stopped azimuth rotation")
 		time.sleep(0.4)  # Allow mechanics to settle
 		self.store_az()
@@ -306,11 +310,11 @@ class AzElControl:
 		self.rotating_ccw = True
 		self.rotating_cw = False
 		# self.p0.byte_write(0xff, self.STOP_AZ)
-		self.p0.bit_write("STOP_AZ", HIGH)
+		self.p20.bit_write(P20_STOP_AZ, HIGH)
 		time.sleep(0.1)
 		# self.p0.byte_write(0xff, ~self.AZ_TIMER)
-		self.p0.bit_write("ROTATE_CW", HIGH)
-		self.p0.bit_write("AZ_TIMER", LOW)
+		self.p20.bit_write(P20_ROTATE_CW, HIGH)
+		self.p20.bit_write(P20_AZ_TIMER, LOW)
 		print("Rotating anticlockwise")
 
 	def az_cw(self):
@@ -318,16 +322,16 @@ class AzElControl:
 		self.rotating_cw = True
 		self.rotating_ccw = False
 		# self.p0.byte_write(0xff, self.STOP_AZ)
-		self.p0.bit_write("STOP_AZ", HIGH)
+		self.p20.bit_write(P20_STOP_AZ, HIGH)
 		time.sleep(0.1)
-		self.p0.bit_write("ROTATE_CW", LOW)
-		self.p0.bit_write("AZ_TIMER", LOW)
+		self.p20.bit_write(P20_ROTATE_CW, LOW)
+		self.p20.bit_write(P20_AZ_TIMER, LOW)
 		# self.p0.byte_write(0xFF, ~(self.AZ_TIMER | self.ROTATE_CW))
 		print("Rotating clockwise")
 
 	def interrupt_dispatch(self, _channel):
 
-		current_sense = self.p1.byte_read(0xff)
+		current_sense = self.p21.byte_read(0xff)
 		# print("Interrupt %s %s" % (self.sense2str(self.last_sense), self.sense2str(current_sense)))
 
 		diff = current_sense ^ self.last_sense
@@ -357,8 +361,8 @@ class AzElControl:
 
 	def retrigger_az_timer(self):
 		self.retriggering = True
-		self.p0.bit_write("AZ_TIMER", HIGH)
-		self.p0.bit_write("AZ_TIMER", LOW)
+		self.p20.bit_write(P20_AZ_TIMER, HIGH)
+		self.p20.bit_write(P20_AZ_TIMER, LOW)
 		self.retriggering = False
 
 	def restore_az(self):
@@ -378,7 +382,7 @@ class AzElControl:
 		cur.execute("UPDATE azel_current set az = %s WHERE ID=0", (self.az,))
 		cur.close()
 		self.app.ham_op.db.commit()
-		#self.app.ham_op.db.close()
+	# self.app.ham_op.db.close()
 
 	def startup(self):
 
@@ -425,4 +429,3 @@ class AzElControl:
 
 	def GPIO_cleanup(self):
 		GPIO.cleanup()
-

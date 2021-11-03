@@ -37,7 +37,7 @@ from azel import AzElControl
 app.azel = AzElControl(app, socket_io, hysteresis=2)
 app.azel.startup()
 
-app.keyer = Morser(speed=None, p0=app.azel.p0)
+app.keyer = Morser(speed=None, p20=app.azel.p20)
 app.keyer_thread = threading.Thread(target=app.keyer.background_thread, args=())
 app.keyer_thread.daemon = True  # Daemonize keyer_thread
 app.keyer_thread.start()

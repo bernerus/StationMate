@@ -2,6 +2,7 @@ import time
 import smbus2
 import queue
 from threading import Lock
+from p20_defs import *
 
 imc = {
     'A': '.-',
@@ -73,13 +74,12 @@ cw_thread_lock = Lock()
 
 class Morser:
 
-    def __init__(self, verbose=True, gpio_bus=1, speed=None, p0=None):
+    def __init__(self, verbose=True, gpio_bus=1, speed=None, p20=None):
         self.unit_time = None
         self.set_speed(speed)
-        self.CW_KEY = "CW_KEY"
         self.verbose = verbose
         self.bus = smbus2.SMBus(gpio_bus)
-        self.p0 = p0
+        self.p20 = p20
         self.txq = queue.Queue()
 
     def set_speed(self, speed):
@@ -122,23 +122,23 @@ class Morser:
                 print('\nInvalid input: {}'.format(letter))
 
     def transmit_dot(self):
-        self.p0.bit_write(self.CW_KEY, "LOW")
+        self.p20.bit_write(P20_CW_KEY, "LOW")
         time.sleep(self.unit_time)
 
     def transmit_dash(self):
-        self.p0.bit_write(self.CW_KEY, "LOW")
+        self.p20.bit_write(P20_CW_KEY, "LOW")
         time.sleep(self.unit_time * 3)
 
     def wait_between_signals(self):
-        self.p0.bit_write(self.CW_KEY, "HIGH")
+        self.p20.bit_write(P20_CW_KEY, "HIGH")
         time.sleep(self.unit_time)
 
     def wait_between_letters(self):
-        self.p0.bit_write(self.CW_KEY, "HIGH")
+        self.p20.bit_write(P20_CW_KEY, "HIGH")
         time.sleep(self.unit_time * 3)
 
     def wait_between_words(self):
-        self.p0.bit_write(self.CW_KEY, "HIGH")
+        self.p20.bit_write(P20_CW_KEY, "HIGH")
         time.sleep(self.unit_time * 7)
 
     def send_message(self, message, repeat=1):
@@ -150,7 +150,7 @@ class Morser:
                             print('\nBegin Transmission')
 
                         self.transmit_sentence(message)
-                        self.p0.bit_write(self.CW_KEY, "HIGH")
+                        self.p20.bit_write(P20_CW_KEY, "HIGH")
                     count -= 1
                     if count == 0:
                         break
@@ -160,14 +160,14 @@ class Morser:
                     print('\nEnd Transmission')
 
             finally:
-                self.p0.bit_write(self.CW_KEY, "HIGH")
+                self.p20.bit_write(P20_CW_KEY, "HIGH")
 
     def background_thread(self):
         """Example of how to send server generated CW."""
         while True:
             if not self.txq.empty():
                 item = self.txq.get_nowait()
-                print("Transmitting CW: %s" % (item))
+                print("Transmitting CW: %s" % item)
                 self.send_message(item)
             else:
                 time.sleep(self.unit_time)
