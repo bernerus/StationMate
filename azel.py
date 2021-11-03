@@ -248,7 +248,7 @@ class AzElControl:
 			self.az = self.AZ_CCW_MECH_STOP
 
 		print("Az set to %d ticks" % self.az)
-		self.app.client_mgr.client_mgr.send_azel()
+		self.app.client_mgr.send_azel()
 		if self.calibrating:
 			self.calibrating = False
 			print("Calibration done")
@@ -270,9 +270,7 @@ class AzElControl:
 			self.retrigger_az_timer()
 
 		#            print("Ticks:", self.az)
-
-		self.app.client_mgr.client_mgr.send_azel()
-
+		self.app.client_mgr.send_azel()
 		self.az_track()
 
 	def az_track(self, target=None):

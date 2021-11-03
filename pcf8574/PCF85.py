@@ -94,9 +94,19 @@ def bit_write(pin_number: int, val, addr, flg, bus):
 
 
 def write_data(pin_number: int, val, bus, flg, addr):
-    errcount = 0
     if test_bit(flg, pin_number):
-        value_read = bus.read_byte(addr)
+        errcount = 0
+        while True:
+            try:
+                value_read = bus.read_byte(addr)
+                break
+            except OSError:
+                print("write_data OSError while reading  %x  count=%d, retrying" % (addr, errcount))
+                errcount += 1
+                if errcount > 10:
+                    raise
+                time.sleep(0.1)
+        errcount = 0
         while True:
             try:
                 if val == 0 and test_bit(value_read, pin_number):

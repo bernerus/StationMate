@@ -44,7 +44,7 @@ class ClientMgr:
 
         self.app=app
         self.socket_io = socket_io
-        self.current_band = "432"
+        self.current_band = "144-FT8"
 
         self.last_p2_sense = None
         self.last_pushed_status = None
@@ -122,13 +122,9 @@ class ClientMgr:
         self.status_push(current_p2_sense, force=force)
 
     def send_my_data(self):
-        rows = self.app.ham_op.fetch_my_current_data()
+        rows = self.app.ham_op.fetch_my_current_data(self.current_band)
 
-        msg = {}
-        for row in rows:
-            k = row["key"]
-            v = row["value"]
-            msg[k] = v
+        msg = {x["key"]: x["value"] for x in rows}
         msg["current_band"] = self.current_band
         msg_q.put(("set_mydata", msg))
 
@@ -208,7 +204,7 @@ class ClientMgr:
 
 
     def send_mydata(self):
-        msg = self.app.hamop.get_mydata()
+        msg = self.app.ham_op.get_mydata(self.current_band)
         msg["current_band"] = self.current_band
         msg_q.put(("set_mydata", msg))
 

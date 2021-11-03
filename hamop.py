@@ -58,7 +58,7 @@ class HamOp:
 
         self.last_p27_sense = current_p2_sense
 
-    def get_mydata(self):
+    def get_mydata(self, band="144"):
         cur = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         ts = datetime.now().isoformat()[:10]
         cur.execute("""SELECT * FROM config_str 
@@ -66,15 +66,11 @@ class HamOp:
                                (time_stop IS NULL OR time_stop >= %s) AND
                                (band IS NULL OR band = %s) 
                                ORDER BY key""",
-                    (ts, ts, self.app.client_mgr.current_band)
+                    (ts, ts, band)
                     )
         rows = cur.fetchall()
 
-        msg = {}
-        for row in rows:
-            k = row["key"]
-            v = row["value"]
-            msg[k] = v
+        msg = {x["key"]: x["value"] for x in rows}
         return msg
 
     def get_status(self):
@@ -399,27 +395,27 @@ class HamOp:
         if self.p27:
 
             if self.pa_running is None:
-                pa_rdy = self.p27.bit_read("PA_READY")
+                pa_rdy = self.p27.bit_read(P27_PA_READY)
                 self.pa_running = pa_rdy
 
-            rx_on = not self.p27.bit_read("TRX_RX_ACTIVE_L")
-            tx_on = not self.p27.bit_read("TRX_TX_ACTIVE_L")
+            rx_on = not self.p27.bit_read(P27_TRX_RX_ACTIVE_L)
+            tx_on = not self.p27.bit_read(P27_TRX_TX_ACTIVE_L)
 
             if self.pa_running:
-                self.p27.bit_write("PA_OFF_L", LOW)
+                self.p27.bit_write(P27_PA_OFF_L, LOW)
                 time.sleep(0.1)
-                self.p27.bit_write("PA_OFF_L", HIGH)
+                self.p27.bit_write(P27_PA_OFF_L, HIGH)
                 self.pa_running = False
             else:
                 if rx_on or tx_on:
-                    self.p27.bit_write("PA_ON_L", LOW)
+                    self.p27.bit_write(P27_PA_ON_L, LOW)
                     time.sleep(0.1)
-                    self.p27.bit_write("PA_ON_L", HIGH)
+                    self.p27.bit_write(P27_PA_ON_L, HIGH)
                     self.pa_running = True
 
             self.app.client_mgr.status_update(force=True)
 
-    def track_az(self, what):
+    def az_track(self, what):
         try:
             mn, ms, mw, me, mlat, mlon = mh.to_rect(self.my_qth())
             n, s, w, e, lat, lon = mh.to_rect(what)
