@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Synchronous Loading</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta property="og:title" content="">
+    <meta property="og:type" content="">
+    <meta property="og:url" content="">
+    <meta property="og:image" content="">
+
+    <link rel="apple-touch-icon" href="icon.png">
+    <!-- Place favicon.ico in the root directory -->
+
+    <link rel='stylesheet' href="{{ url_for('static',filename='css/main.css') }}">
+    <link rel='stylesheet' href="{{ url_for('static',filename='css/style.css') }}">
+
+    <link rel='stylesheet' href="{{ url_for('static',filename='fontawesome-free/css/all.css') }}">
+    <link rel='stylesheet' href="{{ url_for('static',filename='fontawesome-free/css/fontawesome.css') }}">
+    <link rel='stylesheet' href="{{ url_for('static',filename='fontawesome-free/css/solid.css') }}">
+    <link rel='stylesheet' href="{{ url_for('static',filename='fontawesome-free/css/regular.css') }}">
+    <link rel='stylesheet' href="{{ url_for('static',filename='fontawesome-free/css/brands.css') }}">
+    <link rel='stylesheet' href="{{ url_for('static',filename='css/font-awesome.min.css') }}">
+
+
+    <meta name="theme-color" content="#fafafa">
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"
+            integrity="sha512-bLT0Qm9VnAYZDflyKcBaQ2gg0hSYNQrJ8RilYldYQ1FxQYoCLtUjuuRuZo+fjqhx/qtq/1itJ0C2ejDxltZVFg=="
+            crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.4/socket.io.js"
+            integrity="sha512-aMGMvNYu8Ue4G+fHa359jcPb1u+ytAF+P2SCb+PxrjCdO3n3ZTxJ30zuH39rimUggmTwmh2u7wvQsDTHESnmfQ=="
+            crossorigin="anonymous"></script>
+
+
+    <script type="text/javascript">
+        var socket
+        var current_band
+
+        $(document).ready(function () {
+            // var mypeer = 'http://' + document.domain + ':' + location.port;
+            socket = io()
+
+            console.log("Connecting to server");
+
+            socket.on('connect', function () {
+                console.log("Connected");
+                socket.emit('my event', {
+                    data: 'Map display Connected'
+                });
+                clear_qso_table();
+
+            });
+            socket.on('my_response', function (msg, cb) {
+                $('#log').append('<br>' + $('<div/>').text('Received #' + msg.count + ': ' + msg.data).html());
+                if (cb)
+                    cb();
+            });
+
+            socket.on('set_azel', function (msg) {
+                // console.log("Got azEl " + msg.az + " " + msg.el);
+                //confirm("Set_azel: " + msg.az + "/" + msg.el);
+                $('#log').append('<br>' + $('<div/>').text('Received azel#' + msg.count + ': ' + msg.data).html());
+                setAzimuth(msg.az);
+                setElevation(msg.el);
+            })
+
+            socket.on("update_class", function (msg) {
+                console.log("Got update_class " + msg);
+                $('#log').append('<br>' + $('<div/>').text('Received update_class#' + msg).html());
+                updateClass(msg)
+            })
+
+            socket.on('set_origo', function (msg) {
+                // console.log("Got origo " + msg.lat + " " + msg.lon);
+                //confirm("Set_azel: " + msg.az + "/" + msg.el);
+                $('#log').append('<br>' + $('<div/>').text('Received origo#' + msg.count + ': ' + msg.data).html());
+                setOrigo(msg.lat, msg.lon, msg.qth, msg.n, msg.s, msg.w, msg.e)
+            })
+
+            socket.on('set_mydata', function (msg) {
+                // console.log("Got mydata " + msg);
+                setMyData(msg)
+            })
+
+            socket.on('add_rect', function (msg) {
+                // console.log("Got rect " + msg.id)
+                addRect(msg.id, msg.n, msg.s, msg.w, msg.e);
+            })
+
+            socket.on('add_rects', function (rects) {
+                // console.log("Got rects " + rects)
+                for (const rect of rects) {
+                    addRect(rect.id, rect.n, rect.s, rect.w, rect.e);
+                }
+            })
+
+            socket.on("add_qso", function (qso) {
+                enter_qso_in_table(qso);
+            })
+
+            socket.on("add_qsos", function (qsos) {
+                for (const qso of qsos) {
+                    enter_qso_in_table(qso);
+                }
+            })
+
+            socket.on("globalReload", function(msg) {
+                location.reload();
+            })
+
+        });
+    </script>
+
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        .header {
+            border: 1px solid red;
+            padding: 15px;
+            height: 5%;
+            text-align: center;
+        }
+
+        .menu {
+            width: 25%;
+            float: left;
+            padding: 15px;
+            border: 1px solid green;
+        }
+
+        .map {
+            height: 1000px;
+            width: 100%;
+            float: left;
+            padding: 15px;
+            border: 1px solid blue;
+        }
+
+        .calllog {
+            text-wrap: none;
+            width: 100%;
+            float: top;
+            padding: 10px;
+            text-align: left;
+            border-collapse: collapse;
+        }
+
+        .callog th, td {
+            white-space: nowrap;
+            border: 1px solid gray;
+            padding: 3px;
+            height: 20px;
+        }
+
+        .callog th {
+            text-align: center;
+            background: #f5f5f5;
+        }
+
+        label {
+            font-weight: bold;
+        }
+    </style>
+
+</head>
+<body>
+<table id="main_layout">
+    <tr>
+        <th colspan="3">
+            <div class="message_holder"></div>
+        </th>
+    </tr>
+    <tr>
+        <td>
+            <!--suppress HtmlFormInputWithoutLabel -->
+            <input type="text" class="trkaz" placeholder="Track az"/>
+            <button id="track_button" type="submit" onclick="send_track_az()">Track</button>
+            <button id="calibrate_button" type="button" onclick="send_calibrate()">Calibrate</button>
+            <button id="stop_button" type="button" onclick="send_stop()">Stop</button>
+            <button id="release_button" type="button" onclick="send_release()">Release</button>
+            <button id="pointing_north_button" type="button" onclick="send_az()">Pointing North</button>
+            <button id="track_wind_button" type="button" onclick="send_track_wind()">Track wind</button>
+            <br/>
+            <div id="locatorButtons">
+                <button id="loc_fields"  onclick="send_set_map_mh_length(2)" >Fields</button>
+                <button id="loc_squares" onclick="send_set_map_mh_length(4)">Squares</button>
+                <button id="loc_locators" onclick="send_set_map_mh_length(6)">Locators</button>
+            </div>
+        </td>
+        <td>
+            <button id="wind_led" style="color: #0066FF; font-size: 18px;" class="fa-wind"></button>
+            <label>
+                Az: <span id="myaz"></span>
+                El: <span id="myel"></span>
+            </label>
+            <button id="pa_ready_led" onclick="send_toggle_pa()">PA Ready</button>
+            <button id="pa_active_led"onclick="send_toggle_qro()">QRO</button>
+            <button id="trx_rx_led">RX</button>
+            <button id="trx_tx_led">TX</button>
+        </td>
+        <td>
+
+        </td>
+        <td></td>
+    </tr>
+    <tr>
+        <td rowspan="3" style="width:50%">
+            <div style="float: top" id="map" class="map"></div>
+
+        </td>
+        <td>
+            <table>
+                <tr>
+                    <td>
+                        <fieldset>
+                            <label>Callsign: </label> <span id="my_callsign"></span> <br/>
+                            <label>Locator:</label> <span id="my_qth">JO67BQ</span><br/>
+                            <label>Antenna:</label> <span id="my_ant"></span><br/>
+                            <label>Altitude:</label> <span id="my_ant_asl"></span> m ASL<br/>
+                            <label>Tx:</label> <span id="my_tx"></span> <span id="my_pwr"></span> W<br/>
+                            <label>Rx:</label> <span id="my_rx"></span><br/>
+                            <label for="band_select"> Band:</label>
+                            <select id="band_select" onchange="send_band()">
+                                <option value="144">144</option>
+                                <option value="144-FT8">144-FT8</option>
+                                <option value="144-MSK">144-MSK</option>
+                                <option value="432">432</option>
+                                <option value="1296">1296</option>
+                            </select>
+                            <br/>
+                        </fieldset>
+                    </td>
+                    <td>
+                        <textarea id="log_remarks" rows="4" cols="50"></textarea>
+                        <br/>
+                        <button id="make_log" type="button" onclick="make_log()">Make log</button>
+                        <input id="wsjtx_upload" type="file" name="wsjtx_upload"/>
+                        <button id="wsjtx_upload-button" onclick="uploadWsjtxFile()"> Upload</button>
+                    </td>
+                </tr>
+            </table>
+        </td>
+        <td rowspan="3" style="width:20%">
+            <fieldset>
+                <table id="notestable" class="calllog">
+                    <tr>
+                        <th colspan="4" style="text-align: center"> Notes</th>
+                    </tr>
+                    <tr>
+                        <th style="display: none">Note ID</th>
+                        <th>Callsign</th>
+                        <th>Locator</th>
+                        <th>Frequency</th>
+                        <th></th>
+                    </tr>
+                    <tr>
+                        <td id="note_id" style="display:none;"></td>
+                        <td><!--suppress HtmlFormInputWithoutLabel -->
+                            <input style="text-transform: uppercase; width:6em;" id="note_callsign" type="text"
+                                   placeholder="Callsign"/></td>
+                        <td><!--suppress HtmlFormInputWithoutLabel -->
+                            <input style="text-transform: uppercase;width:6em;" id="note_locator" type="text"
+                                   placeholder="Locator"/></td>
+                        <td><!--suppress HtmlFormInputWithoutLabel -->
+                            <input style="width:6em;" id="note_frequency" type="text" placeholder="Frequency"/></td>
+                        <td id="commit_note_btn">
+                            <button type="button"><i class="fa fa-check" onclick="commit_new_note()"></i></button>
+                        </td>
+                    </tr>
+                </table>
+            </fieldset>
+        </td>
+    <tr>
+        <td>
+            <fieldset>
+                <div id="calllog" style="overflow-y:scroll; height:730px;">
+                    <table id="logtable" class="calllog">
+                        <tr>
+                            <th colspan="10" style="text-align:center;">Log</th>
+                        </tr>
+                        <tr>
+                            <th>QSO ID</th>
+                            <th style="width:4em;text-align:center;">Date</th>
+                            <th style="width:3em;text-align:center;">UTC
+                            <th style="width:3em;text-align:center;">Band/Fq
+                            <th>Call</th>
+                            <th>Tx</th>
+                            <th>Rx</th>
+                            <th>Loc</th>
+                            <th style="width:4em;">Distance</th>
+                            <th style="width:3em;text-align:center;">DaySQ#</th>
+                            <th style="width:3em;text-align:center;">Points</th>
+                            <th style="width:3em;text-align:center;">C/_</th>
+                            <th style="width:3em;text-align:center;">SQ#</th>
+                            <th></th>
+                        </tr>
+                        <tr>
+                            <td id="qso_id"></td>
+                            <td><input style="width: 8em;" id="new_qso_date"></td>
+                            <td><input style="width: 8em;" id="new_qso_time"></td>
+                            <td><input style="width: 8em;" id="new_qso_band"></td>
+                            <td><!--suppress HtmlFormInputWithoutLabel -->
+                                <input style="text-transform: uppercase;width:6em;" id="new_callsign" type="text"
+                                       placeholder="Callsign" onchange="begin_qso()"/></td>
+                            <td><!--suppress HtmlFormInputWithoutLabel -->
+                                <input style="width:5em" id="new_tx_rst" type="text" disabled="true"
+                                       onchange="send_report()" list="reports"/>
+                            </td>
+                            <td><!--suppress HtmlFormInputWithoutLabel -->
+                                <input style="width:5em" id="new_rx_rst" type="text" list="reports"/>
+                            </td>
+                            <td><!--suppress HtmlFormInputWithoutLabel -->
+                                <input style="text-transform: uppercase;width:6em;" id="new_locator" type="text"
+                                       placeholder="Locator" onchange="added_locator()"/></td>
+                            <td id="new_qso_distance" style="text-align: right"></td>
+                            <td id="new_qso_square" style="text-align: right"></td>
+                            <td id="new_qso_points" style="text-align: right"></td>
+                            <td/>
+                            <td id="commit_btn">
+                                <button type="button"><i class="fa fa-check" onclick="commit_new_qso()"></i></button>
+                                <button type="button"><i class="fa fa-minus" onclick="commit_incomplete_qso()"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </table>
+                    <datalist id="reports">
+                        <optgroup label="CW">
+                            <option value="599">599</option>
+                            <option value="589">589</option>
+                            <option value="579">579</option>
+                            <option value="569">569</option>
+                            <option value="559">559</option>
+                            <option value="549">549</option>
+                            <option value="539">539</option>
+                            <option value="529">529</option>
+                            <option value="519">519</option>
+                            <option></option>
+                        </optgroup>
+                        <optgroup label="Aurora">
+                            <option value="59A">59A</option>
+                            <option value="58A">58A</option>
+                            <option value="57A">57A</option>
+                            <option value="56A">56A</option>
+                            <option value="55A">55A</option>
+                            <option value="54A">54A</option>
+                            <option value="53A">53A</option>
+                            <option value="52A">52A</option>
+                            <option value="51A">51A</option>
+                        </optgroup>
+                        <optgroup label="SSB">
+                            <option value="59">59</option>
+                            <option value="58">58</option>
+                            <option value="57">57</option>
+                            <option value="56">56</option>
+                            <option value="55">55</option>
+                            <option value="54">54</option>
+                            <option value="53">53</option>
+                            <option value="52">52</option>
+                            <option value="51">51</option>
+                        </optgroup>
+                    </datalist>
+                </div>
+            </fieldset>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <form action="" method="POST">
+                <fieldset>
+                    <div class="slidecontainer">
+                        <label for="cwSpeedSlider">CW speed chars/min: <span id="cwSpeedValue"></span></label><br/>
+                        <input type="range" min="60" max="150" value="90" class="slider" id="cwSpeedSlider">
+                        <script>
+                            var slider = document.getElementById("cwSpeedSlider");
+                            var output = document.getElementById("cwSpeedValue");
+                            output.innerHTML = slider.value;
+
+                            slider.oninput = function () {
+                                output.innerHTML = this.value;
+                                set_cw_speed(this.value);
+                            }
+                        </script>
+                        <br/>
+                        <button id="send_cq_1" type="button" onclick="transmit_cq()">Send CQ</button>
+                        <button id="send_cq_2" type="button" onclick="transmit_cq_test()">Send CQ test</button>
+                        <button id="send_cq_3" type="button" onclick="transmit_cq_a()">Send CQ A</button>
+
+                        <br/>
+
+                    </div>
+                </fieldset>
+            </form>
+        </td>
+    </tr>
+</table>
+
+
+<form id="QSO" style="display: none">
+    <label for="callsign">Callsign</label><br>
+    <input type="text" id="callsign" name="call">
+</form>
+<div id="notes" class="notes"></div>
+
+<script src="{{ url_for('static', filename='js/vendor/modernizr-3.11.2.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/plugins.js') }}"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDyHlT4j3tWgPK1FkTFZfsSskSIkYTS5Sw&v=weekly"
+></script>
+
+<script>
+    function initButtonGroup(parentId) {
+        var buttonGroup = document.getElementById(parentId),
+            i = 0,
+            len = buttonGroup.childNodes.length,
+            button;
+        handleButtonGroupClick = initClickHandler(parentId);
+
+        for (; i < len; i += 1) {
+            button = buttonGroup.childNodes[i];
+            if (button.nodeName === 'BUTTON') {
+                button.addEventListener('click', handleButtonGroupClick);
+            }
+        }
+    }
+
+    function initClickHandler(parentId) {
+        return function (e) {
+            var buttonGroup = document.getElementById(parentId),
+                i = 0,
+                len = buttonGroup.childNodes.length,
+                button;
+
+            e.preventDefault();
+
+            for (; i < len; i += 1) {
+                button = buttonGroup.childNodes[i];
+                if (button.nodeName === 'BUTTON') {
+                    button.className = '';
+                }
+            }
+
+            e.target.className = 'active';
+        };
+    }
+
+    initButtonGroup('locatorButtons');
+</script>
+
+<script>
+    async function uploadWsjtxFile() {
+        let formData = new FormData();
+        formData.append("file", wsjtx_upload.files[0]);
+        await fetch('/wsjtx_upload', {
+            method: "POST",
+            body: formData
+        });
+        alert('The file has been uploaded successfully.');
+    }
+</script>
+
+<script>
+    var map = new google.maps.Map(document.getElementById("map"), {
+            center: {lat: 0.0, lng: 0.0},
+            zoom: 8,
+        }
+    );
+</script>
+
+<!--suppress JSUnusedLocalSymbols -->
+<script>
+    function download(filename, text) {
+        var element = document.createElement('a');
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+        element.setAttribute('download', filename);
+
+        element.style.display = 'none';
+        document.body.appendChild(element);
+
+        element.click();
+
+        document.body.removeChild(element);
+    }
+
+    function send_calibrate(az) {
+        console.log("Sending calibrate");
+        socket.emit('calibrate', {});
+    }
+
+    function send_stop(az) {
+        console.log("Sending stop");
+        socket.emit('stop', {});
+    }
+
+    function send_release(az) {
+        send_stop();
+        console.log("Sending release");
+        socket.emit('untrack', {});
+    }
+
+    function send_az(az) {
+        console.log("Pointing North");
+        socket.emit('set_az', {'az': 0});
+    }
+
+    function send_toggle_qro() {
+        console.log("Toggling qro")
+        socket.emit("toggle_qro", {});
+    }
+
+    function send_toggle_pa() {
+        console.log("Toggling PA")
+        socket.emit("toggle_pa", {});
+    }
+
+    function make_log() {
+        console.log("Making a log");
+        band_select = document.getElementById("band_select").value;
+        log_remarks = document.getElementById("log_remarks").value;
+        socket.emit("make_log", {"band": band_select, "log_remarks": log_remarks});
+        socket.once("log_data", function (json) {
+                contest_log = json["contest_log"];
+                download("contest_log.txt", contest_log);
+            }
+        );
+    }
+
+    function transmit_cq_test(az) {
+        console.log("Sending CQ test");
+        socket.emit('transmit_cw', {'msg': "cq cq cq test de sm6fbq sm6fbq test k"});
+    }
+
+    function transmit_cq(az) {
+        console.log("Sending CQ");
+        socket.emit('transmit_cw', {'msg': "cq cq cq de sm6fbq sm6fbq sm6fbq +k"});
+    }
+
+    function transmit_cq_a(az) {
+        console.log("Sending CQ A");
+        socket.emit('transmit_cw', {'msg': "cq a cq a cq a de sm6fbq sm6fbq sm6fbq +k"});
+    }
+
+    function send_track_az(az) {
+        let track_az = $('input.trkaz').val()
+        console.log("Tracking azimuth " + track_az);
+        socket.emit('track az', {'az': track_az});
+    }
+
+    function send_track_wind(az) {
+        console.log("Tracking the wind ");
+        socket.emit('track wind', {});
+    }
+
+    function set_cw_speed(speed) {
+        console.log("Setting CW speed to " + speed);
+        socket.emit('set_cw_speed', {'speed': speed});
+    }
+
+    function send_set_map_mh_length(len) {
+        console.log("Setting mh map length to " + len);
+        socket.emit("set_map_mh_length", {'length': len})
+    }
+
+</script>
+
+<script>
+    var upstreamIcon = {
+        path: 'M28.6,17.5L16.1,4.9l0,0 c-0.1-0.1-0.2-0.2-0.3-0.2c0,0-0.1,0-0.1-0.1c-0.1,0-0.1-0.1-0.2-0.1c-0.1,0-0.1,0-0.2-0.1c0,0-0.1,0-0.1,0c-0.1,0-0.2,0-0.3,0 c0,0,0,0,0,0l0,0c-0.1,0-0.2,0-0.3,0c-0.1,0-0.1,0-0.1,0c-0.1,0-0.1,0-0.2,0.1c-0.1,0-0.1,0.1-0.2,0.1c0,0-0.1,0-0.1,0.1 c-0.1,0.1-0.2,0.1-0.3,0.2c0,0,0,0,0,0l0,0c0,0,0,0,0,0L1,17.5l0,0c-0.7,0.7-0.7,1.8,0,2.5s1.8,0.7,2.5,0l9.6-9.6 c0,6.7,0,34.2,0,34.2c0,1,0.8,1.7,1.7,1.7s1.7-0.8,1.7-1.7V10.4l9.6,9.6c0.7,0.7,1.8,0.7,2.5,0S29.3,18.2,28.6,17.5z',
+        fillColor: '#fbb040',
+        fillOpacity: 1,
+        scale: 1.5,
+        strokeColor: '#000',
+        strokeWeight: 0.5,
+        origin: new google.maps.Point(0, 0),
+        anchor: new google.maps.Point(15, 50),
+        rotation: 44,
+    }
+
+    var marker = new google.maps.Marker({
+        // The below line is equivalent to writing:
+        // position: new google.maps.LatLng(-34.397, 150.644)
+        position: {lat: 0.0, lng: 0.0},
+        icon: upstreamIcon,
+        draggable: true,
+        map: map,
+    });
+    const infowindow = new google.maps.InfoWindow({
+        content: "<p>Marker Location:</p>",
+    });
+    google.maps.event.addListener(marker, "click", () => {
+        infowindow.content = "<p>Marker Location:" + marker.getPosition() + "</p><p>Rotation:" + marker.icon.rotation + "</p>"
+        infowindow.open(map, marker);
+    });
+
+    function setAzimuth(az) {
+        var icon = marker.getIcon();
+        icon.rotation = az;
+        marker.setIcon(icon);
+        document.getElementById("myaz").innerHTML = az
+    }
+
+    function setElevation(el) {
+        document.getElementById("myel").innerHTML = el
+    }
+
+
+    function setOrigo(lat, lon, qth, n, s, w, e) {
+        marker.setPosition({"lat": lat, "lng": lon});
+        document.getElementById("my_qth").innerHTML = qth;
+        map.setCenter({"lat": lat, "lng": lon});
+        // console.log("Moved map center to " + lat + " " + lon)
+        addRect(qth, n, s, w, e);
+    }
+
+    function updateClass(msg) {
+        console.log(msg)
+        console.log("ForID=", msg.forId)
+        element = document.getElementById(msg.forId)
+
+        console.log("Element==", element)
+        if (msg.value) {
+            element.classList.add(msg.class);
+        } else {
+            element.classList.remove(msg.class);
+        }
+    }
+
+    function setMyData(msg) {
+        document.getElementById("my_callsign").innerHTML = msg.my_callsign;
+        document.getElementById("my_ant").innerHTML = msg.my_ant;
+        document.getElementById("my_ant_asl").innerHTML = msg.my_ant_asl;
+        document.getElementById("my_tx").innerHTML = msg.my_tx;
+        document.getElementById("my_rx").innerHTML = msg.my_rx;
+        document.getElementById("my_pwr").innerHTML = msg.my_pwr;
+        current_band = msg.current_band;
+        document.getElementById("band_select").value = current_band;
+    }
+
+    function addRect(id, n, s, w, e) {
+        var my_rect = new google.maps.Rectangle();
+        my_rect.setOptions({
+            strokeColor: "#255f58",
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: "#3f4738",
+            fillOpacity: 0.35,
+            id: id,
+            map,
+            bounds: {"north": n, "south": s, "west": w, "east": e}
+        })
+    }
+
+    var new_qso = {};
+    var new_note = {};
+
+    function begin_qso() {
+        new_qso['callsign'] = document.getElementById('new_callsign').value;
+
+        if (document.getElementById('new_qso_date').value.length == 0) {
+            new_qso['date'] = new Date().toISOString().split('T')[0];
+            document.getElementById('new_qso_date').value = new_qso['date'];
+        } else {
+            new_qso['date'] = document.getElementById('new_qso_date').value;
+        }
+
+        if (document.getElementById('new_qso_time').value.length == 0) {
+            let time = new Date().toISOString().split('T')[1];
+            new_qso['time'] = time.substring(0, 2) + time.substring(3, 5);
+            document.getElementById('new_qso_time').value = new_qso['time'];
+        } else {
+            new_qso['time'] = document.getElementById('new_qso_time').value
+        }
+        document.getElementById("new_tx_rst").disabled = false
+    }
+
+    function send_report() {
+        console.log("Trying to send report")
+        tx_report = document.getElementById("new_tx_rst").value
+        rx_report = document.getElementById("new_rx_rst").value
+        new_loc = document.getElementById("new_locator").value
+        if (tx_report.length > 2) {
+            console.log("Sending report")
+            if (rx_report.length >= 2 && new_loc.length == 6) {
+                console.log("Sending report with R")
+                socket.emit('transmit_cw', {'msg': ` R TNX ur ${tx_report} ${tx_report}/JO67BQ JO67BQ §`});
+            } else {
+                console.log("Sending report without R")
+                socket.emit('transmit_cw', {'msg': `${new_qso['callsign']} de sm6fbq ur ${tx_report} ${tx_report}/JO67BQ JO67BQ §`});
+            }
+            document.getElementById("new_tx_rst").disabled = true
+        } else {
+            console.log("No report sent")
+        }
+    }
+
+    function send_band() {
+        console.log("Trying to send band_select")
+        band_select = document.getElementById("band_select").value
+        socket.emit('band_select', {'band': band_select});
+    }
+
+    function make_qso(id) {
+
+        console.log("Making qso from note ", id)
+        let myTab = document.getElementById('notestable');
+        rowid = table_id_to_row(myTab, id)
+        remote_callsign = myTab.rows[rowid].cells[1].innerHTML
+        remote_locator = myTab.rows[rowid].cells[2].innerHTML
+
+        new_qso['callsign'] = remote_callsign
+        new_qso['locator'] = remote_locator
+        new_qso['date'] = new Date().toISOString().split('T')[0];
+        let time = new Date().toISOString().split('T')[1];
+        new_qso['time'] = time.substring(0, 2) + time.substring(3, 5);
+        document.getElementById('new_qso_date').value = new_qso['date'];
+        document.getElementById('new_qso_time').value = new_qso['time'];
+        document.getElementById('new_qso_band').value = new_qso['band'];
+        document.getElementById('new_callsign').value = new_qso['callsign'];
+        document.getElementById('new_locator').value = new_qso['locator'];
+        added_locator()
+        document.getElementById("new_tx_rst").disabled = false
+    }
+
+    function added_locator() {
+        new_qso['locator'] = document.getElementById('new_locator').value;
+        socket.emit("lookup_locator", new_qso);
+        socket.once("locator_data", function (json) {
+            document.getElementById("new_qso_distance").innerText = json["distance"]
+            document.getElementById("new_qso_square").innerText = json["square"]
+            document.getElementById("new_qso_points").innerText = json["points"]
+            new_qso['distance'] = json["distance"]
+            new_qso['square'] = json['square']
+            new_qso['points'] = json['points']
+        });
+    }
+
+    function enter_qso_in_table(qso) {
+
+        var table = document.getElementById("logtable");
+        // rowcount = table.rows.length
+        var row = table.insertRow(3);
+        col = 0;
+        var qso_id = row.insertCell(col++);
+        // qso_id.style = "display:none";
+        var date = row.insertCell(col++);
+        var time = row.insertCell(col++);
+        var band = row.insertCell(col++);
+        var callsign = row.insertCell(col++);
+        var tx = row.insertCell(col++);
+        var rx = row.insertCell(col++);
+        var loc = row.insertCell(col++);
+        var distance = row.insertCell(col++);
+        distance.style = "text-align:right";
+        var square = row.insertCell(col++);
+        square.style = "text-align:right";
+        var points = row.insertCell(col++);
+        points.style = "text-align:right";
+        var completeness = row.insertCell(col++);
+        var acc_sqn = row.insertCell(col++);
+        acc_sqn.style = "text-align:right";
+        var action = row.insertCell(col++);
+
+        qso_id.innerHTML = qso["id"];
+        date.innerHTML = qso["date"];
+        time.innerHTML = qso["time"];
+        band.innerHTML = qso["band"];
+        callsign.innerHTML = qso["callsign"].toUpperCase()
+        tx.innerHTML = qso["tx"]
+        rx.innerHTML = qso["rx"]
+        loc.innerHTML = qso["locator"].toUpperCase()
+        distance.innerHTML = qso["distance"]
+        square.innerHTML = qso["square"]
+        acc_sqn.innerHTML = qso["acc_sqn"]
+        if (qso["complete"]) {
+            points.innerHTML = qso["points"]
+            completeness.innerHTML = "C"
+        } else {
+            completeness.innerHTML = "-"
+        }
+        action.innerHTML = `<button type="button"><i class="fa fa-ban" onclick="delete_qso(${qso["id"]})"></i> </button>`
+    }
+
+    var max_notes_row_id = 10
+
+    function enter_note_in_table(note) {
+
+        var table = document.getElementById("notestable");
+        rowcount = table.rows.length
+        var row = table.insertRow(rowcount - 1);
+        var note_id = row.insertCell(0);
+        var callsign = row.insertCell(1);
+        var locator = row.insertCell(2);
+        var frequency = row.insertCell(3);
+        var action = row.insertCell(4);
+
+        note_id.innerHTML = max_notes_row_id
+        note_id.style = "display:none;"
+
+        callsign.innerHTML = note["callsign"].toUpperCase()
+        locator.innerHTML = note["locator"].toUpperCase()
+        frequency.innerHTML = note["frequency"]
+
+        cs = note["callsign"]
+
+        action.innerHTML = `<button type="button"><i class="fa fa-ban" onclick="delete_note(${max_notes_row_id})"></i> </button>`
+        if (undefined !== cs && cs.length > 0) {
+            action.innerHTML += `<button type="button"><i class="fa fa-bolt" onclick="cw_call(${max_notes_row_id})"></i></button>`
+            action.innerHTML += `<button type="button"><i class="fa fa-check" onclick="make_qso(${max_notes_row_id})"></i></button>`
+        } else {
+            action.innerHTML += `<button type="button" disabled="true" ><i class="fa fa-bolt" onclick="cw_call(${max_notes_row_id})"></i></button>`
+            action.innerHTML += `<button type="button" disabled="true"><i class="fa fa-check" onclick="make_qso(${max_notes_row_id})"></i></button>`
+        }
+        max_notes_row_id += 1
+    }
+
+    function table_id_to_row(table, id) {
+
+        for (i = 1; i < table.rows.length; i++) {
+            let objCells = table.rows.item(i).cells;
+            if (objCells.item(0).innerHTML == id) {
+                return i
+            }
+        }
+        return undefined
+    }
+
+
+    function delete_note(id) {
+        console.log("Deleting note id ", id)
+        let myTab = document.getElementById('notestable');
+        myTab.deleteRow(table_id_to_row(myTab, id))
+
+    }
+
+    function cw_call(id) {
+        console.log("Cw calling ", id)
+        let myTab = document.getElementById('notestable');
+        rowid = table_id_to_row(myTab, id)
+        remote_callsign = myTab.rows[rowid].cells[1].innerHTML
+        socket.emit('transmit_cw', {'msg': `${remote_callsign} de sm6fbq sm6fbq k`});
+    }
+
+    function clear_qso_entry_row() {
+
+        document.getElementById("new_qso_date").value = ""
+        document.getElementById("new_qso_time").value = ""
+        document.getElementById("new_qso_band").value = ""
+        document.getElementById("new_callsign").value = ""
+        document.getElementById("new_tx_rst").value = ""
+        document.getElementById("new_rx_rst").value = ""
+        document.getElementById("new_locator").value = ""
+        document.getElementById("new_qso_distance").innerText = ""
+        document.getElementById("new_qso_square").innerText = ""
+        document.getElementById("new_qso_points").innerText = ""
+    }
+
+    function clear_note_entry_row() {
+
+        document.getElementById("note_callsign").value = ""
+        document.getElementById("note_locator").value = ""
+        document.getElementById("note_frequency").value = ""
+    }
+
+    function clear_qso_table() {
+        var table = document.getElementById("logtable");
+        rowcount = table.rows.length
+        if (rowcount <= 3)
+            return
+        for (i = 0; i < rowcount - 3; i++)
+            table.deleteRow(2)
+    }
+
+    function delete_qso(id) {
+        console.log("Deleting QSO id ", id)
+        let myTab = document.getElementById('logtable');
+        socket.emit("delete_qso", {'id': id})
+        myTab.deleteRow(table_id_to_row(myTab, id))
+    }
+
+    function commit_new_qso() {
+        new_qso["tx"] = document.getElementById("new_tx_rst").value
+        new_qso["rx"] = document.getElementById("new_rx_rst").value
+        new_qso["date"] = document.getElementById("new_qso_date").value
+        new_qso["time"] = document.getElementById("new_qso_time").value
+        new_qso["band"] = document.getElementById("new_qso_band").value
+        new_qso["complete"] = true;
+
+
+        socket.emit("commit_qso", new_qso,);
+
+        socket.once("qso_committed", function (json) {
+            new_qso["id"] = json["id"]
+            enter_qso_in_table(new_qso)
+            if (new_qso["rx"].length > 2) {
+                socket.emit('transmit_cw', {'msg': 'RR FB 73 # ee'})
+            }
+            clear_qso_entry_row()
+        });
+    }
+
+    function commit_incomplete_qso() {
+        new_qso["date"] = document.getElementById("new_qso_date").value
+        new_qso["time"] = document.getElementById("new_qso_time").value
+        new_qso["band"] = document.getElementById("new_qso_band").value
+        new_qso["tx"] = document.getElementById("new_tx_rst").value
+        new_qso["rx"] = document.getElementById("new_rx_rst").value
+        new_qso["complete"] = false;
+
+        socket.emit("commit_qso", new_qso);
+
+        socket.once("qso_committed", function (json) {
+            new_qso["id"] = json["id"]
+            enter_qso_in_table(new_qso)
+            clear_qso_entry_row()
+        });
+    }
+
+    function commit_new_note() {
+        new_note = {
+            "callsign": "",
+            "locator": "",
+            "frequency": "",
+        }
+
+
+        new_note["callsign"] = document.getElementById("note_callsign").value
+        new_note["locator"] = document.getElementById("note_locator").value
+        new_note["frequency"] = document.getElementById("note_frequency").value
+
+
+        //socket.emit("commit_note", new_note);
+        //
+        //socket.once("note_committed", function (json) { //
+        //    new_qso["id"] = json["id"] });
+        cs = new_note["callsign"]
+        loc = new_note["locator"]
+        if ((undefined === cs || cs.length === 0) && (undefined === loc || loc.length === 0)) {
+            return
+        }
+        enter_note_in_table(new_note)
+        clear_note_entry_row()
+    }
+
+    function rmRect(id) {
+        document.getElementById(id).setMap(null)
+    }
+</script>
+<script>
+
+</script>
+</body>
+</html>
