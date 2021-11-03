@@ -113,7 +113,7 @@ class AzElControl:
 		                0b1011: -1
 		                }
 
-		self.last_sense = self.p1.byte_read(0xff)
+		self.last_sense = self.p21.byte_read(0xff)
 		self.last_p2_sense = None
 		self.az_target = None
 		self.el = 0
@@ -168,7 +168,7 @@ class AzElControl:
 	def wind_thread_function(self, azel):
 		while True:
 			if azel.tracking_wind:
-				mn, ms, mw, me, my_lat, my_lon = mh.to_rect(self.app.ham_op.my_qth)
+				mn, ms, mw, me, my_lat, my_lon = mh.to_rect(self.app.ham_op.my_qth())
 				ret = requests.get(
 					url="https://api.met.no/weatherapi/nowcast/2.0/complete?altitude=125&lat=%f&lon=%f" % (my_lat, my_lon),
 					headers={"User-Agent": "bernerus.se info@bernerus.se"})
@@ -298,7 +298,7 @@ class AzElControl:
 		# print("Stop azimuth rotation")
 		self.rotating_ccw = False
 		self.rotating_cw = False
-		# self.p0.byte_write(0xff, ~self.STOP_AZ)
+		# self.p20.byte_write(0xff, ~self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ, LOW)
 		self.p20.bit_write(P20_ROTATE_CW, HIGH)
 		# print("Stopped azimuth rotation")
@@ -309,10 +309,10 @@ class AzElControl:
 		# print("Rotate anticlockwise")
 		self.rotating_ccw = True
 		self.rotating_cw = False
-		# self.p0.byte_write(0xff, self.STOP_AZ)
+		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ, HIGH)
 		time.sleep(0.1)
-		# self.p0.byte_write(0xff, ~self.AZ_TIMER)
+		# self.p20.byte_write(0xff, ~self.AZ_TIMER)
 		self.p20.bit_write(P20_ROTATE_CW, HIGH)
 		self.p20.bit_write(P20_AZ_TIMER, LOW)
 		print("Rotating anticlockwise")
@@ -321,12 +321,12 @@ class AzElControl:
 		# print("Rotate clockwise")
 		self.rotating_cw = True
 		self.rotating_ccw = False
-		# self.p0.byte_write(0xff, self.STOP_AZ)
+		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ, HIGH)
 		time.sleep(0.1)
 		self.p20.bit_write(P20_ROTATE_CW, LOW)
 		self.p20.bit_write(P20_AZ_TIMER, LOW)
-		# self.p0.byte_write(0xFF, ~(self.AZ_TIMER | self.ROTATE_CW))
+		# self.p20.byte_write(0xFF, ~(self.AZ_TIMER | self.ROTATE_CW))
 		print("Rotating clockwise")
 
 	def interrupt_dispatch(self, _channel):
