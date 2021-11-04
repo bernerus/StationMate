@@ -129,7 +129,7 @@ class HamOp:
         cur = self.db.cursor()
         cur.execute(
             """SELECT qsoid, date, time, callsign, tx, rx, locator, distance, square, points, complete, mode, accumulated_sqn, band
-               FROM nac_log_new WHERE date >= %s and date <= %s and time >= %s and time <= %s ORDER BY date, time""", args)
+               FROM nac_log_new WHERE date >= %s and date <= %s and ((time >= %s and time <= %s) or time is null) ORDER BY date, time""", args)
 
         rows = cur.fetchall()
         return rows
