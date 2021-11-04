@@ -252,7 +252,7 @@ def goodbye():
 
 if __name__ == '__main__':
     try:
-        socket_io.run(app, host='0.0.0.0', port=8877, log_output=True, debug=True)
+        socket_io.run(app, host='0.0.0.0', port=8877, log_output=False, debug=False)
     finally:
         app.azel.az_stop()
         pass

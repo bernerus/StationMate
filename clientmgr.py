@@ -110,6 +110,8 @@ class ClientMgr:
         self.add_mhs_on_map([loc])
 
     def status_push(self, current, force=False):
+        if current is None:
+            return
         if current != self.last_pushed_status or self.last_pushed_status is None or force:
             if self.app.ham_op.pa_running:
                 if current & P27_PA_READY:
@@ -188,7 +190,16 @@ class ClientMgr:
         qsos = []
         mhs = []
         self.mhs_on_map = []
+        mhsqnumber = 0
+        mhsqs = set()
         for row in rows:
+            mhsq = row[6][:4]
+            newmsqn = None
+            if mhsq not in mhsqs and self.current_band.split('-')[0] in row[13] :
+                newmsqn = len(mhsqs)+1
+                mhsqs.add(mhsq)
+
+
             qso = {"id": row[0],
                    "date": row[1],
                    "time": row[2],
@@ -201,7 +212,7 @@ class ClientMgr:
                    "points": row[9],
                    "complete": row[10],
                    "mode": row[11],
-                   "acc_sqn": row[12],
+                   "acc_sqn": newmsqn,
                    "band": row[13],
                    }
             qsos.append(qso)

@@ -310,10 +310,9 @@
                             <th>Rx</th>
                             <th>Loc</th>
                             <th style="width:4em;">Distance</th>
-                            <th style="width:3em;text-align:center;">DaySQ#</th>
                             <th style="width:3em;text-align:center;">Points</th>
-                            <th style="width:3em;text-align:center;">C/_</th>
                             <th style="width:3em;text-align:center;">SQ#</th>
+                            <th style="width:3em;text-align:center;">C/_</th>
                             <th></th>
                         </tr>
                         <tr>
@@ -335,7 +334,6 @@
                                 <input style="text-transform: uppercase;width:6em;" id="new_locator" type="text"
                                        placeholder="Locator" onchange="added_locator()"/></td>
                             <td id="new_qso_distance" style="text-align: right"></td>
-                            <td id="new_qso_square" style="text-align: right"></td>
                             <td id="new_qso_points" style="text-align: right"></td>
                             <td/>
                             <td id="commit_btn">
@@ -776,13 +774,11 @@
         var loc = row.insertCell(col++);
         var distance = row.insertCell(col++);
         distance.style = "text-align:right";
-        var square = row.insertCell(col++);
-        square.style = "text-align:right";
         var points = row.insertCell(col++);
         points.style = "text-align:right";
-        var completeness = row.insertCell(col++);
         var acc_sqn = row.insertCell(col++);
         acc_sqn.style = "text-align:right";
+        var completeness = row.insertCell(col++);
         var action = row.insertCell(col++);
 
         qso_id.innerHTML = qso["id"];
@@ -794,7 +790,7 @@
         rx.innerHTML = qso["rx"]
         loc.innerHTML = qso["locator"].toUpperCase()
         distance.innerHTML = qso["distance"]
-        square.innerHTML = qso["square"]
+        // square.innerHTML = qso["square"]
         acc_sqn.innerHTML = qso["acc_sqn"]
         if (qso["complete"]) {
             points.innerHTML = qso["points"]
