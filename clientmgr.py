@@ -4,9 +4,10 @@ from p27_defs import *
 
 from flask_socketio import emit
 from flask import current_app
-from datetime import date
+from datetime import date, datetime
 
 import locator.src.maidenhead as mh
+from contest_log import get_contest_times
 
 msg_q = queue.Queue()
 thread_lock = Lock()
@@ -31,10 +32,6 @@ def status_update_thread(app):
             app.client_mgr.status_push(current_status)
             app.socket_io.sleep(0.5)
 
-def send_reload():
-    msg_q.put(("globalReload", {}))
-
-
 def send_update(key, clazz, value):
     msg_q.put(("update_class", {"forId": key, "class": clazz, "value": value}))
 
@@ -57,17 +54,40 @@ class ClientMgr:
         self.mhs_on_map = []
         self.distinct_mhs_on_map = False
 
+        self.show_log_since = None
+        self.show_log_until = None
+        self.current_log_scope = "Forever"
+
         pass
 
     def get_map_mh_length(self):
         return self.map_mh_length
 
     def set_map_mh_length(self, length):
-        self.map_mh_length = length
-        if length < 6:
-            self.distinct_mhs_on_map = True
-        else:
-            self.distinct_mhs_on_map = False
+        if length != self.get_map_mh_length():
+            print("Setting map MH length to ", length)
+            self.map_mh_length = length
+            if length < 6:
+                self.distinct_mhs_on_map = True
+            else:
+                self.distinct_mhs_on_map = False
+            self.send_reload()
+
+    def set_log_scope(self, scope):
+        if scope != self.current_log_scope:
+            self.current_log_scope = scope
+            if scope == "Forever":
+                self.show_log_since = None
+                self.show_log_until = None
+            elif scope == "Today":
+                self.show_log_since = datetime.today()
+                self.show_log_until = None
+            elif scope == "Contest":
+                fr, to = get_contest_times(self.current_band)
+                self.show_log_since = datetime.strptime(fr, "%Y-%m-%d %H:%M:%S")
+                self.show_log_until = datetime.strptime(to, "%Y-%m-%d %H:%M:%S")
+            self.send_reload()
+
 
     def add_mhs_on_map(self, mhs):
         distinct = self.distinct_mhs_on_map
@@ -164,7 +184,7 @@ class ClientMgr:
 
         emit('my_response', {'data': 'Connected', 'count': 0})
 
-        rows = self.app.ham_op.get_log_rows()
+        rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
         qsos = []
         mhs = []
         self.mhs_on_map = []
@@ -185,7 +205,7 @@ class ClientMgr:
                    "band": row[13],
                    }
             qsos.append(qso)
-            if self.app.azel.current_band in row[13]:
+            if self.current_band.split('-')[0] in row[13]:
                 mhs.append(row[6])
 
         emit("add_qsos", qsos)
@@ -227,11 +247,13 @@ class ClientMgr:
         new_band = json.get("band", "144")
         if new_band != self.current_band:
             self.current_band = new_band
-            send_reload()
+            self.send_reload()
 
     def emit_log(self, json):
         emit("log_data", json)
 
+    def send_reload(self):
+        msg_q.put(("globalReload", {}))
 
 def circle(size, user_location):
     c = {  # draw circle on map (user_location as center)

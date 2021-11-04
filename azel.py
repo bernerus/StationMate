@@ -120,7 +120,6 @@ class AzElControl:
 		self.inc = 0
 		self.inc = 0
 		self.az = 0
-		self.current_band = "432"
 		self.wind_thread = None
 		self.tracking_wind = False
 		self.last_tracking_wind = None

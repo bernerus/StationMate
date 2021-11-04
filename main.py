@@ -125,11 +125,12 @@ def calibrate(_json):
 @socket_io.event
 def set_map_mh_length(json):
     length = int(json["length"])
-    print("Setting map MH length to ", length)
-    current_length = app.client_mgr.get_map_mh_length()
-    if length != current_length:
-        app.client_mgr.set_map_mh_length(length)
-        app.client_mgr.send_reload()
+    app.client_mgr.set_map_mh_length(length)
+
+@socket_io.event
+def set_log_scope(json):
+    scope = json["scope"]
+    app.client_mgr.set_log_scope(scope)
 
 
 @socket_io.event
@@ -227,6 +228,21 @@ def handle_track_az(json):
     app.ham_op.az_track(json["az"])
 
 
+@socket_io.event()
+def commit_qso(qso):
+    new_qso_id = app.ham_op.do_commit_qso(qso)
+    qso["id"] = new_qso_id
+    emit("qso_committed", qso)
+
+
+@socket_io.event()
+def delete_qso(qso):
+    app.ham_op.do_delete_qso(qso)
+
+@socket_io.on('disconnect')
+def test_disconnect():
+    print('Client disconnected', request.host)
+
 @atexit.register
 def goodbye():
     print("Goodbye!!")
@@ -236,7 +252,7 @@ def goodbye():
 
 if __name__ == '__main__':
     try:
-        socket_io.run(app, host='0.0.0.0', port=8877, log_output=False, debug=False)
+        socket_io.run(app, host='0.0.0.0', port=8877, log_output=True, debug=True)
     finally:
         app.azel.az_stop()
         pass

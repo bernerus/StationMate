@@ -34,8 +34,7 @@ def is_dst(dt=None, timezone="UTC"):
     timezone_aware_date = timezone.localize(dt, is_dst=None)
     return timezone_aware_date.tzinfo._dst.seconds != 0
 
-def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
-    band_on_tuesday_number = {
+band_on_tuesday_number = {
         "144": 0,
         "144-FT8": 0,
         "144-MSK": 0,
@@ -44,23 +43,30 @@ def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
         "1296": 2,
     }
 
-    contest_log = StringWrapper()  # Type: Optional[SupportsWrite[str]]
-
+def get_contest_times(band_and_mode, tuesday_number=None):
     if tuesday_number is None:
         tuesday_number = band_on_tuesday_number[band_and_mode]
 
     test_date = get_nth_tuesday_this_month(tuesday_number)
     dst = is_dst(test_date, timezone="CET")
     utcstart = "18:00:00" if not dst else "17:00:00"
-    utcend = "23:00:00" if not dst else "23:00:00"
-
-    db = psycopg2.connect(dbname='ham_station')
-
-    band = int(band_and_mode.split('-')[0])
+    utcend = "23:00:00" if not dst else "22:00:00"
 
     t_date_start = test_date.isoformat()[:10] + " " + utcstart
     t_date_stop = test_date.isoformat()[:10] + " " + utcend
-    # t_name = "NAC %s %s %s" % (band, calendar.month_abbr[test_date.month], test_date.year)
+
+    return t_date_start, t_date_stop
+
+
+def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
+
+    contest_log = StringWrapper()  # Type: Optional[SupportsWrite[str]]
+
+    t_date_start, t_date_stop = get_contest_times(band_and_mode, tuesday_number)
+
+    band = int(band_and_mode.split('-')[0])
+
+    db = psycopg2.connect(dbname='ham_station')
 
     prefixes = {
         "LA": "NO",

@@ -179,20 +179,35 @@
     </tr>
     <tr>
         <td>
-            <!--suppress HtmlFormInputWithoutLabel -->
-            <input type="text" class="trkaz" placeholder="Track az"/>
-            <button id="track_button" type="submit" onclick="send_track_az()">Track</button>
-            <button id="calibrate_button" type="button" onclick="send_calibrate()">Calibrate</button>
-            <button id="stop_button" type="button" onclick="send_stop()">Stop</button>
-            <button id="release_button" type="button" onclick="send_release()">Release</button>
-            <button id="pointing_north_button" type="button" onclick="send_az()">Pointing North</button>
-            <button id="track_wind_button" type="button" onclick="send_track_wind()">Track wind</button>
-            <br/>
-            <div id="locatorButtons">
-                <button id="loc_fields"  onclick="send_set_map_mh_length(2)" >Fields</button>
-                <button id="loc_squares" onclick="send_set_map_mh_length(4)">Squares</button>
-                <button id="loc_locators" onclick="send_set_map_mh_length(6)">Locators</button>
-            </div>
+            <table id="map_control">
+                <tr>
+                    <td>
+                    <!--suppress HtmlFormInputWithoutLabel -->
+                    <input type="text" class="trkaz" placeholder="Track az"/>
+                    <button id="track_button" type="submit" onclick="send_track_az()">Track</button>
+                    <button id="calibrate_button" type="button" onclick="send_calibrate()">Calibrate</button>
+                    <button id="stop_button" type="button" onclick="send_stop()">Stop</button>
+                    <button id="release_button" type="button" onclick="send_release()">Release</button>
+                    <button id="pointing_north_button" type="button" onclick="send_az()">Pointing North</button>
+                    <button id="track_wind_button" type="button" onclick="send_track_wind()">Track wind</button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div id="locatorButtons">
+                            <button id="loc_fields"  onclick="send_set_map_mh_length(2)" >Fields</button>
+                            <button id="loc_squares" onclick="send_set_map_mh_length(4)">Squares</button>
+                            <button id="loc_locators" onclick="send_set_map_mh_length(6)">Locators</button>
+                        </div>
+                    </td>
+                    <td>
+                        Log scope:
+                        <button id="log_scope_forever" onclick="send_set_log_scope('Forever')" >Forever</button>
+                        <button id="log_scope_today" onclick="send_set_log_scope('Today')" >Today</button>
+                        <button id="log_scope_contest" onclick="send_set_log_scope('Contest')" >Contest</button>
+                    </td>
+                </tr>
+            </table>
         </td>
         <td>
             <button id="wind_led" style="color: #0066FF; font-size: 18px;" class="fa-wind"></button>
@@ -564,6 +579,11 @@
     function send_set_map_mh_length(len) {
         console.log("Setting mh map length to " + len);
         socket.emit("set_map_mh_length", {'length': len})
+    }
+
+    function send_set_log_scope(scope) {
+        console.log("Setting log scope to " + scope);
+        socket.emit("set_log_scope", {'scope': scope})
     }
 
 </script>

@@ -44,7 +44,6 @@ class HamOp:
         self.pa_running = None
         self.last_status = 0xff
         self.tracking_wind = False
-        self.azel = None # Type: "AzElControl"
 
         pass
 
@@ -116,10 +115,22 @@ class HamOp:
         return rows
 
 
-    def get_log_rows(self):
+    def get_log_rows(self, since: datetime=None, until:datetime=None):
+
+        t_date_start="1900-01-01T00:00:00"
+        t_date_stop = "9999-12-31T23:59:59"
+        if since:
+            t_date_start = since.isoformat()
+        if until:
+            t_date_stop = until.isoformat()
+
+        args = (
+            t_date_start[:10], t_date_stop[:10], t_date_start[11:16].replace(":", ""), t_date_stop[11:16].replace(":", ""))
         cur = self.db.cursor()
-        cur.execute("""SELECT qsoid, date, time, callsign, tx, rx, locator, distance, square, points, complete, mode, accumulated_sqn, band 
-                                FROM nac_log_new  ORDER BY date, time""")
+        cur.execute(
+            """SELECT qsoid, date, time, callsign, tx, rx, locator, distance, square, points, complete, mode, accumulated_sqn, band
+               FROM nac_log_new WHERE date >= %s and date <= %s and time >= %s and time <= %s ORDER BY date, time""", args)
+
         rows = cur.fetchall()
         return rows
 
@@ -152,6 +163,13 @@ class HamOp:
 
         # print(distance);
         return bearing, distance, points, square_count
+
+    def do_delete_qso(self, qso):
+        print("Deleting qso with id=%s" % qso["id"])
+        cur = self.db.cursor()
+        cur.execute("""DELETE FROM nac_log_new WHERE qsoid = %s""", (int(qso["id"]),))
+        self.db.commit()
+        self.app.client_mgr.send_reload()
 
     def do_commit_qso(self, qso):
         cur = self.db.cursor()
@@ -210,6 +228,7 @@ class HamOp:
         new_qso_id = cur.fetchone()[0]
         self.db.commit()
         cur.close()
+        self.app.client_mgr.add_mh_on_map(qso["locator"])
         return new_qso_id
 
 
