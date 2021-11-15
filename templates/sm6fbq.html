@@ -335,6 +335,7 @@
                                        placeholder="Locator" onchange="added_locator()"/></td>
                             <td id="new_qso_distance" style="text-align: right"></td>
                             <td id="new_qso_points" style="text-align: right"></td>
+                            <td id="new_qso_square" style="text-align: right"></td>
                             <td/>
                             <td id="commit_btn">
                                 <button type="button"><i class="fa fa-check" onclick="commit_new_qso()"></i></button>
@@ -748,6 +749,7 @@
         new_qso['locator'] = document.getElementById('new_locator').value;
         socket.emit("lookup_locator", new_qso);
         socket.once("locator_data", function (json) {
+            console.log("Locator lookup result", json);
             document.getElementById("new_qso_distance").innerText = json["distance"]
             document.getElementById("new_qso_square").innerText = json["square"]
             document.getElementById("new_qso_points").innerText = json["points"]
