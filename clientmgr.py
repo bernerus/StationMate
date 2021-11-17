@@ -2,7 +2,6 @@ import queue
 from threading import Lock
 from p27_defs import *
 
-from flask_socketio import emit
 from flask import current_app
 from datetime import date, datetime
 
@@ -69,9 +68,14 @@ class ClientMgr:
             self.map_mh_length = length
             if length < 6:
                 self.distinct_mhs_on_map = True
+                self.emit("setMapZoom", 6)
             else:
                 self.distinct_mhs_on_map = False
+                self.emit("setMapZoom", 8)
             self.send_reload()
+
+    def emit(self, what, data):
+        msg_q.put((what, data))
 
     def set_log_scope(self, scope):
         if scope != self.current_log_scope:
@@ -174,6 +178,7 @@ class ClientMgr:
             pass
 
         self.send_origo()
+        self.send_qth()
         self.send_my_data()
         self.send_azel()
 
@@ -184,7 +189,7 @@ class ClientMgr:
             if self.status_thread is None:
                 self.status_thread = self.socket_io.start_background_task(status_update_thread, current_app._get_current_object())
 
-        emit('my_response', {'data': 'Connected', 'count': 0})
+        self.emit('my_response', {'data': 'Connected', 'count': 0})
 
         rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
         qsos = []
@@ -193,7 +198,7 @@ class ClientMgr:
         mhsqnumber = 0
         mhsqs = set()
         for row in rows:
-            mhsq = row[6][:4]
+            mhsq = row[6][:4].upper()
             newmsqn = None
             if mhsq not in mhsqs and self.current_band.split('-')[0] in row[13] :
                 newmsqn = len(mhsqs)+1
@@ -203,10 +208,10 @@ class ClientMgr:
             qso = {"id": row[0],
                    "date": row[1],
                    "time": row[2],
-                   "callsign": row[3],
+                   "callsign": row[3].upper(),
                    "tx": row[4],
                    "rx": row[5],
-                   "locator": row[6],
+                   "locator": row[6].upper(),
                    "distance": row[7],
                    "square": row[8],
                    "points": row[9],
@@ -217,12 +222,21 @@ class ClientMgr:
                    }
             qsos.append(qso)
             if self.current_band.split('-')[0] in row[13]:
-                mhs.append(row[6])
+                mhs.append(row[6].upper())
 
-        emit("add_qsos", qsos)
+        self.emit("add_qsos", qsos)
         self.add_mhs_on_map(mhs)
 
         self.status_update(force=True)
+
+
+    def update_map_center(self):
+        settings = self.app.ham_op.get_map_setting(self.current_band, self.map_mh_length, self.current_log_scope)
+        #print("Settings=",settings)
+        if settings:
+            lon, lat, zoom = settings
+            #print("Queueing origo %f %f, zoom=%d" % (lon, lat, zoom))
+            msg_q.put(("set_origo", {"lon": lon, "lat": lat, "zoom": zoom}))
 
 
     def send_origo(self):
@@ -230,8 +244,24 @@ class ClientMgr:
         my_data = {x["key"]: x["value"] for x in rows}
         myqth = my_data["my_locator"]
         n, s, w, e, lat, lon = mh.to_rect(myqth)
-        print("Queueing origo %f %f" % (lon, lat))
-        msg_q.put(("set_origo", {"lon": lon, "lat": lat, "qth": myqth, "n": n, "s": s, "w": w, "e": e}))
+        zoom=8
+
+        settings = self.app.ham_op.get_map_setting(self.current_band, self.map_mh_length, self.current_log_scope)
+        if settings:
+            lon, lat, zoom = settings
+
+        #print("Queueing origo %f %f, zoom=%d" % (lon, lat, zoom))
+        msg_q.put(("set_origo", {"lon": lon, "lat": lat, "zoom": zoom}))
+
+
+    def send_qth(self):
+        rows = self.app.ham_op.fetch_my_current_data(self.current_band)
+        my_data = {x["key"]: x["value"] for x in rows}
+        myqth = my_data["my_locator"]
+        n, s, w, e, lat, lon = mh.to_rect(myqth)
+
+        #print("Queueing qth %f %f" % (lon, lat))
+        msg_q.put(("set_qth", {"lon": lon, "lat": lat, "qth": myqth, "n": n, "s": s, "w": w, "e": e}))
 
 
     def send_mydata(self):
@@ -251,7 +281,7 @@ class ClientMgr:
 
         qso["square"] = str(square_no)
         qso["points"] = str(points)
-        emit("locator_data", qso)
+        self.emit("locator_data", qso)
 
     def band_select(self, json):
 
@@ -261,10 +291,13 @@ class ClientMgr:
             self.send_reload()
 
     def emit_log(self, json):
-        emit("log_data", json)
-
+        self.emit("log_data", json)
     def send_reload(self):
         msg_q.put(("globalReload", {}))
+
+    def map_settings(self, json):
+        print("Map settings received", json)
+        self.app.ham_op.store_map_setting(json, self.current_band, self.map_mh_length, self.current_log_scope)
 
 def circle(size, user_location):
     c = {  # draw circle on map (user_location as center)

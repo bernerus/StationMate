@@ -127,6 +127,9 @@ class AzElControl:
 		self.map_mh_length = 6
 		self.mhs_on_map = []
 		self.distinct_mhs_on_map = False
+		# Degrees below, not ticks
+		self.az_sectors = [(0, 44), (45, 89), (90, 134), (135, 179), (180, 224), (225, 269), (270, 314), (315, 359)]
+		self.az_sector = self.current_az_sector()
 
 		test_az2ticks = False
 		if test_az2ticks:
@@ -163,6 +166,7 @@ class AzElControl:
 			return self.ticks2az(self.az_target)
 		else:
 			return None
+
 
 	def wind_thread_function(self, azel):
 		while True:
@@ -246,6 +250,9 @@ class AzElControl:
 			# print("Mechanical stop anticlockwise")
 			self.az = self.AZ_CCW_MECH_STOP
 
+		if self.current_az_sector() != self.az_sector:
+			self.az_sector = self.current_az_sector()
+			self.app.client_mgr.update_map_center()
 		print("Az set to %d ticks" % self.az)
 		self.app.client_mgr.send_azel()
 		if self.calibrating:
@@ -270,6 +277,10 @@ class AzElControl:
 
 		#            print("Ticks:", self.az)
 		self.app.client_mgr.send_azel()
+		if self.current_az_sector() != self.az_sector:
+			self.az_sector = self.current_az_sector()
+			#print("Sector=",self.az_sector)
+			self.app.client_mgr.update_map_center()
 		self.az_track()
 
 	def az_track(self, target=None):
@@ -426,3 +437,19 @@ class AzElControl:
 
 	def GPIO_cleanup(self):
 		GPIO.cleanup()
+
+	def current_az_sector(self):
+		az = self.get_azel()[0]
+		if az >= 360:
+			az -= 360
+		from_az = 0
+		to_az = 360
+		for oct in self.az_sectors:
+			if az >= oct[0] and az <= oct[1]:
+				from_az = oct[0]
+				to_az = oct[1]
+				break
+		return from_az, to_az
+
+	def get_az_sector(self):
+		return self.az_sector

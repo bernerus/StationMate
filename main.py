@@ -243,11 +243,16 @@ def delete_qso(qso):
 def test_disconnect():
     print('Client disconnected', request.host)
 
+@socket_io.event()
+def map_settings(settings):
+    app.client_mgr.map_settings(settings)
+
 @atexit.register
 def goodbye():
     print("Goodbye!!")
     app.azel.az_stop()
     app.azel.GPIO_cleanup()  # clean up GPIO on exit
+
 
 
 if __name__ == '__main__':

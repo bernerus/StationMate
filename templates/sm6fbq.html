@@ -78,7 +78,14 @@
                 // console.log("Got origo " + msg.lat + " " + msg.lon);
                 //confirm("Set_azel: " + msg.az + "/" + msg.el);
                 $('#log').append('<br>' + $('<div/>').text('Received origo#' + msg.count + ': ' + msg.data).html());
-                setOrigo(msg.lat, msg.lon, msg.qth, msg.n, msg.s, msg.w, msg.e)
+                setOrigo(msg.lat, msg.lon, msg.zoom)
+            })
+
+            socket.on('set_qth', function (msg) {
+                // console.log("Got origo " + msg.lat + " " + msg.lon);
+                //confirm("Set_azel: " + msg.az + "/" + msg.el);
+                $('#log').append('<br>' + $('<div/>').text('Received origo#' + msg.count + ': ' + msg.data).html());
+                setQth(msg.lat, msg.lon, msg.qth, msg.n, msg.s, msg.w, msg.e)
             })
 
             socket.on('set_mydata', function (msg) {
@@ -110,6 +117,11 @@
 
             socket.on("globalReload", function(msg) {
                 location.reload();
+            })
+
+            socket.on("setMapZoom", function(msg) {
+                console.log("setMapZoom" + msg)
+                set_map_zoom(msg)
             })
 
         });
@@ -201,11 +213,11 @@
                         </div>
                     </td>
                     <td>
-                        Log scope:
-                        <button id="log_scope_forever" onclick="send_set_log_scope('Forever')" >Forever</button>
-                        <button id="log_scope_today" onclick="send_set_log_scope('Today')" >Today</button>
-                        <button id="log_scope_contest" onclick="send_set_log_scope('Contest')" >Contest</button>
+                        <button id="store_map_settings"
+                                style="align-content: end;"
+                                onclick="send_map_status()">Store map settings</button>
                     </td>
+
                 </tr>
             </table>
         </td>
@@ -253,11 +265,12 @@
                         </fieldset>
                     </td>
                     <td>
-                        <textarea id="log_remarks" rows="4" cols="50"></textarea>
+                        <textarea placeholder="Loggkommentar" id="log_remarks" rows="4" cols="50"></textarea>
                         <br/>
-                        <button id="make_log" type="button" onclick="make_log()">Make log</button>
+                        <button id="make_log" type="button" onclick="make_log()">Make log for latest contest</button>
+                        <hr/>
                         <input id="wsjtx_upload" type="file" name="wsjtx_upload"/>
-                        <button id="wsjtx_upload-button" onclick="uploadWsjtxFile()"> Upload</button>
+                        <button id="wsjtx_upload-button" onclick="uploadWsjtxFile()"> Upload WSJT-X log</button>
                     </td>
                 </tr>
             </table>
@@ -295,11 +308,16 @@
     <tr>
         <td>
             <fieldset>
+
+                Log, scope=
+                    <button id="log_scope_forever" onclick="send_set_log_scope('Forever')">Forever</button>
+                    <button id="log_scope_today" onclick="send_set_log_scope('Today')">Today</button>
+                    <button id="log_scope_contest" onclick="send_set_log_scope('Contest')">Contest</button>
+
+
                 <div id="calllog" style="overflow-y:scroll; height:730px;">
                     <table id="logtable" class="calllog">
-                        <tr>
-                            <th colspan="10" style="text-align:center;">Log</th>
-                        </tr>
+                        <tr/>
                         <tr>
                             <th>QSO ID</th>
                             <th style="width:4em;text-align:center;">Date</th>
@@ -585,6 +603,15 @@
         socket.emit("set_log_scope", {'scope': scope})
     }
 
+    function send_map_status() {
+        console.log("Sending map status");
+        pos=map.getCenter();
+        zoom=map.getZoom();
+
+        console.log("Sending map status:"+pos.lat()+" "+pos.lng()+" "+zoom);
+        socket.emit("map_settings", {"lat": pos.lat(), "lon":pos.lng(), "zoom":zoom});
+    }
+
 </script>
 
 <script>
@@ -628,13 +655,19 @@
     }
 
 
-    function setOrigo(lat, lon, qth, n, s, w, e) {
+    function setOrigo(lat, lon, zoom) {
+        map.setCenter({"lat": lat, "lng": lon});
+        map.setZoom(zoom);
+        console.log("Moved map center to " + lat + " " + lon, "zoom="+zoom);
+    }
+
+    function setQth(lat, lon, qth, n, s, w, e) {
         marker.setPosition({"lat": lat, "lng": lon});
         document.getElementById("my_qth").innerHTML = qth;
-        map.setCenter({"lat": lat, "lng": lon});
-        // console.log("Moved map center to " + lat + " " + lon)
+        console.log("Moved qth to " + lat + " " + lon);
         addRect(qth, n, s, w, e);
     }
+
 
     function updateClass(msg) {
         console.log(msg)

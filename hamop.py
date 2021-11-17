@@ -455,3 +455,29 @@ class HamOp:
             bearing, _distance = self.distance_to(loc)
             print("Tracking Az %d to %s at %s" % (int(bearing), what, loc))
             self.app.azel.az_track(int(bearing))
+
+
+    def store_map_setting(self, json, current_band, map_mh_length, log_scope):
+        from_az, to_az = self.app.azel.get_az_sector()
+        q = """INSERT INTO origi(origo_lon, origo_lat, zoom, mh_length, band, az_from, az_to, log_scope)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT ON CONSTRAINT origi_keys DO UPDATE
+               SET origo_lon = %s, origo_lat = %s, zoom = %s 
+               """
+               # """WHERE mh_length = %s and band=%s and az_from=%s and az_to=%s and log_scope=%s"""
+        args = [json['lon'], json['lat'], json['zoom'], map_mh_length, current_band, from_az, to_az, log_scope]
+        args.extend([ json['lon'], json['lat'], json['zoom']])
+        # args.extend(args)
+        cur = self.db.cursor()
+        cur.execute(q, args)
+        self.db.commit()
+
+    def get_map_setting(self, current_band, map_mh_length, log_scope):
+        q = """SELECT origo_lon, origo_lat, zoom from origi WHERE mh_length = %s and band = %s and az_from = %s and az_to = %s and log_scope = %s"""
+        from_az, to_az = self.app.azel.get_az_sector()
+        args = [map_mh_length, current_band, from_az, to_az, log_scope]
+        cur = self.db.cursor()
+        cur.execute(q, args)
+        lines = cur.fetchall()
+        if lines:
+            return lines[0]
+
