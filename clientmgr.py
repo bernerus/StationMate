@@ -136,7 +136,14 @@ class ClientMgr:
             send_update("trx_tx_led", "active", not (current & P27_TRX_TX_ACTIVE_L))
             self.last_pushed_status = current
 
-        self.app.azel.update_status()
+        send_update("log_scope_forever", "active", self.current_log_scope == "Forever")
+        send_update("log_scope_today", "active", self.current_log_scope == "Today")
+        send_update("log_scope_contest", "active", self.current_log_scope == "Contest")
+        send_update("loc_fields", "active", self.map_mh_length == 2)
+        send_update("loc_squares", "active", self.map_mh_length == 4)
+        send_update("loc_locators", "active", self.map_mh_length >= 6)
+
+        self.app.azel.status_update()
 
     def push_wind_led(self, tracking_wind):
         send_update("wind_led", "fas", tracking_wind)
@@ -181,6 +188,7 @@ class ClientMgr:
         self.send_qth()
         self.send_my_data()
         self.send_azel()
+        self.push_wind_led(self.app.azel.tracking_wind)
 
         with thread_lock:
             if self.message_thread is None:
