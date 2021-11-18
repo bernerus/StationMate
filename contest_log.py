@@ -2,7 +2,6 @@ from datetime import timedelta, date, datetime
 import psycopg2
 import psycopg2.extras
 import pytz
-import calendar
 import locator.src.maidenhead as mh
 import math
 from geo import sphere
@@ -204,7 +203,7 @@ def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
     args = (
         t_date_start[:10], t_date_stop[:10], t_date_start[11:16].replace(":", ""), t_date_stop[11:16].replace(":", ""))
     cur.execute(
-        "SELECT DISTINCT(callsign) FROM nac_log_new WHERE date >= %s and date <= %s and time >= %s and time <= %s",
+        "SELECT DISTINCT(callsign) as dcs FROM nac_log_new WHERE date >= %s and date <= %s and time >= %s and time <= %s",
         args)
     rows = cur.fetchall()
     qso_records = len(rows)

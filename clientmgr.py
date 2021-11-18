@@ -35,6 +35,10 @@ def send_update(key, clazz, value):
     msg_q.put(("update_class", {"forId": key, "class": clazz, "value": value}))
 
 
+def emit(what, data):
+    msg_q.put((what, data))
+
+
 class ClientMgr:
     def __init__(self, app, logger, socket_io):
 
@@ -71,14 +75,11 @@ class ClientMgr:
             self.map_mh_length = length
             if length < 6:
                 self.distinct_mhs_on_map = True
-                self.emit("setMapZoom", 6)
+                emit("setMapZoom", 6)
             else:
                 self.distinct_mhs_on_map = False
-                self.emit("setMapZoom", 8)
+                emit("setMapZoom", 8)
             self.send_reload()
-
-    def emit(self, what, data):
-        msg_q.put((what, data))
 
     def set_log_scope(self, scope):
         if scope != self.current_log_scope:
@@ -208,7 +209,7 @@ class ClientMgr:
             if self.status_thread is None:
                 self.status_thread = self.socket_io.start_background_task(status_update_thread, current_app._get_current_object())
 
-        self.emit('my_response', {'data': 'Connected', 'count': 0})
+        emit('my_response', {'data': 'Connected', 'count': 0})
 
         rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
         qsos = []
@@ -243,7 +244,7 @@ class ClientMgr:
             if self.current_band.split('-')[0] in row[13]:
                 mhs.append(row[6].upper())
 
-        self.emit("add_qsos", qsos)
+        emit("add_qsos", qsos)
         self.add_mhs_on_map(mhs)
 
         self.status_update(force=True)
@@ -300,7 +301,7 @@ class ClientMgr:
 
         qso["square"] = str(square_no)
         qso["points"] = str(points)
-        self.emit("locator_data", qso)
+        emit("locator_data", qso)
 
     def band_select(self, json):
 
@@ -310,7 +311,8 @@ class ClientMgr:
             self.send_reload()
 
     def emit_log(self, json):
-        self.emit("log_data", json)
+        emit("log_data", json)
+
     def send_reload(self):
         msg_q.put(("globalReload", {}))
 
@@ -334,9 +336,6 @@ def circle(size, user_location):
         'radius': size
     }
     return c
-
-
-
 
 def message_received():
     print('message was received!!!')

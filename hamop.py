@@ -147,7 +147,7 @@ class HamOp:
 
         if qso_date and qso_time:
             cur = self.db.cursor()
-            cur.execute("SELECT DISTINCT substr(locator, 1, 4) from nac_log_new where date=%s and time < %s",
+            cur.execute("SELECT DISTINCT substr(locator, 1, 4) as square from nac_log_new where date=%s and time < %s",
                         (qso_date, qso_time))
             rows = cur.fetchall()
             squares = {x[0] for x in rows}
@@ -202,7 +202,7 @@ class HamOp:
         accumulated_square = None
         if "locator" in qso and qso["locator"]:
             cur.execute(
-                """SELECT DISTINCT upper(substr(locator, 1, 4)) FROM nac_log_new WHERE split_part(split_part(band,'-',1), '.',1) = %s""",
+                """SELECT DISTINCT upper(substr(locator, 1, 4)) as loc FROM nac_log_new WHERE split_part(split_part(band,'-',1), '.',1) = %s""",
                 (qso["band"].split('-')[0],))
 
             rows = cur.fetchall()
@@ -355,7 +355,7 @@ class HamOp:
                     self.logger.error("Multiple qsos found; %s" % lines)
                     pass
                 else:
-                    q = """SELECT qsoid, date, time, tx, rx, locator, abs(date_part('hour',time::time-%s::time)*60+date_part('minute',time::time-%s::time)) from nac_log_new where date=%s
+                    q = """SELECT qsoid, date, time, tx, rx, locator, abs(date_part('hour',time::time-%s::time)*60+date_part('minute',time::time-%s::time)) as datetime from nac_log_new where date=%s
                         and callsign = %s"""
                     cur.execute(q, (starttime, starttime, startdate, callsign))
                     lines = cur.fetchall()
