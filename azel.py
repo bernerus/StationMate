@@ -401,8 +401,8 @@ class AzElControl:
 		self.az_stop()
 		# self.logger.debug("Starting interrupt dispatcher")
 		GPIO.add_event_detect(self.AZ_INT, GPIO.FALLING, callback=self.interrupt_dispatch)
+		self.track_wind()
 
-		self.tracking_wind = True
 
 	def get_azel(self):
 		return self.ticks2az(self.az), self.el

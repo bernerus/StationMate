@@ -280,7 +280,7 @@ legend {
 td {
     white-space: nowrap;
     border: none;
-    padding: 0;
+    padding: 3px;
 }
 
 th { border: none;}
@@ -324,7 +324,56 @@ table {
     box-shadow: #000 0 -1px 6px 1px, inset #006 0 -1px 8px, #06F 0 3px 11px;
 }
 
-led-gray {
+.led-gray {
     background-color: #a3a4a5;
     box-shadow: #000 0 -1px 6px 1px, inset #006 0 -1px 8px,  #a3a4a5 0 3px 11px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+.header {
+    border: 1px solid red;
+    padding: 15px;
+    height: 5%;
+    text-align: center;
+}
+
+.menu {
+    width: 25%;
+    float: left;
+    padding: 15px;
+    border: 1px solid green;
+}
+
+.map {
+    height: 1000px;
+    width: 100%;
+    float: left;
+    padding: 15px;
+    border: 1px solid blue;
+}
+
+.calllog {
+    text-wrap: none;
+    width: 100%;
+    float: top;
+    padding: 10px;
+    text-align: left;
+}
+
+.calllog td {
+    white-space: nowrap;
+    border: 1px solid gray;
+    padding: 3px;
+    height: 20px;
+}
+
+.calllog th {
+    text-align: center;
+}
+
+label {
+    font-weight: bold;
 }

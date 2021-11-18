@@ -157,7 +157,7 @@ class ClientMgr:
     def push_wind_led(self, tracking_wind):
         send_update("wind_led", "fas", tracking_wind)
         send_update("wind_led", "fa-thin", not tracking_wind)
-        self.app.client_mgr.last_tracking_wind = tracking_wind
+        self.last_tracking_wind = tracking_wind
 
     def status_update(self, force=False):
         current_p2_sense = self.app.ham_op.get_status()
