@@ -119,7 +119,7 @@ class ClientMgr:
 
     def status_push(self, current, force=False):
 
-        if current and current != self.last_pushed_status or self.last_pushed_status is None or force:
+        if current and (current != self.last_pushed_status or self.last_pushed_status is None or force):
             if self.app.ham_op.pa_running:
                 if current & P27_PA_READY:
                     send_update("pa_ready_led", "active", True)
