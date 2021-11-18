@@ -44,8 +44,9 @@ abortable_sleep = AbortableSleep()
 
 class AzElControl:
 
-	def __init__(self, app, socket_io, hysteresis: int = 1):
+	def __init__(self, app, logger, socket_io, hysteresis: int = 1):
 		self.app = app
+		self.logger=logger
 		self.socket_io = socket_io
 		self.az_hysteresis = hysteresis
 
@@ -137,13 +138,13 @@ class AzElControl:
 			ranges = list(range(160, 361)) + list(range(0, 170))
 
 			for deg in ranges:
-				print(deg, self.az, self.az2ticks(deg))
+				self.logger.debug("%d %d %d", deg , self.az, self.az2ticks(deg))
 
 			self.az = 270
-			print()
+			self.logger.debug("")
 
 			for deg in ranges:
-				print(deg, self.az, self.az2ticks(deg))
+				self.logger.debug("%d %d %d", deg, self.az, self.az2ticks(deg))
 
 			self.az = 0
 
@@ -182,7 +183,7 @@ class AzElControl:
 				wtd = wfd + 180.0
 				wtd = wtd + 360.0 if wtd < 0 else wtd
 				wtd = wtd - 360 if wtd > 360 else wtd
-				print("Tracking current wind direction to %d" % int(wtd))
+				self.logger.info("Tracking current wind direction to %d" % int(wtd))
 				azel.az_track(int(wtd))
 			abortable_sleep(600)
 
@@ -216,7 +217,7 @@ class AzElControl:
 
 		return ticks
 
-	def update_status(self, force=False):
+	def status_update(self, force=False):
 		if self.tracking_wind != self.last_tracking_wind or self.last_tracking_wind is None or force:
 			self.app.client_mgr.push_wind_led(self.tracking_wind)
 		self.last_tracking_wind = self.tracking_wind
@@ -232,32 +233,32 @@ class AzElControl:
 	def stop_interrupt(self, _last, _current):
 
 		if not self.p20.bit_read(P20_STOP_AZ):
-			print("Stop interrupt skipped. timer is cleared")
+			self.logger.warning("Stop interrupt skipped. timer is cleared")
 			return  # Timed is cleared
 		if self.p20.bit_read(P20_AZ_TIMER) and not self.calibrating and not self.rotating_cw and not self.rotating_ccw:
-			print("Stop interrupt skipped. No rotation going on, retrig=%s, cw=%s, ccw=%s, calibrating=%s" %
+			self.logger.warning("Stop interrupt skipped. No rotation going on, retrig=%s, cw=%s, ccw=%s, calibrating=%s" %
 			      (self.retriggering, self.rotating_cw, self.rotating_ccw, self.calibrating))
 			return  # We are not rotating
-		print("Azel interrupt, retrig=%s, cw=%s, ccw=%s, calibrating=%s" %
+		self.logger.warning("Azel interrupt, retrig=%s, cw=%s, ccw=%s, calibrating=%s" %
 		      (self.retriggering, self.rotating_cw, self.rotating_ccw, self.calibrating))
 		# time.sleep(1)
 		# We ran into a mech stop
 
 		if not self.p20.bit_read(P20_ROTATE_CW):
-			# print("Mechanical stop clockwise")
+			# self.logger.debug("Mechanical stop clockwise")
 			self.az = self.AZ_CW_MECH_STOP
 		else:
-			# print("Mechanical stop anticlockwise")
+			# self.logger.debug("Mechanical stop anticlockwise")
 			self.az = self.AZ_CCW_MECH_STOP
 
 		if self.current_az_sector() != self.az_sector:
 			self.az_sector = self.current_az_sector()
 			self.app.client_mgr.update_map_center()
-		print("Az set to %d ticks" % self.az)
-		self.app.client_mgr.send_azel()
+		self.logger.info("Az set to %d ticks" % self.az)
+		self.app.client_mgr.send_azel(azel=(self.ticks2az(self.az), self.el))
 		if self.calibrating:
 			self.calibrating = False
-			print("Calibration done")
+			self.logger.info("Calibration done")
 			self.az_stop()
 		else:
 			self.az_track()
@@ -268,18 +269,18 @@ class AzElControl:
 		try:
 			inc = self.azz2inc[last_az << 2 | current_az]
 		except KeyError:
-			print("Key error: index=%s" % bin(last_az << 2 | current_az))
+			self.logger.error("Key error: index=%s" % bin(last_az << 2 | current_az))
 			self.az_track()
 			return
 		self.az += inc
 		if inc:
 			self.retrigger_az_timer()
 
-		#            print("Ticks:", self.az)
-		self.app.client_mgr.send_azel()
+		#            self.logger.debug("Ticks: %d", self.az)
+		self.app.client_mgr.send_azel(azel=(self.ticks2az(self.az), self.el))
 		if self.current_az_sector() != self.az_sector:
 			self.az_sector = self.current_az_sector()
-			#print("Sector=",self.az_sector)
+			#self.logger.debug("Sector= %s",self.az_sector)
 			self.app.client_mgr.update_map_center()
 		self.az_track()
 
@@ -287,10 +288,10 @@ class AzElControl:
 		if target is not None:
 			if self.az2ticks(target) != self.az_target:
 				self.az_target = self.az2ticks(target)
-				print("Tracking azimuth %d degrees = %d ticks" % (target, self.az_target))
+				self.logger.info("Tracking azimuth %d degrees = %d ticks" % (target, self.az_target))
 		if self.az_target is not None:
 			diff = self.az - self.az_target
-			# print("Diff = ", diff)
+			# self.logger.debug("Diff = %s", diff)
 			if abs(diff) < self.az_hysteresis:
 				self.az_stop()
 				# self.az_target = None
@@ -303,18 +304,18 @@ class AzElControl:
 					self.az_ccw()
 
 	def az_stop(self):
-		# print("Stop azimuth rotation")
+		# self.logger.debug("Stop azimuth rotation")
 		self.rotating_ccw = False
 		self.rotating_cw = False
 		# self.p20.byte_write(0xff, ~self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ, LOW)
 		self.p20.bit_write(P20_ROTATE_CW, HIGH)
-		# print("Stopped azimuth rotation")
+		self.logger.debug("Stopped azimuth rotation")
 		time.sleep(0.4)  # Allow mechanics to settle
 		self.store_az()
 
 	def az_ccw(self):
-		# print("Rotate anticlockwise")
+		# self.logger.debug("Rotate anticlockwise")
 		self.rotating_ccw = True
 		self.rotating_cw = False
 		# self.p20.byte_write(0xff, self.STOP_AZ)
@@ -323,10 +324,10 @@ class AzElControl:
 		# self.p20.byte_write(0xff, ~self.AZ_TIMER)
 		self.p20.bit_write(P20_ROTATE_CW, HIGH)
 		self.p20.bit_write(P20_AZ_TIMER, LOW)
-		print("Rotating anticlockwise")
+		self.logger.debug("Rotating anticlockwise")
 
 	def az_cw(self):
-		# print("Rotate clockwise")
+		# self.logger.debug("Rotate clockwise")
 		self.rotating_cw = True
 		self.rotating_ccw = False
 		# self.p20.byte_write(0xff, self.STOP_AZ)
@@ -335,12 +336,12 @@ class AzElControl:
 		self.p20.bit_write(P20_ROTATE_CW, LOW)
 		self.p20.bit_write(P20_AZ_TIMER, LOW)
 		# self.p20.byte_write(0xFF, ~(self.AZ_TIMER | self.ROTATE_CW))
-		print("Rotating clockwise")
+		self.logger.debug("Rotating clockwise")
 
 	def interrupt_dispatch(self, _channel):
 
 		current_sense = self.p21.byte_read(0xff)
-		# print("Interrupt %s %s" % (self.sense2str(self.last_sense), self.sense2str(current_sense)))
+		# self.logger.debug("Interrupt %s %s" % (self.sense2str(self.last_sense), self.sense2str(current_sense)))
 
 		diff = current_sense ^ self.last_sense
 
@@ -350,18 +351,18 @@ class AzElControl:
 		manual_mask = 0xf0
 
 		if diff & az_mask:
-			# print("Dispatching to az_interrupt")
+			# self.logger.debug("Dispatching to az_interrupt")
 			self.az_interrupt(self.last_sense & az_mask, current_sense & az_mask)
 		if diff & el_mask:
-			# print("Dispatching to el_interrupt")
+			# self.logger.debug("Dispatching to el_interrupt")
 			self.el_interrupt(self.last_sense & el_mask, current_sense & el_mask)
 		if diff & stop_mask and (current_sense & stop_mask == 0):
-			print("Dispatching to stop_interrupt, diff=%x, current_sense=%x, last_sense=%x" %
+			self.logger.debug("Dispatching to stop_interrupt, diff=%x, current_sense=%x, last_sense=%x" %
 			      (diff, current_sense, self.last_sense))
 			self.stop_interrupt(self.last_sense & stop_mask, current_sense & stop_mask)
 
 		if diff & manual_mask and (current_sense & manual_mask != manual_mask):
-			print("Manual intervention detected")
+			self.logger.warning("Manual intervention detected")
 			self.manual_interrupt(self.last_sense & manual_mask, current_sense & manual_mask)
 
 		self.last_sense = current_sense
@@ -394,11 +395,11 @@ class AzElControl:
 
 	def startup(self):
 
-		# print("Restoring current azimuth")
+		# self.logger.debug("Restoring current azimuth")
 		self.restore_az()
-		# print("Az restored to %d" % self.az)
+		# self.logger.debug("Az restored to %d" % self.az)
 		self.az_stop()
-		# print("Starting interrupt dispatcher")
+		# self.logger.debug("Starting interrupt dispatcher")
 		GPIO.add_event_detect(self.AZ_INT, GPIO.FALLING, callback=self.interrupt_dispatch)
 
 		self.tracking_wind = True
@@ -416,7 +417,7 @@ class AzElControl:
 		self.az_stop()
 		self.calibrating = True
 		self.az_ccw()
-		print("Awaiting calibration")
+		self.logger.warning("Awaiting calibration")
 		while self.calibrating:
 			self.socket_io.sleep(1)
 		self.track_wind(tw)
@@ -433,7 +434,7 @@ class AzElControl:
 		self.untrack_wind()
 		self.az_target = None
 		self.az_stop()
-		print("Stopped tracking at az=%d degrees" % self.ticks2az(self.az))
+		self.logger.info("Stopped tracking at az=%d degrees" % self.ticks2az(self.az))
 
 	def GPIO_cleanup(self):
 		GPIO.cleanup()

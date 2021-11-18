@@ -14,11 +14,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import psycopg2
 
+
 class HamOp:
     """ Handles all data and functions pertaining to the ham operator and station"""
 
-    def __init__(self, app, db: psycopg2):
+    def __init__(self, app, logger, db: psycopg2):
         self.app = app
+        self.logger = logger
         self.db = db
 
         try:
@@ -135,7 +137,6 @@ class HamOp:
         return rows
 
     def distance_to(self, other_loc, qso_date=None, qso_time=None):
-        # print()
         mn, ms, mw, me, mlat, mlon = mh.to_rect(self.my_qth()[:6])
 
         n, s, w, e, lat, lon = mh.to_rect(other_loc)
@@ -150,7 +151,6 @@ class HamOp:
                         (qso_date, qso_time))
             rows = cur.fetchall()
             squares = {x[0] for x in rows}
-            # print(squares)
             square_count = len(squares)
 
             if other_loc[:4] not in squares:
@@ -161,11 +161,10 @@ class HamOp:
         else:
             return bearing, distance
 
-        # print(distance);
         return bearing, distance, points, square_count
 
     def do_delete_qso(self, qso):
-        print("Deleting qso with id=%s" % qso["id"])
+        self.logger.warning("Deleting qso with id=%s" % qso["id"])
         cur = self.db.cursor()
         cur.execute("""DELETE FROM nac_log_new WHERE qsoid = %s""", (int(qso["id"]),))
         self.db.commit()
@@ -244,7 +243,7 @@ class HamOp:
 
         pa_rdy = self.p27.bit_read(P27_PA_READY)
         if not pa_rdy:
-            print("Igniting booster")
+            self.logger.info("Igniting booster")
             self.p27.bit_write(P27_PA_ON_L, LOW)
             time.sleep(0.1)
             self.p2.bit_write(P27_PA_ON_L, HIGH)
@@ -255,7 +254,7 @@ class HamOp:
     def my_pa_off(self):
         if not self.p27:
             return "Core station out of control"
-        print("Shutting down PA")
+        self.logger.info("Shutting down PA")
         self.p27.bit_write(P27_PA_ON_L, HIGH)
         self.p27.bit_write(P27_PA_OFF_L, LOW)
         time.sleep(0.1)
@@ -306,7 +305,7 @@ class HamOp:
         cur = self.db.cursor()
         for k, v in request.files.items():
             file_data = v.read().decode("utf-8")
-            print(file_data)
+            # print(file_data)
             for line in file_data.splitlines():
                 startdate, starttime, enddate, endtime, callsign, locator, frequency, transmit_mode, trprt, rrprt, power, comment, dxname, propagation = line.split(
                     ',')
@@ -328,41 +327,41 @@ class HamOp:
                     qso_time = qso[2]
                     adjustments = 0
                     if locator not in qso[5]:
-                        print("Bad locator %s, should be %s" % (qso[5], locator))
+                        self.logger.error("Bad locator %s, should be %s" % (qso[5], locator))
                         bearing, distance, points, square_no = self.distance_to(locator, qso_date, qso_time)
                         cur.execute(
                             "UPDATE nac_log_new set locator = %s, distance = %s, square = %s, points = %s where qsoid=%s",
                             (locator, str(int(distance * 100) / 100.0), square_no, points, qso[0]))
                         adjustments += 1
                     if qso[6] != propagation and propagation:
-                        print("Bad propagation mode %s, should be %s" % (qso[6], propagation))
+                        self.logger.error("Bad propagation mode %s, should be %s" % (qso[6], propagation))
                         cur.execute("UPDATE nac_log_new set mode = %s where qsoid=%s", (propagation, qso[0]))
                         adjustments += 1
                     if qso[7] != transmit_mode:
-                        print("Bad transmit mode %s, should be %s" % (qso[7], transmit_mode))
+                        self.logger.error("Bad transmit mode %s, should be %s" % (qso[7], transmit_mode))
                         cur.execute("UPDATE nac_log_new set transmit_mode = %s where qsoid=%s", (transmit_mode, qso[0]))
                         adjustments += 1
                     if qso[3] != trprt:
-                        print("Bad sent report %s, should be %s" % (qso[3], trprt))
+                        self.logger.error("Bad sent report %s, should be %s" % (qso[3], trprt))
                         cur.execute("UPDATE nac_log_new set tx = %s where qsoid=%s", (trprt, qso[0]))
                         adjustments += 1
                     if qso[4] != rrprt:
-                        print("Bad received report %s, should be %s" % (qso[4], rrprt))
+                        self.logger.error("Bad received report %s, should be %s" % (qso[4], rrprt))
                         cur.execute("UPDATE nac_log_new set rx = %s where qsoid=%s", (rrprt, qso[0]))
                         adjustments += 1
                     if adjustments:
                         ret["adjusted"] += 1
                 elif len(lines) > 1:
-                    print("Multiple qsos found; %s" % lines)
+                    self.logger.error("Multiple qsos found; %s" % lines)
                     pass
                 else:
                     q = """SELECT qsoid, date, time, tx, rx, locator, abs(date_part('hour',time::time-%s::time)*60+date_part('minute',time::time-%s::time)) from nac_log_new where date=%s
                         and callsign = %s"""
                     cur.execute(q, (starttime, starttime, startdate, callsign))
                     lines = cur.fetchall()
-                    print("Missing QSO: %s" % line)
+                    self.logger.error("Missing QSO: %s" % line)
                     if lines:
-                        print("Found:", lines)
+                        self.logger.debug("Found:", lines)
                     else:
                         bearing, distance, points, square_no = self.distance_to(locator, startdate, starttime)
                         qso = {
@@ -439,7 +438,7 @@ class HamOp:
             mn, ms, mw, me, mlat, mlon = mh.to_rect(self.my_qth())
             n, s, w, e, lat, lon = mh.to_rect(what)
             bearing = sphere.bearing((mlon, mlat), (lon, lat))
-            print("Calculated bearing from %s to %s to be %f" % (self.my_qth(), what, bearing))
+            self.logger.debug("Calculated bearing from %s to %s to be %f" % (self.my_qth(), what, bearing))
             self.app.azel.az_track(int(bearing))
             self.app.client_mgr.add_mh_on_map(what)
         except (TypeError, ValueError):
@@ -453,7 +452,7 @@ class HamOp:
         if lines:
             loc = lines[0][1]
             bearing, _distance = self.distance_to(loc)
-            print("Tracking Az %d to %s at %s" % (int(bearing), what, loc))
+            self.logger.debug("Tracking Az %d to %s at %s" % (int(bearing), what, loc))
             self.app.azel.az_track(int(bearing))
 
 

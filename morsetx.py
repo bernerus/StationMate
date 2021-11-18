@@ -74,7 +74,8 @@ cw_thread_lock = Lock()
 
 class Morser:
 
-    def __init__(self, verbose=True, gpio_bus=1, speed=None, p20=None):
+    def __init__(self, logger, verbose=True, gpio_bus=1, speed=None, p20=None):
+        self.logger = logger
         self.unit_time = None
         self.set_speed(speed)
         self.verbose = verbose
@@ -86,7 +87,7 @@ class Morser:
         if speed is None:
             speed = 100
         self.unit_time = 6 / speed
-        print("CW speed set to ", speed)
+        self.logger.info("CW speed set to %d", speed)
 
     def transmit_sentence(self, sentence):
         for (index, word) in enumerate(sentence.split()):
@@ -106,7 +107,7 @@ class Morser:
         if code != '':
 
             if self.verbose:
-                print('\nProcessing letter "{}" and code "{}"'.format(letter.upper(), code))
+                self.logger.debug('\nProcessing letter "{}" and code "{}"'.format(letter.upper(), code))
 
             for (index, signal) in enumerate(code):
                 if index > 0:
@@ -119,7 +120,7 @@ class Morser:
 
         else:
             if self.verbose:
-                print('\nInvalid input: {}'.format(letter))
+                self.logger.error('\nInvalid input: {}'.format(letter))
 
     def transmit_dot(self):
         self.p20.bit_write(P20_CW_KEY, "LOW")
@@ -147,7 +148,7 @@ class Morser:
                 while count:
                     if message != '':
                         if self.verbose:
-                            print('\nBegin Transmission')
+                            self.logger.info('\nBegin Transmission')
 
                         self.transmit_sentence(message)
                         self.p20.bit_write(P20_CW_KEY, "HIGH")
@@ -157,7 +158,7 @@ class Morser:
                     self.wait_between_words()
 
                 if self.verbose:
-                    print('\nEnd Transmission')
+                    self.logger.info('\nEnd Transmission')
 
             finally:
                 self.p20.bit_write(P20_CW_KEY, "HIGH")
@@ -167,7 +168,7 @@ class Morser:
         while True:
             if not self.txq.empty():
                 item = self.txq.get_nowait()
-                print("Transmitting CW: %s" % item)
+                self.logger.info("Transmitting CW: %s" % item)
                 self.send_message(item)
             else:
                 time.sleep(self.unit_time)

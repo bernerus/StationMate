@@ -36,9 +36,10 @@ def send_update(key, clazz, value):
 
 
 class ClientMgr:
-    def __init__(self, app, socket_io):
+    def __init__(self, app, logger, socket_io):
 
         self.app=app
+        self.logger=logger
         self.socket_io = socket_io
         self.current_band = "144-FT8"
 
@@ -167,11 +168,14 @@ class ClientMgr:
     def get_current_band(self):
         return self.current_band
 
-    def send_azel(self, force=None):
-        current_azel = self.app.azel.get_azel()
-        if current_azel != self.last_pushed_azel or force:
-            msg_q.put(("set_azel", {"az": current_azel[0], "el": current_azel[1]}))
-        self.last_pushed_azel = current_azel
+
+    def send_azel(self, azel=None, force=None):
+        if azel is None:
+            azel = self.app.azel.get_azel()
+
+        if azel != self.last_pushed_azel or force:
+            msg_q.put(("set_azel", {"az": azel[0], "el": azel[1]}))
+        self.last_pushed_azel = azel
 
 
 
@@ -187,7 +191,7 @@ class ClientMgr:
         self.send_origo()
         self.send_qth()
         self.send_my_data()
-        self.send_azel()
+        self.send_azel(force=True)
         self.push_wind_led(self.app.azel.tracking_wind)
 
         with thread_lock:
@@ -304,7 +308,7 @@ class ClientMgr:
         msg_q.put(("globalReload", {}))
 
     def map_settings(self, json):
-        print("Map settings received", json)
+        self.logger.debug("Map settings received: %s", json)
         self.app.ham_op.store_map_setting(json, self.current_band, self.map_mh_length, self.current_log_scope)
 
 def circle(size, user_location):

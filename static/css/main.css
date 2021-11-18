@@ -145,7 +145,9 @@ textarea {
  *    `contenteditable` attribute is included anywhere else in the document.
  *    Otherwise it causes space to appear at the top and bottom of elements
  *    that receive the `clearfix` class.
- * 2. The use of `table` rather than `block` is only necessary if using
+ * 2. The use of `
+
+ ` rather than `block` is only necessary if using
  *    `:before` to contain the top-margins of child elements.
  */
 
@@ -256,12 +258,37 @@ textarea {
 }
 
 fieldset {
+    position: relative;
     background: linear-gradient(179deg, rgba(196, 213, 255, 0.93) 7.14%, rgb(247, 249, 255) 98.32%);
     border-radius: 7px;
-    padding: 6px;
+    padding-top: 30px;
     border: 1px solid #d8dcdf;
+    font-size: 0.97em;
+    font-family: Akzidenz Grotesk, Helvetica, Arial;
+    color: #333333;
 }
 
+legend {
+    position: absolute;
+    top: 0px;
+    font-size: 1em;
+    padding: 0px 5px;
+    font-weight: bold;
+    border: none;
+}
+
+td {
+    white-space: nowrap;
+    border: none;
+    padding: 0;
+}
+
+th { border: none;}
+table {
+    border:none;
+    border-collapse: collapse;
+    border-spacing: 0;
+}
 
 .led {
     margin: 30px auto;

@@ -6,6 +6,15 @@ from flask_socketio import SocketIO, emit
 from morsetx import *
 import threading
 import atexit
+import logging
+
+logger=logging.getLogger(__name__)
+logger.setLevel("DEBUG")
+hdlr = logging.StreamHandler()
+hdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)8s %(filename)20s:%(lineno)-5s %(message)s'))
+logger.addHandler(hdlr)
+
+logger.info("Starting stnMate")
 
 
 socket_io = SocketIO(async_mode="eventlet")
@@ -28,16 +37,16 @@ app.socket_io = socket_io
 _db = psycopg2.connect(dbname='ham_station')
 
 from hamop import HamOp
-app.ham_op = HamOp(app, _db)
+app.ham_op = HamOp(app, logger, _db,)
 
 from clientmgr import ClientMgr
-app.client_mgr = ClientMgr(app, socket_io)
+app.client_mgr = ClientMgr(app, logger, socket_io)
 
 from azel import AzElControl
-app.azel = AzElControl(app, socket_io, hysteresis=2)
+app.azel = AzElControl(app, logger, socket_io, hysteresis=2)
 app.azel.startup()
 
-app.keyer = Morser(speed=None, p20=app.azel.p20)
+app.keyer = Morser(logger, speed=None, p20=app.azel.p20)
 app.keyer_thread = threading.Thread(target=app.keyer.background_thread, args=())
 app.keyer_thread.daemon = True  # Daemonize keyer_thread
 app.keyer_thread.start()
@@ -186,11 +195,11 @@ def set_cw_speed(json):
     app.keyer.set_speed(speed)
 
 def message_received():
-    print('message was received!!!')
+    logger.debug('message was received!!!')
 
 @socket_io.on('my event')
 def handle_my_custom_event(json):
-    print('received my event: ' + str(json))
+    logger.debug('received my event: ' + str(json))
     emit('my response', json, callback=message_received)
     app.client_mgr.send_azel(force=True)
 
@@ -215,7 +224,7 @@ def handle_toggle_pa(_json):
 def handle_track_az(json):
     app.azel.untrack_wind()
 
-    # print('received track_az: ' + str(json))
+    # logger.debug('received track_az: ' + str(json))
     # emit('my response', json, callback=messageReceived)
 
     try:
@@ -241,7 +250,7 @@ def delete_qso(qso):
 
 @socket_io.on('disconnect')
 def test_disconnect():
-    print('Client disconnected', request.host)
+    logger.info('Client %s disconnected', request.host)
 
 @socket_io.event()
 def map_settings(settings):
@@ -249,7 +258,7 @@ def map_settings(settings):
 
 @atexit.register
 def goodbye():
-    print("Goodbye!!")
+    logger.info("Goodbye!!")
     app.azel.az_stop()
     app.azel.GPIO_cleanup()  # clean up GPIO on exit
 
