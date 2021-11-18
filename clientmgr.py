@@ -118,9 +118,8 @@ class ClientMgr:
         self.add_mhs_on_map([loc])
 
     def status_push(self, current, force=False):
-        if current is None:
-            return
-        if current != self.last_pushed_status or self.last_pushed_status is None or force:
+
+        if current and current != self.last_pushed_status or self.last_pushed_status is None or force:
             if self.app.ham_op.pa_running:
                 if current & P27_PA_READY:
                     send_update("pa_ready_led", "active", True)
@@ -140,13 +139,13 @@ class ClientMgr:
             send_update("trx_tx_led", "active", not (current & P27_TRX_TX_ACTIVE_L))
             self.last_pushed_status = current
 
-        if self.current_log_scope != self.last_pushed_log_scope:
+        if self.current_log_scope != self.last_pushed_log_scope or force:
             send_update("log_scope_forever", "active", self.current_log_scope == "Forever")
             send_update("log_scope_today", "active", self.current_log_scope == "Today")
             send_update("log_scope_contest", "active", self.current_log_scope == "Contest")
             self.last_pushed_log_scope = self.current_log_scope
 
-        if self.map_mh_length != self.last_pushed_map_mh_length:
+        if self.map_mh_length != self.last_pushed_map_mh_length or force:
             send_update("loc_fields", "active", self.map_mh_length == 2)
             send_update("loc_squares", "active", self.map_mh_length == 4)
             send_update("loc_locators", "active", self.map_mh_length >= 6)
@@ -171,7 +170,7 @@ class ClientMgr:
         msg_q.put(("set_mydata", msg))
 
     def startup(self):
-        self.status_update()
+        self.status_update(force=True)
 
     def get_current_band(self):
         return self.current_band
