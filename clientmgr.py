@@ -46,6 +46,8 @@ class ClientMgr:
         self.last_p2_sense = None
         self.last_pushed_status = None
         self.last_pushed_azel = (None, None)
+        self.last_pushed_log_scope = None
+        self.last_pushed_map_mh_length = None
 
         self.message_thread = None
         self.status_thread = None
@@ -137,12 +139,17 @@ class ClientMgr:
             send_update("trx_tx_led", "active", not (current & P27_TRX_TX_ACTIVE_L))
             self.last_pushed_status = current
 
-        send_update("log_scope_forever", "active", self.current_log_scope == "Forever")
-        send_update("log_scope_today", "active", self.current_log_scope == "Today")
-        send_update("log_scope_contest", "active", self.current_log_scope == "Contest")
-        send_update("loc_fields", "active", self.map_mh_length == 2)
-        send_update("loc_squares", "active", self.map_mh_length == 4)
-        send_update("loc_locators", "active", self.map_mh_length >= 6)
+        if self.current_log_scope != self.last_pushed_log_scope:
+            send_update("log_scope_forever", "active", self.current_log_scope == "Forever")
+            send_update("log_scope_today", "active", self.current_log_scope == "Today")
+            send_update("log_scope_contest", "active", self.current_log_scope == "Contest")
+            self.last_pushed_log_scope = self.current_log_scope
+
+        if self.map_mh_length != self.last_pushed_map_mh_length:
+            send_update("loc_fields", "active", self.map_mh_length == 2)
+            send_update("loc_squares", "active", self.map_mh_length == 4)
+            send_update("loc_locators", "active", self.map_mh_length >= 6)
+            self.last_pushed_map_mh_length = self.map_mh_length
 
         self.app.azel.status_update()
 
