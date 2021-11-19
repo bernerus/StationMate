@@ -362,7 +362,7 @@ class AzElControl:
 			self.stop_interrupt(self.last_sense & stop_mask, current_sense & stop_mask)
 
 		if diff & manual_mask and (current_sense & manual_mask != manual_mask):
-			self.logger.warning("Manual intervention detected")
+			self.logger.warning("Manual intervention detected: diff=%s, current_sense=%s, manual_mask=%s" % (bin(diff), bin(current_sense), bin(manual_mask)))
 			self.manual_interrupt(self.last_sense & manual_mask, current_sense & manual_mask)
 
 		self.last_sense = current_sense
