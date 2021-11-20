@@ -77,8 +77,8 @@ class AzElControl:
 		self.AZ_CCW_MECH_STOP: int = 0
 		self.AZ_CW_MECH_STOP: int = 734
 
-		self.CCW_BEARING_STOP: int = 273  # 278   273
-		self.CW_BEARING_STOP: int = 278  # 283   278
+		self.CCW_BEARING_STOP: int = 274  # 278   273
+		self.CW_BEARING_STOP: int = 279  # 283   278
 
 		self.BEARING_OVERLAP = abs(self.CW_BEARING_STOP - self.CCW_BEARING_STOP)
 
@@ -148,8 +148,20 @@ class AzElControl:
 
 			self.az = 0
 
+		self.retrack_wind_countdown = self.reset_wind_track_countdown()
+
+	def reset_wind_track_countdown(self):
+		self.logger.info("Resetting wind track countdown to 6")
+		self.retrack_wind_countdown = 6
+
+	def retrack_wind(self):
+		self.retrack_wind_countdown -= 1
+		self.logger.info("Wind track decremented to to %d", self.retrack_wind_countdown)
+		return self.retrack_wind_countdown <= 0
+
 	def untrack_wind(self):
 		self.tracking_wind = False
+		self.reset_wind_track_countdown()
 
 	def track_wind(self, value=None):
 		if value is None:
@@ -161,6 +173,7 @@ class AzElControl:
 			self.wind_thread.start()
 		else:
 			abortable_sleep.abort()
+		self.reset_wind_track_countdown()
 
 	def get_az_target(self):
 		if self.az_target:
@@ -171,6 +184,10 @@ class AzElControl:
 
 	def wind_thread_function(self, azel):
 		while True:
+			if not azel.tracking_wind:
+				if azel.retrack_wind():
+					azel.logger.info("Wind tracking restarted")
+					azel.track_wind()
 			if azel.tracking_wind:
 				mn, ms, mw, me, my_lat, my_lon = mh.to_rect(self.app.ham_op.my_qth())
 				ret = requests.get(
@@ -184,7 +201,8 @@ class AzElControl:
 				wtd = wtd + 360.0 if wtd < 0 else wtd
 				wtd = wtd - 360 if wtd > 360 else wtd
 				self.logger.info("Tracking current wind direction to %d" % int(wtd))
-				azel.az_track(int(wtd))
+				azel._az_track(int(wtd))
+
 			abortable_sleep(600)
 
 	def ticks2az(self, ticks):
@@ -261,7 +279,7 @@ class AzElControl:
 			self.logger.info("Calibration done")
 			self.az_stop()
 		else:
-			self.az_track()
+			self._az_track()
 
 	def az_interrupt(self, last_az, current_az):
 
@@ -270,7 +288,7 @@ class AzElControl:
 			inc = self.azz2inc[last_az << 2 | current_az]
 		except KeyError:
 			self.logger.error("Key error: index=%s" % bin(last_az << 2 | current_az))
-			self.az_track()
+			self._az_track()
 			return
 		self.az += inc
 		if inc:
@@ -282,9 +300,13 @@ class AzElControl:
 			self.az_sector = self.current_az_sector()
 			#self.logger.debug("Sector= %s",self.az_sector)
 			self.app.client_mgr.update_map_center()
-		self.az_track()
+		self._az_track()
 
 	def az_track(self, target=None):
+		self.reset_wind_track_countdown()
+		self._az_track(target=target)
+
+	def _az_track(self, target=None):
 		if target is not None:
 			if self.az2ticks(target) != self.az_target:
 				self.az_target = self.az2ticks(target)
