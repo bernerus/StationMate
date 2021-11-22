@@ -151,12 +151,12 @@ class AzElControl:
 		self.retrack_wind_countdown = self.reset_wind_track_countdown()
 
 	def reset_wind_track_countdown(self):
-		self.logger.info("Resetting wind track countdown to 6")
+		self.logger.debug("Resetting wind track countdown to 6")
 		self.retrack_wind_countdown = 6
 
 	def retrack_wind(self):
 		self.retrack_wind_countdown -= 1
-		self.logger.info("Wind track decremented to to %d", self.retrack_wind_countdown)
+		self.logger.debug("Wind track decremented to to %d", self.retrack_wind_countdown)
 		return self.retrack_wind_countdown <= 0
 
 	def untrack_wind(self):
@@ -263,16 +263,16 @@ class AzElControl:
 		# We ran into a mech stop
 
 		if not self.p20.bit_read(P20_ROTATE_CW):
-			# self.logger.debug("Mechanical stop clockwise")
+			self.logger.warning("Mechanical stop clockwise")
 			self.az = self.AZ_CW_MECH_STOP
 		else:
-			# self.logger.debug("Mechanical stop anticlockwise")
+			self.logger.warning("Mechanical stop anticlockwise")
 			self.az = self.AZ_CCW_MECH_STOP
 
 		if self.current_az_sector() != self.az_sector:
 			self.az_sector = self.current_az_sector()
 			self.app.client_mgr.update_map_center()
-		self.logger.info("Az set to %d ticks" % self.az)
+		self.logger.info("Az set to %d ticks at %d degrees" % (self.az, self.ticks2az(self.az)))
 		self.app.client_mgr.send_azel(azel=(self.ticks2az(self.az), self.el))
 		if self.calibrating:
 			self.calibrating = False
@@ -326,7 +326,7 @@ class AzElControl:
 					self.az_ccw()
 
 	def az_stop(self):
-		# self.logger.debug("Stop azimuth rotation")
+		self.logger.debug("Stop azimuth rotation")
 		self.rotating_ccw = False
 		self.rotating_cw = False
 		# self.p20.byte_write(0xff, ~self.STOP_AZ)
@@ -337,7 +337,7 @@ class AzElControl:
 		self.store_az()
 
 	def az_ccw(self):
-		# self.logger.debug("Rotate anticlockwise")
+		self.logger.debug("Rotate anticlockwise")
 		self.rotating_ccw = True
 		self.rotating_cw = False
 		# self.p20.byte_write(0xff, self.STOP_AZ)
@@ -349,7 +349,7 @@ class AzElControl:
 		self.logger.debug("Rotating anticlockwise")
 
 	def az_cw(self):
-		# self.logger.debug("Rotate clockwise")
+		self.logger.debug("Rotate clockwise")
 		self.rotating_cw = True
 		self.rotating_ccw = False
 		# self.p20.byte_write(0xff, self.STOP_AZ)
@@ -367,25 +367,20 @@ class AzElControl:
 
 		diff = current_sense ^ self.last_sense
 
-		az_mask = 0x03
-		el_mask = 0x04
-		stop_mask = 0x08
-		manual_mask = 0xf0
-
-		if diff & az_mask:
-			# self.logger.debug("Dispatching to az_interrupt")
-			self.az_interrupt(self.last_sense & az_mask, current_sense & az_mask)
-		if diff & el_mask:
-			# self.logger.debug("Dispatching to el_interrupt")
-			self.el_interrupt(self.last_sense & el_mask, current_sense & el_mask)
-		if diff & stop_mask and (current_sense & stop_mask == 0):
+		if diff & AZ_MASK:
+			self.logger.debug("Dispatching to az_interrupt")
+			self.az_interrupt(self.last_sense & AZ_MASK, current_sense & AZ_MASK)
+		if diff & EL_MASK:
+			self.logger.debug("Dispatching to el_interrupt")
+			self.el_interrupt(self.last_sense & EL_MASK, current_sense & EL_MASK)
+		if diff & STOP_MASK and (current_sense & STOP_MASK == 0):
 			self.logger.debug("Dispatching to stop_interrupt, diff=%x, current_sense=%x, last_sense=%x" %
 			      (diff, current_sense, self.last_sense))
-			self.stop_interrupt(self.last_sense & stop_mask, current_sense & stop_mask)
+			self.stop_interrupt(self.last_sense & STOP_MASK, current_sense & STOP_MASK)
 
-		if diff & manual_mask and (current_sense & manual_mask != manual_mask):
-			self.logger.warning("Manual intervention detected: diff=%s, current_sense=%s, manual_mask=%s" % (bin(diff), bin(current_sense), bin(manual_mask)))
-			self.manual_interrupt(self.last_sense & manual_mask, current_sense & manual_mask)
+		if diff & MANUAL_MASK and (current_sense & MANUAL_MASK != MANUAL_MASK):
+			self.logger.warning("Manual intervention detected: diff=%s, current_sense=%s, manual_mask=%s" % (bin(diff), bin(current_sense), bin(MANUAL_MASK)))
+			self.manual_interrupt(self.last_sense & MANUAL_MASK, current_sense & MANUAL_MASK)
 
 		self.last_sense = current_sense
 		self.app.ham_op.status_sense()
@@ -417,11 +412,11 @@ class AzElControl:
 
 	def startup(self):
 
-		# self.logger.debug("Restoring current azimuth")
+		self.logger.debug("Restoring last saved azimuth")
 		self.restore_az()
-		# self.logger.debug("Az restored to %d" % self.az)
+		self.logger.info("Azimuth restored to %d ticks at %d degrees" % (self.az, self.ticks2az(self.az)))
 		self.az_stop()
-		# self.logger.debug("Starting interrupt dispatcher")
+		self.logger.debug("Starting interrupt dispatcher")
 		GPIO.add_event_detect(self.AZ_INT, GPIO.FALLING, callback=self.interrupt_dispatch)
 		self.track_wind()
 
