@@ -171,4 +171,4 @@ class Morser:
                 self.logger.info("Transmitting CW: %s" % item)
                 self.send_message(item)
             else:
-                time.sleep(self.unit_time)
+                time.sleep(3*self.unit_time)

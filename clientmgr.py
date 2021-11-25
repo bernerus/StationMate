@@ -1,6 +1,6 @@
 import queue
 from threading import Lock
-from p27_defs import *
+from p26_defs import *
 
 from flask import current_app
 from datetime import date, datetime
@@ -13,6 +13,8 @@ thread_lock = Lock()
 
 def background_thread(app):
     """Example of how to send server generated events to clients."""
+
+    app.client_mgr.logger.info("Starting background thread")
     count = 0
     with app.app_context():
         while True:
@@ -25,6 +27,7 @@ def background_thread(app):
 
 def status_update_thread(app):
     """Check status and send updates to clients"""
+    app.client_mgr.logger.info("Starting update thread")
     with app.app_context():
         while True:
             current_status = app.ham_op.get_status()
@@ -119,9 +122,9 @@ class ClientMgr:
 
     def status_push(self, current, force=False):
 
-        if current and (current != self.last_pushed_status or self.last_pushed_status is None or force):
+        if current and ((current != self.last_pushed_status)  or self.last_pushed_status is None or force):
             if self.app.ham_op.pa_running:
-                if current & P27_PA_READY:
+                if current & P26_PA_READY:
                     send_update("pa_ready_led", "active", True)
                     send_update("pa_ready_led", "warming", False)
                 else:
@@ -133,10 +136,10 @@ class ClientMgr:
 
             # self.send_update("pa_ready_led", "led-gray", not (current & 0x02))
 
-            send_update("pa_active_led", "active", not (current & P27_PA_ON_L))
+            send_update("pa_active_led", "active", not (current & P26_PA_ON_L))
 
-            send_update("trx_rx_led", "active", not (current & P27_TRX_RX_ACTIVE_L))
-            send_update("trx_tx_led", "active", not (current & P27_TRX_TX_ACTIVE_L))
+            send_update("trx_rx_led", "active", not (current & P26_TRX_RX_ACTIVE_L))
+            send_update("trx_tx_led", "active", not (current & P26_TRX_TX_ACTIVE_L))
             self.last_pushed_status = current
 
         if self.current_log_scope != self.last_pushed_log_scope or force:

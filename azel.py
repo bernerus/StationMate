@@ -50,26 +50,39 @@ class AzElControl:
 		self.socket_io = socket_io
 		self.az_hysteresis = hysteresis
 
-		self.p21 = PCF(P21_I2C_ADDRESS,
-		              {P21_AZ_IND_A: (0, INPUT),
-		               P21_AZ_IND_B: (1, INPUT),
-		               P21_EL_PULSE: (2, INPUT),
-		               P21_AZ_STOP: (3, INPUT),
-		               P21_MAN_CW: (4, INPUT),
-		               P21_MAN_CCW: (5, INPUT),
-		               P21_MAN_UP: (6, INPUT),
-		               P21_MAN_DN: (7, INPUT),
-		               })
-		self.p20 = PCF(P20_I2C_ADDRESS,
-		              {P20_AZ_TIMER: (0, OUTPUT),
-		               P20_STOP_AZ: (1, OUTPUT),
-		               P20_ROTATE_CW: (2, OUTPUT),
-		               P20_RUN_EL: (3, OUTPUT),
-		               P20_EL_UP: (4, OUTPUT),
-		               P20_CW_KEY: (5, OUTPUT),
-		               P20_UNUSED_6: (6, INPUT),
-		               P20_UNUSED_7: (7, INPUT),
-		               })
+		try:
+			self.p21 = PCF(P21_I2C_ADDRESS,
+			              {P21_AZ_IND_A: (0, INPUT),
+			               P21_AZ_IND_B: (1, INPUT),
+			               P21_EL_PULSE: (2, INPUT),
+			               P21_AZ_STOP: (3, INPUT),
+			               P21_MAN_CW: (4, INPUT),
+			               P21_MAN_CCW: (5, INPUT),
+			               P21_MAN_UP: (6, INPUT),
+			               P21_MAN_DN: (7, INPUT),
+			               })
+			self.p21.bit_read(P21_AZ_STOP)
+			self.logger.info("Found I2C port %x" % P21_I2C_ADDRESS)
+
+		except OSError:
+			self.p21 = None
+
+		try:
+			self.p20 = PCF(P20_I2C_ADDRESS,
+			              {P20_AZ_TIMER: (0, OUTPUT),
+			               P20_STOP_AZ: (1, OUTPUT),
+			               P20_ROTATE_CW: (2, OUTPUT),
+			               P20_RUN_EL: (3, OUTPUT),
+			               P20_EL_UP: (4, OUTPUT),
+			               P20_CW_KEY: (5, OUTPUT),
+			               P20_UNUSED_6: (6, INPUT),
+			               P20_UNUSED_7: (7, INPUT),
+			               })
+			self.p20.bit_read(P20_UNUSED_7)
+			self.logger.info("Found I2C port %x" % P20_I2C_ADDRESS)
+
+		except OSError:
+			self.p20 = None
 
 		# GPIO Interrupt pin
 		self.AZ_INT = 17

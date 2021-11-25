@@ -366,8 +366,9 @@ table {
 .calllog td {
     white-space: nowrap;
     border: 1px solid gray;
-    padding: 3px;
-    height: 20px;
+    padding: 0px 2px 0px 2px;
+    font-family: "Andale Mono";
+    font-size: 85%;
 }
 
 .calllog th {
