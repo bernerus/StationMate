@@ -436,6 +436,29 @@ class HamOp:
             self.app.client_mgr.status_update(force=True)
 
 
+    def toggle_rx70(self):
+        if self.p27 and self.p26:
+
+            rx70_on = not self.p26.bit_read(P26_RX_432_L)
+            if rx70_on:
+                self.p27.bit_write(P27_RX_432_L, HIGH)
+            else:
+                self.p27.bit_write(P27_RX_432_L, LOW)
+
+            self.app.client_mgr.status_update(force=True)
+
+    def toggle_tx70(self):
+        if self.p27 and self.p26:
+
+            tx70_on = not self.p26.bit_read(P26_TX_432_L)
+            if tx70_on:
+                self.p27.bit_write(P27_TX_432_L, HIGH)
+            else:
+                self.p27.bit_write(P27_TX_432_L, LOW)
+
+            self.app.client_mgr.status_update(force=True)
+
+
     def toggle_pa(self):
         if self.p27 and self.p26:
 

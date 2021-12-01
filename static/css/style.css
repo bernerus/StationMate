@@ -155,3 +155,11 @@ body {
 .active {
     background: #7dabf1;
 }
+
+#rx70_led.active {
+    background: #7df1cc;
+}
+
+#tx70_led.active {
+    background: #7df1cc;
+}

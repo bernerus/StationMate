@@ -9,7 +9,7 @@ import atexit
 import logging
 
 logger=logging.getLogger(__name__)
-logger.setLevel("DEBUG")
+logger.setLevel("INFO")
 hdlr = logging.StreamHandler()
 hdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)8s %(filename)20s:%(lineno)-5s %(message)s'))
 logger.addHandler(hdlr)
@@ -214,10 +214,17 @@ def handle_toggle_qro(_json):
     app.ham_op.toggle_qro()
 
 
-
 @socket_io.on("toggle_pa")
 def handle_toggle_pa(_json):
     app.ham_op.toggle_pa()
+
+@socket_io.on("toggle_tx70")
+def handle_toggle_pa(_json):
+    app.ham_op.toggle_tx70()
+
+@socket_io.on("toggle_rx70")
+def handle_toggle_pa(_json):
+    app.ham_op.toggle_rx70()
 
 
 @socket_io.on("track az")
