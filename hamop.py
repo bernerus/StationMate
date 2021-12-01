@@ -248,6 +248,13 @@ class HamOp:
         self.app.client_mgr.add_mh_on_map(qso["locator"])
         return new_qso_id
 
+    def callsigns_in_locator(self, loc):
+        cur = self.db.cursor()
+        q = "SELECT DISTINCT callsign from nac_log_new WHERE locator like %s ORDER BY callsign"
+        cur.execute(q, (loc+'%',))
+        rows = cur.fetchall()
+        return [x[0] for x in rows]
+
 
     def my_qth(self):
         rows = self.fetch_my_current_data()

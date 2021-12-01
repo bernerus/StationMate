@@ -74,6 +74,12 @@
                 updateClass(msg)
             })
 
+            socket.on("update_state", function (msg) {
+                console.log("Got update_state " + msg);
+                $('#log').append('<br>' + $('<div/>').text('Received update_state#' + msg).html());
+                updateState(msg)
+            })
+
             socket.on('set_origo', function (msg) {
                 // console.log("Got origo " + msg.lat + " " + msg.lon);
                 //confirm("Set_azel: " + msg.az + "/" + msg.el);
@@ -95,13 +101,13 @@
 
             socket.on('add_rect', function (msg) {
                 // console.log("Got rect " + msg.id)
-                addRect(msg.id, msg.n, msg.s, msg.w, msg.e);
+                addRect(msg.id, msg.n, msg.s, msg.w, msg.e, msg.info);
             })
 
             socket.on('add_rects', function (rects) {
                 // console.log("Got rects " + rects)
                 for (const rect of rects) {
-                    addRect(rect.id, rect.n, rect.s, rect.w, rect.e);
+                    addRect(rect.id, rect.n, rect.s, rect.w, rect.e, rect.info);
                 }
             })
 
@@ -115,19 +121,17 @@
                 }
             })
 
-            socket.on("globalReload", function(msg) {
+            socket.on("globalReload", function (msg) {
                 location.reload();
             })
 
-            socket.on("setMapZoom", function(msg) {
+            socket.on("setMapZoom", function (msg) {
                 console.log("setMapZoom" + msg)
                 set_map_zoom(msg)
             })
 
         });
     </script>
-
-
 
 
 </head>
@@ -140,10 +144,11 @@
     </tr>
     <tr>
         <td>
-            <table id="map_control"  style="border:none;">
+            <table id="map_control" style="border:none;">
                 <tr style="border:none;">
                     <td style="border:none;">
-                        <fieldset><legend >Antennstyrning</legend>
+                        <fieldset>
+                            <legend>Antennstyrning</legend>
                             <!--suppress HtmlFormInputWithoutLabel -->
                             <input type="text" class="trkaz" placeholder="Track az"/>
                             <button id="track_button" type="submit" onclick="send_track_az()">Track</button>
@@ -158,14 +163,15 @@
             </table>
         </td>
         <td>
-            <fieldset><legend>Stationstatus</legend>
+            <fieldset>
+                <legend>Stationstatus</legend>
                 <button id="wind_led" style="color: #0066FF; font-size: 18px;" class="fa-wind"></button>
                 <label>
                     Az: <span id="myaz"></span>
                     El: <span id="myel"></span>
                 </label>
                 <button id="pa_ready_led" onclick="send_toggle_pa()">PA Redo</button>
-                <button id="pa_active_led"onclick="send_toggle_qro()">QRO</button>
+                <button id="pa_active_led" onclick="send_toggle_qro()">QRO</button>
                 <button id="trx_rx_led">RX</button>
                 <button id="trx_tx_led">TX</button>
             </fieldset>
@@ -177,15 +183,17 @@
     </tr>
     <tr>
         <td rowspan="3" style="width:50%">
-            <fieldset><legend>Karta</legend>
+            <fieldset>
+                <legend>Karta</legend>
                 <div id="locatorButtons">
-                    <button id="loc_fields"  onclick="send_set_map_mh_length(2)" >Fält</button>
+                    <button id="loc_fields" onclick="send_set_map_mh_length(2)">Fält</button>
                     <button id="loc_squares" onclick="send_set_map_mh_length(4)">Rutor</button>
                     <button id="loc_locators" onclick="send_set_map_mh_length(6)">Lokatorer</button>
                 </div>
                 <button id="store_map_settings"
                         style="align-content: end;"
-                        onclick="send_map_status()">Spara kartinställning</button>
+                        onclick="send_map_status()">Spara kartinställning
+                </button>
                 <div style="float: top" id="map" class="map"></div>
             </fieldset>
         </td>
@@ -249,7 +257,7 @@
             <fieldset>
 
                 <legend>
-                Logg
+                    Logg
                     <button id="log_scope_forever" onclick="send_set_log_scope('Forever')">Totalt</button>
                     <button id="log_scope_today" onclick="send_set_log_scope('Today')">Idag</button>
                     <button id="log_scope_contest" onclick="send_set_log_scope('Contest')">Test</button>
@@ -345,7 +353,8 @@
     <tr>
         <td>
             <form action="" method="POST">
-                <fieldset> <legend>Morsesändare</legend>
+                <fieldset>
+                    <legend>Morsesändare</legend>
                     <div class="slidecontainer">
                         <label for="cwSpeedSlider">Takt: <span id="cwSpeedValue"></span></label><br/>
                         <input type="range" min="60" max="150" value="90" class="slider" id="cwSpeedSlider">
@@ -545,11 +554,11 @@
 
     function send_map_status() {
         console.log("Sending map status");
-        pos=map.getCenter();
-        zoom=map.getZoom();
+        pos = map.getCenter();
+        zoom = map.getZoom();
 
-        console.log("Sending map status:"+pos.lat()+" "+pos.lng()+" "+zoom);
-        socket.emit("map_settings", {"lat": pos.lat(), "lon":pos.lng(), "zoom":zoom});
+        console.log("Sending map status:" + pos.lat() + " " + pos.lng() + " " + zoom);
+        socket.emit("map_settings", {"lat": pos.lat(), "lon": pos.lng(), "zoom": zoom});
     }
 
 </script>
@@ -598,7 +607,7 @@
     function setOrigo(lat, lon, zoom) {
         map.setCenter({"lat": lat, "lng": lon});
         map.setZoom(zoom);
-        console.log("Moved map center to " + lat + " " + lon, "zoom="+zoom);
+        console.log("Moved map center to " + lat + " " + lon, "zoom=" + zoom);
     }
 
     function setQth(lat, lon, qth, n, s, w, e) {
@@ -622,6 +631,16 @@
         }
     }
 
+    function updateState(msg) {
+        console.log(msg)
+        console.log("ForID=", msg.forId)
+        element = document.getElementById(msg.forId)
+
+        console.log("Element=", element)
+        if (msg.state == 'disabled')
+            element.disabled=msg.value
+    }
+
     function setMyData(msg) {
         document.getElementById("my_callsign").innerHTML = msg.my_callsign;
         document.getElementById("my_ant").innerHTML = msg.my_ant;
@@ -633,18 +652,42 @@
         document.getElementById("band_select").value = current_band;
     }
 
-    function addRect(id, n, s, w, e) {
+    function createClickablePoly(poly, html, map, infowinpos) {
+        var contentString = html;
+        var infoWindow = new google.maps.InfoWindow();
+        google.maps.event.addListener(poly, 'mouseover', function (event) {
+            infoWindow.setContent(contentString);
+            infoWindow.setPosition(event.latLng);
+            infoWindow.open(map);
+        });
+        google.maps.event.addListener(poly, 'mouseout', function (event) {
+            infoWindow.close(map);
+        });
+    }
+
+    function addRect(id, n, s, w, e, infocontent) {
+
+
         var my_rect = new google.maps.Rectangle();
         my_rect.setOptions({
             strokeColor: "#255f58",
             strokeOpacity: 0.8,
-            strokeWeight: 2,
+            strokeWeight: 1,
             fillColor: "#3f4738",
-            fillOpacity: 0.35,
+            fillOpacity: 0.07,
+            editable: false,
             id: id,
             map,
             bounds: {"north": n, "south": s, "west": w, "east": e}
         })
+
+        infowinpos = new google.maps.LatLng(n, w + (e-w)/2)
+
+
+        createClickablePoly(my_rect, infocontent, map, infowinpos);
+
+        console.log("Added rect with id=", id)
+
     }
 
     var new_qso = {};

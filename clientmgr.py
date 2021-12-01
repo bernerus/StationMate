@@ -113,12 +113,42 @@ class ClientMgr:
         if distinct:
             mhs = set(mhs) - set(self.mhs_on_map)
         for loc in mhs:
+            n, s, w, e, lat, long = None, None, None, None, None, None
             try:
                 n, s, w, e, lat, lon = mh.to_rect(loc)
                 self.mhs_on_map.append(loc)
-                to_send.append({"id": loc, "n": n, "s": s, "w": w, "e": e})
             except (TypeError, ValueError):
                 pass
+
+            callsigns = self.app.ham_op.callsigns_in_locator(loc)
+            title = "Lokator"
+            if len(loc) < 6:
+                title="Ruta"
+            if len(loc) < 4:
+                title = "Fält"
+            info = "%s <b>%s</b>:<br/>" % (title, loc)
+            info += "<table id=\"loctable_%s\" class=\"locator_callsigns\">" % loc
+            cs_array = ([],[],[],[])
+            nc=0
+            col_size = int(len(callsigns)/len(cs_array))+1
+            for cs in callsigns:
+                col = int(nc / col_size)
+                try:
+                    cs_array[col].append(cs)
+                except IndexError as e:
+                    pass
+                nc += 1
+            for row in range(max([len(x) for x in cs_array])):
+                info+="<tr>"
+                for col in cs_array:
+                        try:
+                            info +="<td>"+col[row]+"</td>"
+                        except IndexError:
+                            info += "<td/>"
+                info += "</tr>"
+
+            info += "</table>"
+            to_send.append({"id": loc, "n": n, "s": s, "w": w, "e": e, 'info':info})
 
         msg_q.put(("add_rects", to_send))
 
