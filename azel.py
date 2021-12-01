@@ -51,7 +51,7 @@ class AzElControl:
 		self.az_hysteresis = hysteresis
 
 		try:
-			self.p21 = PCF(P21_I2C_ADDRESS,
+			self.p21 = PCF(self.logger, P21_I2C_ADDRESS,
 			              {P21_AZ_IND_A: (0, INPUT),
 			               P21_AZ_IND_B: (1, INPUT),
 			               P21_EL_PULSE: (2, INPUT),
@@ -68,7 +68,7 @@ class AzElControl:
 			self.p21 = None
 
 		try:
-			self.p20 = PCF(P20_I2C_ADDRESS,
+			self.p20 = PCF(self.logger, P20_I2C_ADDRESS,
 			              {P20_AZ_TIMER: (0, OUTPUT),
 			               P20_STOP_AZ: (1, OUTPUT),
 			               P20_ROTATE_CW: (2, OUTPUT),
@@ -343,8 +343,10 @@ class AzElControl:
 		self.rotating_ccw = False
 		self.rotating_cw = False
 		# self.p20.byte_write(0xff, ~self.STOP_AZ)
-		self.p20.bit_write(P20_STOP_AZ, LOW)
-		self.p20.bit_write(P20_ROTATE_CW, HIGH)
+		# self.p20.bit_write(P20_STOP_AZ, LOW)
+		# self.p20.bit_write(P20_ROTATE_CW, HIGH)
+
+		self.p20.byte_write(P20_STOP_AZ  | P20_ROTATE_CW , P20_ROTATE_CW)
 		self.logger.debug("Stopped azimuth rotation")
 		time.sleep(0.4)  # Allow mechanics to settle
 		self.store_az()
@@ -356,9 +358,10 @@ class AzElControl:
 		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ, HIGH)
 		time.sleep(0.1)
-		# self.p20.byte_write(0xff, ~self.AZ_TIMER)
-		self.p20.bit_write(P20_ROTATE_CW, HIGH)
-		self.p20.bit_write(P20_AZ_TIMER, LOW)
+		self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, P20_ROTATE_CW)
+
+		#self.p20.bit_write(P20_ROTATE_CW, HIGH)
+		#self.p20.bit_write(P20_AZ_TIMER, LOW)
 		self.logger.debug("Rotating anticlockwise")
 
 	def az_cw(self):
@@ -368,9 +371,9 @@ class AzElControl:
 		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ, HIGH)
 		time.sleep(0.1)
-		self.p20.bit_write(P20_ROTATE_CW, LOW)
-		self.p20.bit_write(P20_AZ_TIMER, LOW)
-		# self.p20.byte_write(0xFF, ~(self.AZ_TIMER | self.ROTATE_CW))
+		#self.p20.bit_write(P20_ROTATE_CW, LOW)
+		#self.p20.bit_write(P20_AZ_TIMER, LOW)
+		self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, 0)
 		self.logger.debug("Rotating clockwise")
 
 	def interrupt_dispatch(self, _channel):
@@ -381,7 +384,7 @@ class AzElControl:
 		diff = current_sense ^ self.last_sense
 
 		if diff & AZ_MASK:
-			self.logger.debug("Dispatching to az_interrupt")
+			# self.logger.debug("Dispatching to az_interrupt")
 			self.az_interrupt(self.last_sense & AZ_MASK, current_sense & AZ_MASK)
 		if diff & EL_MASK:
 			self.logger.debug("Dispatching to el_interrupt")
