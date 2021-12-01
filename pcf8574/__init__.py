@@ -21,9 +21,9 @@ default_pin_names = {"p0": 0,
 
 class PCF:
 
-    def __init__(self, address, pin_names: Dict[str, Union[int , Tuple[int, str]]] = None):
+    def __init__(self, logger, address, pin_names: Dict[str, Union[int , Tuple[int, str]]] = None):
 
-
+        self.logger = logger
         self.address = address
         self.status = True
         self.pin_mode_flags = 0x00
@@ -46,16 +46,16 @@ class PCF:
         PCF85.setup(address, self.bus, self.status)
 
     def pin_mode(self, pin_name, mode):
-        self.pin_mode_flags = PCF85.pin_mode(self.pin_names[pin_name], mode, self.pin_mode_flags)
+        self.pin_mode_flags = PCF85.pin_mode(self.logger, self.pin_names[pin_name], mode, self.pin_mode_flags)
 
     def bit_read(self, pin_name):
-        return PCF85.bit_read(self.pin_names[pin_name], self.bus, self.address)
+        return PCF85.bit_read(self.logger, self.pin_names[pin_name], self.bus, self.address)
 
     def byte_read(self, pin_mask):
-        return PCF85.byte_read(pin_mask, self.bus, self.address)
+        return PCF85.byte_read(self.logger, pin_mask, self.bus, self.address)
 
     def byte_write(self, pin_mask, value):
-        return PCF85.byte_write(pin_mask, self.bus, self.address, value & 0xff)
+        return PCF85.byte_write(self.logger, pin_mask, self.bus, self.address, value & 0xff)
 
     def bit_write(self, pin_name, value):
-        PCF85.bit_write(self.pin_names[pin_name], value, self.address, self.pin_mode_flags, self.bus)
+        PCF85.bit_write(self.logger, self.pin_names[pin_name], value, self.address, self.pin_mode_flags, self.bus)
