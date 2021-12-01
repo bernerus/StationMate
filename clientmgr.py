@@ -34,8 +34,13 @@ def status_update_thread(app):
             app.client_mgr.status_push(current_status)
             app.socket_io.sleep(0.5)
 
-def send_update(key, clazz, value):
+
+def send_update_class(key, clazz, value):
     msg_q.put(("update_class", {"forId": key, "class": clazz, "value": value}))
+
+
+def send_update_state(key, state, value):
+    msg_q.put(("update_state", {"forId": key, "state": state, "value": value}))
 
 
 def emit(what, data):
@@ -74,7 +79,7 @@ class ClientMgr:
 
     def set_map_mh_length(self, length):
         if length != self.get_map_mh_length():
-            print("Setting map MH length to ", length)
+            self.logger.info("Setting map MH length to %d", length)
             self.map_mh_length = length
             if length < 6:
                 self.distinct_mhs_on_map = True
@@ -123,42 +128,52 @@ class ClientMgr:
     def status_push(self, current, force=False):
 
         if current and ((current != self.last_pushed_status)  or self.last_pushed_status is None or force):
-            if self.app.ham_op.pa_running:
-                if current & P26_PA_READY:
-                    send_update("pa_ready_led", "active", True)
-                    send_update("pa_ready_led", "warming", False)
-                else:
-                    send_update("pa_ready_led", "warming", True)
-                    send_update("pa_ready_led", "active", False)
+            if current & P26_PA_READY:
+                send_update_class("pa_ready_led", "active", True)
+                send_update_class("pa_ready_led", "warming", False)
             else:
-                send_update("pa_ready_led", "warming", False)
-                send_update("pa_ready_led", "active", False)
+                if self.last_pushed_status is None or self.last_pushed_status & P26_PA_READY:
+                    self.app.ham_op.pa_running = False
+                    send_update_class("pa_ready_led", "warming", False)
+                    send_update_class("pa_ready_led", "active", False)
+                if self.app.ham_op.pa_running:
+                    send_update_class("pa_ready_led", "warming", True)
+                    send_update_class("pa_ready_led", "active", False)
 
-            # self.send_update("pa_ready_led", "led-gray", not (current & 0x02))
+            # self.send_update_class("pa_ready_led", "led-gray", not (current & 0x02))
 
-            send_update("pa_active_led", "active", not (current & P26_PA_ON_L))
+            send_update_class("pa_active_led", "active", not (current & P26_PA_ON_L))
 
-            send_update("trx_rx_led", "active", not (current & P26_TRX_RX_ACTIVE_L))
-            send_update("trx_tx_led", "active", not (current & P26_TRX_TX_ACTIVE_L))
+            send_update_class("trx_rx_led", "active", not (current & P26_TRX_RX_ACTIVE_L))
+            send_update_class("trx_tx_led", "active", not (current & P26_TRX_TX_ACTIVE_L))
+
+            send_update_class("rx70_led", "active", not (current & P26_RX_432_L))
+            send_update_class("tx70_led", "active", not (current & P26_TX_432_L))
+
+            if not (current & P26_TRX_RX_ACTIVE_L) or not (current & P26_TRX_TX_ACTIVE_L):
+                send_update_state("pa_ready_led", "disabled", False)
+            else:
+                if not current & P26_PA_READY:
+                    send_update_state("pa_ready_led", "disabled", True)
             self.last_pushed_status = current
 
         if self.current_log_scope != self.last_pushed_log_scope or force:
-            send_update("log_scope_forever", "active", self.current_log_scope == "Forever")
-            send_update("log_scope_today", "active", self.current_log_scope == "Today")
-            send_update("log_scope_contest", "active", self.current_log_scope == "Contest")
+            send_update_class("log_scope_forever", "active", self.current_log_scope == "Forever")
+            send_update_class("log_scope_today", "active", self.current_log_scope == "Today")
+            send_update_class("log_scope_contest", "active", self.current_log_scope == "Contest")
             self.last_pushed_log_scope = self.current_log_scope
 
         if self.map_mh_length != self.last_pushed_map_mh_length or force:
-            send_update("loc_fields", "active", self.map_mh_length == 2)
-            send_update("loc_squares", "active", self.map_mh_length == 4)
-            send_update("loc_locators", "active", self.map_mh_length >= 6)
+            send_update_class("loc_fields", "active", self.map_mh_length == 2)
+            send_update_class("loc_squares", "active", self.map_mh_length == 4)
+            send_update_class("loc_locators", "active", self.map_mh_length >= 6)
             self.last_pushed_map_mh_length = self.map_mh_length
 
         self.app.azel.status_update()
 
     def push_wind_led(self, tracking_wind):
-        send_update("wind_led", "fas", tracking_wind)
-        send_update("wind_led", "fa-thin", not tracking_wind)
+        send_update_class("wind_led", "fas", tracking_wind)
+        send_update_class("wind_led", "fa-thin", not tracking_wind)
         self.last_tracking_wind = tracking_wind
 
     def status_update(self, force=False):
