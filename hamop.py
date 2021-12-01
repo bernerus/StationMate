@@ -25,7 +25,7 @@ class HamOp:
         self.db = db
 
         try:
-            self.p27 = PCF(P27_I2C_ADDRESS, {P27_PA_OFF_L: (0, OUTPUT),
+            self.p27 = PCF(self.logger, P27_I2C_ADDRESS, {P27_PA_OFF_L: (0, OUTPUT),
                                                      P27_UNUSED_1: (1, INPUT),
                                                      P27_PA_ON_L: (2, OUTPUT),
                                                      P27_UNUSED_3: (3, INPUT),
@@ -44,7 +44,7 @@ class HamOp:
             self.p27 = None
 
         try:
-            self.p26 = PCF(P26_I2C_ADDRESS, {P26_UNUSED_0: (0, OUTPUT),
+            self.p26 = PCF(self.logger, P26_I2C_ADDRESS, {P26_UNUSED_0: (0, OUTPUT),
                                              P26_PA_READY: (1, INPUT),
                                              P26_PA_ON_L: (2, OUTPUT),
                                              P26_XRX_432_L: (3, INPUT),
