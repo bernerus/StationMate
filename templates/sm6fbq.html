@@ -41,8 +41,9 @@
         var current_band
 
         $(document).ready(function () {
-            // var mypeer = 'http://' + document.domain + ':' + location.port;
-            socket = io()
+            var mypeer = 'http://' + document.domain + ':' + location.port;
+            console.log("My peer="+mypeer)
+            socket = io(mypeer)
 
             console.log("Connecting to server");
 
@@ -130,6 +131,16 @@
                 set_map_zoom(msg)
             })
 
+            socket.on("fill_dx_note", function(msg) {
+                console.log("fill_dx_note" + msg)
+                fill_dx_note(msg)
+            })
+
+            socket.on("fill_dx_grid", function(msg) {
+                console.log("fill_dx_grid" + msg)
+                fill_dx_grid(msg)
+            })
+
         });
     </script>
 
@@ -150,7 +161,7 @@
                         <fieldset>
                             <legend>Antennstyrning</legend>
                             <!--suppress HtmlFormInputWithoutLabel -->
-                            <input type="text" class="trkaz" placeholder="Track az"/>
+                            <input id="track_input" type="text" class="trkaz" placeholder="Track az"/>
                             <button id="track_button" type="submit" onclick="send_track_az()">Track</button>
                             <button id="calibrate_button" type="button" onclick="send_calibrate()">Calibrate</button>
                             <button id="stop_button" type="button" onclick="send_stop()">Stop</button>
@@ -241,7 +252,7 @@
                         <td id="note_id" style="display:none;"></td>
                         <td><!--suppress HtmlFormInputWithoutLabel -->
                             <input style="text-transform: uppercase; width:6em;" id="note_callsign" type="text"
-                                   placeholder="Anropssignak"/></td>
+                                   placeholder="Anropssignal"/></td>
                         <td><!--suppress HtmlFormInputWithoutLabel -->
                             <input style="text-transform: uppercase;width:6em;" id="note_locator" type="text"
                                    placeholder="Lokator"/></td>
@@ -698,7 +709,7 @@
 
         createClickablePoly(my_rect, infocontent, map, infowinpos);
 
-        console.log("Added rect with id=", id)
+        // console.log("Added rect with id=", id)
 
     }
 
@@ -786,6 +797,18 @@
             new_qso['points'] = json['points']
         });
     }
+
+    function fill_dx_grid(msg) {
+        var trackTo = document.getElementById("track_input");
+        trackTo.value = msg;
+    }
+
+    function fill_dx_note(json) {
+        document.getElementById("note_callsign").value = json["callsign"]
+        document.getElementById("note_locator").value = json["locator"]
+        document.getElementById("note_frequency").value = json["frequency"]
+    }
+
 
     function enter_qso_in_table(qso) {
 

@@ -121,9 +121,13 @@ def my_wsjtx_upload():
 
 ##############
 
-@socket_io.event
+@socket_io.event()
 def connect():
     app.client_mgr.connect()
+
+@socket_io.on('connect', namespace="/wsjtx")
+def connect():
+    app.client_mgr.connect(namespace="/wsjtx")
 
 @socket_io.event
 def calibrate(_json):
@@ -225,6 +229,7 @@ def handle_toggle_pa(_json):
 @socket_io.on("toggle_rx70")
 def handle_toggle_pa(_json):
     app.ham_op.toggle_rx70()
+    emit("fill_dx_grid", "JP70PQ", namespace="/qwdgh")
 
 
 @socket_io.on("track az")
@@ -258,6 +263,17 @@ def delete_qso(qso):
 @socket_io.on('disconnect')
 def test_disconnect():
     logger.info('Client %s disconnected', request.host)
+
+@socket_io.on("set_dx_note", namespace="/wsjtx")
+def set_dx_note(json):
+    logger.info("Fill DX note %s" % json)
+    emit("fill_dx_note", json, namespace="/", broadcast=True)
+
+@socket_io.on("set_dx_grid", namespace="/wsjtx")
+def set_dx_call(grid):
+    logger.info("Set DX grid to %s" % grid)
+    emit("fill_dx_grid", grid, namespace="/", broadcast=True)
+
 
 @socket_io.event()
 def map_settings(settings):

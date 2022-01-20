@@ -96,7 +96,7 @@ class ClientMgr:
                 self.show_log_since = None
                 self.show_log_until = None
             elif scope == "Today":
-                self.show_log_since = datetime.today()
+                self.show_log_since = datetime.combine(date.today(), datetime.min.time())
                 self.show_log_until = None
             elif scope == "Contest":
                 fr, to = get_contest_times(self.current_band)
@@ -234,67 +234,71 @@ class ClientMgr:
 
 
 
-    def connect(self):
+    def connect(self, namespace="/"):
         # Clear the queue
 
-        try:
-            while not msg_q.empty():
-                msg_q.get_nowait()
-        except queue.Empty:
-            pass
+        if namespace=="/":
+            try:
+                while not msg_q.empty():
+                    msg_q.get_nowait()
+            except queue.Empty:
+                pass
 
-        self.send_origo()
-        self.send_qth()
-        self.send_my_data()
-        self.send_azel(force=True)
-        self.push_wind_led(self.app.azel.tracking_wind)
+            self.send_origo()
+            self.send_qth()
+            self.send_my_data()
+            self.send_azel(force=True)
+            self.push_wind_led(self.app.azel.tracking_wind)
 
-        with thread_lock:
-            if self.message_thread is None:
-                self.message_thread = self.socket_io.start_background_task(background_thread, current_app._get_current_object())
-        with thread_lock:
-            if self.status_thread is None:
-                self.status_thread = self.socket_io.start_background_task(status_update_thread, current_app._get_current_object())
+            with thread_lock:
+                if self.message_thread is None:
+                    self.message_thread = self.socket_io.start_background_task(background_thread, current_app._get_current_object())
+            with thread_lock:
+                if self.status_thread is None:
+                    self.status_thread = self.socket_io.start_background_task(status_update_thread, current_app._get_current_object())
 
-        emit('my_response', {'data': 'Connected', 'count': 0})
+            emit('my_response', {'data': 'Connected', 'count': 0})
 
-        rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
-        qsos = []
-        mhs = []
-        self.mhs_on_map = []
-        mhsqnumber = 0
-        mhsqs = set()
-        for row in rows:
-            mhsq = row[6][:4].upper()
-            newmsqn = None
-            if mhsq not in mhsqs and self.current_band.split('-')[0] in row[13] :
-                newmsqn = len(mhsqs)+1
-                mhsqs.add(mhsq)
+            rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
+            qsos = []
+            mhs = []
+            self.mhs_on_map = []
+            mhsqnumber = 0
+            mhsqs = set()
+            for row in rows:
+                mhsq = row[6][:4].upper()
+                newmsqn = None
+                if mhsq not in mhsqs and self.current_band.split('-')[0] in row[13] :
+                    newmsqn = len(mhsqs)+1
+                    mhsqs.add(mhsq)
 
 
-            qso = {"id": row[0],
-                   "date": row[1],
-                   "time": row[2],
-                   "callsign": row[3].upper(),
-                   "tx": row[4],
-                   "rx": row[5],
-                   "locator": row[6].upper(),
-                   "distance": row[7],
-                   "square": row[8],
-                   "points": row[9],
-                   "complete": row[10],
-                   "mode": row[11],
-                   "acc_sqn": newmsqn,
-                   "band": row[13],
-                   }
-            qsos.append(qso)
-            if self.current_band.split('-')[0] in row[13]:
-                mhs.append(row[6].upper())
+                qso = {"id": row[0],
+                       "date": row[1],
+                       "time": row[2],
+                       "callsign": row[3].upper(),
+                       "tx": row[4],
+                       "rx": row[5],
+                       "locator": row[6].upper(),
+                       "distance": row[7],
+                       "square": row[8],
+                       "points": row[9],
+                       "complete": row[10],
+                       "mode": row[11],
+                       "acc_sqn": newmsqn,
+                       "band": row[13],
+                       }
+                qsos.append(qso)
+                if self.current_band.split('-')[0] in row[13]:
+                    mhs.append(row[6].upper())
 
-        emit("add_qsos", qsos)
-        self.add_mhs_on_map(mhs)
+            emit("add_qsos", qsos)
+            self.add_mhs_on_map(mhs)
 
-        self.status_update(force=True)
+            self.status_update(force=True)
+        else:
+            self.app.socket_io.emit('my_response', {'data': 'Connected', 'count': 0}, namespace="/wsjtx")
+
 
 
     def update_map_center(self):
