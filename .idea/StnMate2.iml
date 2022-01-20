@@ -7,7 +7,7 @@
       <sourceFolder url="file://$MODULE_DIR$/locator/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pcf8574" isTestSource="false" />
     </content>
-    <orderEntry type="jdk" jdkName="Remote Python 3.7.3 (sftp://bernerus@pi3.bernerus.se:22/usr/bin/python3)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Remote Python 3.7.3 (sftp://bernerus@bernerus.se:22/usr/bin/python3)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="TemplatesService">
