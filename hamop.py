@@ -9,6 +9,7 @@ from datetime import datetime
 import locator.src.maidenhead as mh
 from geo import sphere
 import math
+import adif_io
 
 
 from typing import TYPE_CHECKING
@@ -35,7 +36,7 @@ class HamOp:
                                                      P27_UNUSED_7: (7, INPUT),
                                                      })
             self.p27.bit_write(P27_PA_OFF_L, HIGH)
-            self.p27.bit_write(P27_PA_ON_L, HIGH)
+            # self.p27.bit_write(P27_PA_ON_L, HIGH)
             self.p27.bit_write(P27_RX_432_L, HIGH)
             self.p27.bit_write(P27_TX_432_L, HIGH)
             self.logger.info("Found I2C port %x" % P27_I2C_ADDRESS)
@@ -139,13 +140,17 @@ class HamOp:
 
         t_date_start="1900-01-01T00:00:00"
         t_date_stop = "9999-12-31T23:59:59"
-        if since:
+        if since is not None:
             t_date_start = since.isoformat()
-        if until:
+        if until is not None:
             t_date_stop = until.isoformat()
+
+        self.logger.info("Start %s"% t_date_start)
+        self.logger.info("Stop %s"% t_date_stop)
 
         args = (
             t_date_start[:10], t_date_stop[:10], t_date_start[11:16].replace(":", ""), t_date_stop[11:16].replace(":", ""))
+        self.logger.info("Args =  %s" % str(args))
         cur = self.db.cursor()
         cur.execute(
             """SELECT qsoid, date, time, callsign, tx, rx, locator, distance, square, points, complete, mode, accumulated_sqn, band
@@ -325,94 +330,200 @@ class HamOp:
         self.p27.bit_write(P27_TX_432_L, HIGH)
         return "70cm tx disabled"
 
+    def merge_into_log_db(self, cur, ret, qso):
+
+        #starttime = starttime.replace(':', '')[:4]
+        starttime = qso["TIME_ON"][:4]
+        startdate = qso["QSO_DATE"][:4]+'-'+qso["QSO_DATE"][4:6]+"-"+qso["QSO_DATE"][6:8]
+
+
+        #_endtime = endtime.replace(':', '')[:4]
+        _endtime =  qso["TIME_OFF"][:4]
+        if "PROP_MODE" in qso:
+            propagation=qso["PROP_MODE"]
+        else:
+            propagation="TR"
+
+        transmit_mode = qso["MODE"]
+        frequency = qso["FREQ"]
+        if propagation == "TR":
+            propagation = "T"
+        callsign = qso["CALL"].upper()
+        locator = qso["GRIDSQUARE"].upper()
+        trprt = qso["RST_SENT"]
+        rrprt = qso["RST_RCVD"]
+
+        q = """SELECT id, qso_date, time_on, rst_sent, rst_rcvd, gridsquare, prop_mode, mode from adif_log where qso_date=%s and
+                                 abs(date_part('hour',time_on::time-%s::time)*60+date_part('minute',time_on::time-%s::time)) < 10
+                                 and call = %s"""
+        cur.execute(q, (startdate, starttime, starttime, callsign))
+        lines = cur.fetchall()
+        if len(lines) == 1:
+            # print("Found QSO: %s" % lines)
+            qso = lines[0]
+            qso_date = qso[1]
+            qso_time = qso[2]
+            adjustments = 0
+            if locator not in qso[5]:
+                self.logger.error("Bad locator %s, should be %s" % (qso[5], locator))
+                bearing, distance, points, square_no = self.distance_to(locator, qso_date, qso_time)
+                cur.execute(
+                    "UPDATE adif_log set gridsquare = %s, distance = %s, stnmate_square_no = %s, stnmate_points = %s where id=%s",
+                    (locator, str(int(distance * 100) / 100.0), square_no, points, qso[0]))
+                adjustments += 1
+            if qso[6] != propagation and propagation:
+                self.logger.error("Bad propagation mode %s, should be %s" % (qso[6], propagation))
+                cur.execute("UPDATE adif_log set prop_mode = %s where id=%s", (propagation, qso[0]))
+                adjustments += 1
+            if qso[7] != transmit_mode:
+                self.logger.error("Bad transmit mode %s, should be %s" % (qso[7], transmit_mode))
+                cur.execute("UPDATE adif_log set mode = %s where id=%s", (transmit_mode, qso[0]))
+                adjustments += 1
+            if qso[3] != trprt:
+                self.logger.error("Bad sent report %s, should be %s" % (qso[3], trprt))
+                cur.execute("UPDATE adif_log set rst_sent = %s where id=%s", (trprt, qso[0]))
+                adjustments += 1
+            if qso[4] != rrprt:
+                self.logger.error("Bad received report %s, should be %s" % (qso[4], rrprt))
+                cur.execute("UPDATE adif_log set rst_rcvd = %s where id=%s", (rrprt, qso[0]))
+                adjustments += 1
+            if adjustments:
+                ret["adjusted"] += 1
+        elif len(lines) > 1:
+            self.logger.error("Multiple qsos found; %s" % lines)
+            pass
+        else:
+            q = """SELECT qsoid, date, time, tx, rx, locator, abs(date_part('hour',time::time-%s::time)*60+date_part('minute',time::time-%s::time)) as datetime from nac_log_new where date=%s
+                                    and callsign = %s"""
+            cur.execute(q, (starttime, starttime, startdate, callsign))
+            lines = cur.fetchall()
+            self.logger.error("Missing QSO: %s" % str(qso))
+            if lines:
+                self.logger.debug("Found:", lines)
+            else:
+                bearing, distance, points, square_no = self.distance_to(locator, startdate, starttime)
+                qso = {
+                    "date": startdate,
+                    "time": starttime,
+                    "callsign": callsign,
+                    "tx": trprt,
+                    "rx": rrprt,
+                    "locator": locator,
+                    "distance": str(int(distance * 100) / 100.0),
+                    "square": square_no,
+                    "points": points,
+                    "complete": True,
+                    "band": "%d-%s" % (int(float(frequency)), transmit_mode),
+                    "mode": propagation,
+                    "transmit_mode": transmit_mode,
+                    "frequency": frequency,
+                }
+                # self.do_commit_qso(qso)
+                ret["added"] += 1
+
+
     def my_wsjtx_upload(self, request):
         ret = {"added": 0, "adjusted": 0}
         cur = self.db.cursor()
         for k, v in request.files.items():
             file_data = v.read().decode("utf-8")
-            # print(file_data)
-            for line in file_data.splitlines():
-                startdate, starttime, enddate, endtime, callsign, locator, frequency, transmit_mode, trprt, rrprt, power, comment, dxname, propagation = line.split(
-                    ',')
-                starttime = starttime.replace(':', '')[:4]
-                _endtime = endtime.replace(':', '')[:4]
-                if propagation == "TR":
-                    propagation = "T"
-                callsign = callsign.upper()
-                locator = locator.upper()
-                q = """SELECT qsoid, date, time, tx, rx, locator, mode, transmit_mode from nac_log_new where date=%s and
-                     abs(date_part('hour',time::time-%s::time)*60+date_part('minute',time::time-%s::time)) < 10
-                     and callsign = %s"""
-                cur.execute(q, (startdate, starttime, starttime, callsign))
-                lines = cur.fetchall()
-                if len(lines) == 1:
-                    # print("Found QSO: %s" % lines)
-                    qso = lines[0]
-                    qso_date = qso[1]
-                    qso_time = qso[2]
-                    adjustments = 0
-                    if locator not in qso[5]:
-                        self.logger.error("Bad locator %s, should be %s" % (qso[5], locator))
-                        bearing, distance, points, square_no = self.distance_to(locator, qso_date, qso_time)
-                        cur.execute(
-                            "UPDATE nac_log_new set locator = %s, distance = %s, square = %s, points = %s where qsoid=%s",
-                            (locator, str(int(distance * 100) / 100.0), square_no, points, qso[0]))
-                        adjustments += 1
-                    if qso[6] != propagation and propagation:
-                        self.logger.error("Bad propagation mode %s, should be %s" % (qso[6], propagation))
-                        cur.execute("UPDATE nac_log_new set mode = %s where qsoid=%s", (propagation, qso[0]))
-                        adjustments += 1
-                    if qso[7] != transmit_mode:
-                        self.logger.error("Bad transmit mode %s, should be %s" % (qso[7], transmit_mode))
-                        cur.execute("UPDATE nac_log_new set transmit_mode = %s where qsoid=%s", (transmit_mode, qso[0]))
-                        adjustments += 1
-                    if qso[3] != trprt:
-                        self.logger.error("Bad sent report %s, should be %s" % (qso[3], trprt))
-                        cur.execute("UPDATE nac_log_new set tx = %s where qsoid=%s", (trprt, qso[0]))
-                        adjustments += 1
-                    if qso[4] != rrprt:
-                        self.logger.error("Bad received report %s, should be %s" % (qso[4], rrprt))
-                        cur.execute("UPDATE nac_log_new set rx = %s where qsoid=%s", (rrprt, qso[0]))
-                        adjustments += 1
-                    if adjustments:
-                        ret["adjusted"] += 1
-                elif len(lines) > 1:
-                    self.logger.error("Multiple qsos found; %s" % lines)
-                    pass
-                else:
-                    q = """SELECT qsoid, date, time, tx, rx, locator, abs(date_part('hour',time::time-%s::time)*60+date_part('minute',time::time-%s::time)) as datetime from nac_log_new where date=%s
-                        and callsign = %s"""
-                    cur.execute(q, (starttime, starttime, startdate, callsign))
-                    lines = cur.fetchall()
-                    self.logger.error("Missing QSO: %s" % line)
-                    if lines:
-                        self.logger.debug("Found:", lines)
-                    else:
-                        bearing, distance, points, square_no = self.distance_to(locator, startdate, starttime)
-                        qso = {
-                            "date": startdate,
-                            "time": starttime,
-                            "callsign": callsign,
-                            "tx": trprt,
-                            "rx": rrprt,
-                            "locator": locator,
-                            "distance": str(int(distance * 100) / 100.0),
-                            "square": square_no,
-                            "points": points,
-                            "complete": True,
-                            "band": "%d-%s" % (int(float(frequency)), transmit_mode),
-                            "mode": propagation,
-                            "transmit_mode": transmit_mode,
-                            "frequency": frequency,
-                        }
-                        self.do_commit_qso(qso)
-                        ret["added"] += 1
-            break
-        if ret["adjusted"]:
-            self.db.commit()
+            if v.filename.endswith(".log"):
+                # print(file_data)
+                for qsos in file_data.splitlines():
+                    qso = qsos.split(',')
+                    self.merge_into_old_log_db(cur, qso, ret)
+                break
+            if v.filename.endswith(".adi"):
+                # ADIF files have more data which goes to another table. Hence another routine.
+                qsos_raw, adif_header = adif_io.read_from_string(file_data)
+                for qso in qsos_raw:
+                    self.merge_into_log_db(cur, ret, qso)
+
+            if ret["adjusted"]:
+                self.db.commit()
         return "QSQ:s added: %d, adjusted: %s" % (ret["added"], ret["adjusted"])
 
-
+    def merge_into_old_log_db(self, cur, qso, ret):
+        startdate, starttime, enddate, endtime, callsign, locator, frequency, transmit_mode, trprt, rrprt, power, comment, dxname, propagation = qso
+        starttime = starttime.replace(':', '')[:4]
+        _endtime = endtime.replace(':', '')[:4]
+        if propagation == "TR":
+            propagation = "T"
+        callsign = callsign.upper()
+        locator = locator.upper()
+        q = """SELECT qsoid, date, time, tx, rx, locator, mode, transmit_mode from nac_log_new where date=%s and
+                         abs(date_part('hour',time::time-%s::time)*60+date_part('minute',time::time-%s::time)) < 10
+                         and callsign = %s"""
+        cur.execute(q, (startdate, starttime, starttime, callsign))
+        lines = cur.fetchall()
+        if len(lines) == 1:
+            # print("Found QSO: %s" % lines)
+            qso = lines[0]
+            qso_date = qso[1]
+            qso_time = qso[2]
+            adjustments = 0
+            if locator not in qso[5]:
+                self.logger.error("Bad locator %s, should be %s" % (qso[5], locator))
+                bearing, distance, points, square_no = self.distance_to(locator, qso_date, qso_time)
+                cur.execute(
+                    "UPDATE nac_log_new set locator = %s, distance = %s, square = %s, points = %s where qsoid=%s",
+                    (locator, str(int(distance * 100) / 100.0), square_no, points, qso[0]))
+                adjustments += 1
+            if qso[6] != propagation and propagation:
+                self.logger.error("Bad propagation mode %s, should be %s" % (qso[6], propagation))
+                cur.execute("UPDATE nac_log_new set mode = %s where qsoid=%s", (propagation, qso[0]))
+                adjustments += 1
+            if qso[7] != transmit_mode:
+                self.logger.error("Bad transmit mode %s, should be %s" % (qso[7], transmit_mode))
+                cur.execute("UPDATE nac_log_new set transmit_mode = %s where qsoid=%s", (transmit_mode, qso[0]))
+                adjustments += 1
+            if qso[3] != trprt:
+                self.logger.error("Bad sent report %s, should be %s" % (qso[3], trprt))
+                cur.execute("UPDATE nac_log_new set tx = %s where qsoid=%s", (trprt, qso[0]))
+                adjustments += 1
+            if qso[4] != rrprt:
+                self.logger.error("Bad received report %s, should be %s" % (qso[4], rrprt))
+                cur.execute("UPDATE nac_log_new set rx = %s where qsoid=%s", (rrprt, qso[0]))
+                adjustments += 1
+            if adjustments:
+                ret["adjusted"] += 1
+        elif len(lines) > 1:
+            self.logger.error("Multiple qsos found; %s" % lines)
+            pass
+        else:
+            q = """SELECT qsoid, date, time, tx, rx, locator, abs(date_part('hour',time::time-%s::time)*60+date_part('minute',time::time-%s::time)) as datetime from nac_log_new where date=%s
+                            and callsign = %s"""
+            cur.execute(q, (starttime, starttime, startdate, callsign))
+            lines = cur.fetchall()
+            self.logger.error("Missing QSO: %s" % qso)
+            if lines:
+                self.logger.debug("Found:", lines)
+            else:
+                bearing = None
+                distance = None
+                points = None
+                square_no = None
+                if locator:
+                    bearing, distance, points, square_no = self.distance_to(locator, startdate, starttime)
+                qso = {
+                    "date": startdate,
+                    "time": starttime,
+                    "callsign": callsign,
+                    "tx": trprt,
+                    "rx": rrprt,
+                    "locator": locator,
+                    "distance": str(int(distance * 100) / 100.0),
+                    "square": square_no,
+                    "points": points,
+                    "complete": True,
+                    "band": "%d-%s" % (int(float(frequency)), transmit_mode),
+                    "mode": propagation,
+                    "transmit_mode": transmit_mode,
+                    "frequency": frequency,
+                    "bearing": bearing
+                }
+                self.do_commit_qso(qso)
+                ret["added"] += 1
 
     def make_log(self, json):
         band = json.get("band", None)
