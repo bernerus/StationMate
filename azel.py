@@ -272,7 +272,7 @@ class AzElControl:
 			return  # We are not rotating
 		self.logger.warning("Azel interrupt, retrig=%s, cw=%s, ccw=%s, calibrating=%s" %
 		      (self.retriggering, self.rotating_cw, self.rotating_ccw, self.calibrating))
-		# time.sleep(1)
+		time.sleep(1)
 		# We ran into a mech stop
 
 		if not self.p20.bit_read(P20_ROTATE_CW):
