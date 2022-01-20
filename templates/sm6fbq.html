@@ -841,7 +841,9 @@
         callsign.innerHTML = qso["callsign"].toUpperCase()
         tx.innerHTML = qso["tx"]
         rx.innerHTML = qso["rx"]
-        loc.innerHTML = qso["locator"].toUpperCase()
+        if(qso["locator"]){
+            loc.innerHTML = qso["locator"].toUpperCase()
+        }
         distance.innerHTML = qso["distance"]
         // square.innerHTML = qso["square"]
         acc_sqn.innerHTML = qso["acc_sqn"]

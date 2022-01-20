@@ -109,7 +109,8 @@ class ClientMgr:
         distinct = self.distinct_mhs_on_map
         mh_length = self.get_map_mh_length()
         to_send = []
-        mhs = [x[0:mh_length] for x in mhs]
+
+        mhs = [x[0:mh_length] if x else None for x in mhs]
         if distinct:
             mhs = set(mhs) - set(self.mhs_on_map)
         for loc in mhs:
@@ -266,12 +267,12 @@ class ClientMgr:
             mhsqnumber = 0
             mhsqs = set()
             for row in rows:
-                mhsq = row[6][:4].upper()
                 newmsqn = None
-                if mhsq not in mhsqs and self.current_band.split('-')[0] in row[13] :
-                    newmsqn = len(mhsqs)+1
-                    mhsqs.add(mhsq)
-
+                if row[6]:
+                    mhsq = row[6][:4].upper()
+                    if mhsq not in mhsqs and self.current_band.split('-')[0] in row[13] :
+                        newmsqn = len(mhsqs)+1
+                        mhsqs.add(mhsq)
 
                 qso = {"id": row[0],
                        "date": row[1],
@@ -279,7 +280,7 @@ class ClientMgr:
                        "callsign": row[3].upper(),
                        "tx": row[4],
                        "rx": row[5],
-                       "locator": row[6].upper(),
+                       "locator": row[6].upper() if row[6] else None,
                        "distance": row[7],
                        "square": row[8],
                        "points": row[9],
@@ -289,7 +290,7 @@ class ClientMgr:
                        "band": row[13],
                        }
                 qsos.append(qso)
-                if self.current_band.split('-')[0] in row[13]:
+                if self.current_band.split('-')[0] in row[13] and row[6]:
                     mhs.append(row[6].upper())
 
             emit("add_qsos", qsos)

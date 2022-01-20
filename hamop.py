@@ -462,7 +462,7 @@ class HamOp:
             qso_date = qso[1]
             qso_time = qso[2]
             adjustments = 0
-            if locator not in qso[5]:
+            if locator and locator not in qso[5]:
                 self.logger.error("Bad locator %s, should be %s" % (qso[5], locator))
                 bearing, distance, points, square_no = self.distance_to(locator, qso_date, qso_time)
                 cur.execute(
@@ -512,7 +512,7 @@ class HamOp:
                     "tx": trprt,
                     "rx": rrprt,
                     "locator": locator,
-                    "distance": str(int(distance * 100) / 100.0),
+                    "distance": str(int(distance * 100) / 100.0) if distance else None,
                     "square": square_no,
                     "points": points,
                     "complete": True,
