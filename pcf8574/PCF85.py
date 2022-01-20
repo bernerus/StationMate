@@ -84,7 +84,7 @@ def byte_write(logger, pin_mask, bus, addr, value):
             bus.write_byte(addr, value_write)
             check = byte_read(logger, 0xff, bus, addr)
             if check != value_write:
-                logger("byte_write: reread from %x did not match written value, got %s, expected %x" % (addr, check, value_write))
+                logger.error("byte_write: reread from %x did not match written value, got %s, expected %x" % (addr, check, value_write))
                 raise IOError
             return
         except OSError as e:
@@ -143,7 +143,7 @@ def write_data(logger, pin_number: int, val, bus, flg, addr):
                     bus.write_byte(addr, clear_bit(value_read, pin_number))
                     check = byte_read(logger, 0xff, bus, addr)
                     if check != clear_bit(value_read, pin_number):
-                        logger("byte_write: reread from %x did not match written value, got %s, expected %x" % (addr, check, clear_bit(value_read, pin_number)))
+                        logger.error("byte_write: reread from %x did not match written value, got %s, expected %x" % (addr, check, clear_bit(value_read, pin_number)))
                         raise IOError
                     return
                 elif val == 1 and not test_bit(value_read, pin_number):
@@ -151,7 +151,7 @@ def write_data(logger, pin_number: int, val, bus, flg, addr):
                     bus.write_byte(addr, set_bit(value_read, pin_number))
                     check = byte_read(logger, 0xff, bus, addr)
                     if check != set_bit(value_read, pin_number):
-                        logger("byte_write: reread from %x did not match written value, got %s, expected %x" % (addr, check, set_bit(value_read, pin_number)))
+                        logger.error("byte_write: reread from %x did not match written value, got %s, expected %x" % (addr, check, set_bit(value_read, pin_number)))
                         raise IOError
                     return
                 else:
