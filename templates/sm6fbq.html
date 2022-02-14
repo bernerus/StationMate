@@ -168,6 +168,14 @@
                             <button id="release_button" type="button" onclick="send_release()">Release</button>
                             <button id="pointing_north_button" type="button" onclick="send_az()">Pointing North</button>
                             <button id="track_wind_button" type="button" onclick="send_track_wind()">Track wind</button>
+                            <br/>
+                            Az scan
+                            <input id="az_scan_start" type="text" class="az_scan_start" size=10 placeholder="Från"/>
+                            <input id="az_scan_stop" type="text" class="az_scan_stop" size=10 placeholder="Till"/>
+                            <input id="az_scan_increment" type="text" class="az_scan_increment" size=4 placeholder="Steg"/>
+                            <input id="az_scan_period" type="text" class="az_scan_period" size=4 placeholder="Period"/>
+                            <input id="az_scan_sweeps" type="text" class="az_scan_sweeps" size=3 placeholder="Svep"/>
+                            <button id="az_scan_go" type="button" onclick="az_scan()">Kör</button>
                         </fieldset>
                     </td>
                 </tr>
@@ -582,6 +590,16 @@
 
         console.log("Sending map status:" + pos.lat() + " " + pos.lng() + " " + zoom);
         socket.emit("map_settings", {"lat": pos.lat(), "lon": pos.lng(), "zoom": zoom});
+    }
+
+    function az_scan() {
+        let start = $('input.az_scan_start').val();
+        let stop =  $('input.az_scan_stop').val();
+        let increment = $('input.az_scan_increment').val();
+        let period = $('input.az_scan_period').val();
+        let sweeps = $('input.az_scan_sweeps').val();
+        console.log("Scanning azimuth"+start+" "+ stop+" "+increment+" "+period+" "+sweeps);
+        socket.emit('az_scan_go', {"start":start,"stop":stop, "increment":increment, "period":period,"sweeps":sweeps});
     }
 
 </script>

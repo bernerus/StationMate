@@ -1,12 +1,15 @@
+#import datetime
+
 import RPi.GPIO as GPIO
 from pcf8574 import *
-import locator.src.maidenhead as mh
-import threading
+# import locator.src.maidenhead as mh
+# import threading
 
-import requests
+# import requests
 from p21_defs import *
 from p20_defs import *
-
+from target_tracking import *
+from flask import Flask
 
 def sense2str(value):
 	x = 1
@@ -21,34 +24,14 @@ def sense2str(value):
 	return ret
 
 
-class AbortableSleep:
-	def __init__(self):
-		import threading
-		self._condition = threading.Condition()
-		self._aborted = None
-
-	def __call__(self, secs):
-		with self._condition:
-			self._aborted = False
-			self._condition.wait(timeout=secs)
-			return not self._aborted
-
-	def abort(self):
-		with self._condition:
-			self._condition.notify()
-			self._aborted = True
-
-
-abortable_sleep = AbortableSleep()
-
-
 class AzElControl:
 
-	def __init__(self, app, logger, socket_io, hysteresis: int = 1):
+	def __init__(self, app: Flask, logger, socket_io, hysteresis: int = 1):
 		self.app = app
 		self.logger=logger
 		self.socket_io = socket_io
 		self.az_hysteresis = hysteresis
+		self.target_stack = TargetStack(self, logger)
 
 		try:
 			self.p21 = PCF(self.logger, P21_I2C_ADDRESS,
@@ -129,11 +112,21 @@ class AzElControl:
 
 		self.last_sense = self.p21.byte_read(0xff)
 		self.last_p2_sense = None
-		self.az_target = None
+		self.az_target = None           # Target in ticks
+		self.az_target_degrees = None   # Target in degrees
 		self.el = 0
 		self.inc = 0
 		self.inc = 0
 		self.az = 0
+
+		self.az_scan_dir = None
+		self.az_scan_start = self.AZ_CCW_MECH_STOP+1
+		self.az_scan_period = None
+		self.az_scan_stop = self.AZ_CW_MECH_STOP-1
+		self.az_scan_increment = self.az2ticks(15)-self.az2ticks(0)
+		self.az_scan_sweeps_left = 0
+		self.az_scan_intro = False
+
 		self.wind_thread = None
 		self.tracking_wind = False
 		self.last_tracking_wind = None
@@ -161,32 +154,62 @@ class AzElControl:
 
 			self.az = 0
 
-		self.retrack_wind_countdown = self.reset_wind_track_countdown()
+		# self.retrack_wind_countdown = self.reset_wind_track_countdown()
 
-	def reset_wind_track_countdown(self):
-		self.logger.debug("Resetting wind track countdown to 6")
-		self.retrack_wind_countdown = 6
+	def sweep(self,start,stop,period,sweeps,increment):
+		# self.az_scan_start = self.az2ticks(start)
+		# self.az_scan_stop = self.az2ticks(stop)
+		#
+		# if self.az_scan_start > self.az_scan_stop:
+		# 	return "Cannot scan over mech stop"
+		#
+		# self.az_scan_period = period
+		# self.az_scan_increment = abs(increment)*self.ticks_per_degree
+		# self.az_scan_sweeps_left = sweeps
+		# self.az_scan_dir = self.az
+		# self.logger.info("Initialized %d scans between %d and %d ticks, increment %d ticks every %d seconds" % (
+		# 	self.az_scan_sweeps_left, self.az_scan_start, self.az_scan_stop, self.az_scan_increment , self.az_scan_period
+		# ))
+		# if self.az_scan_dir > self.az_scan_stop:
+		# 	self.az_scan_increment = -self.az_scan_increment
+		#
+		# self.az_scan_intro= (self.az_scan_dir > self.az_scan_stop or self.az_scan_dir < self.az_scan_start)
+		#
+		# self.tracking_wind = False
+		# abortable_sleep.abort()
+		# # self.untrack_wind()
+		# return "Scanning"
+		scan = ScanTarget(self, "Scan", start, stop, period, abs(increment), sweeps, 30*60)
+		self.target_stack.push(scan)
 
-	def retrack_wind(self):
-		self.retrack_wind_countdown -= 1
-		self.logger.debug("Wind track decremented to to %d", self.retrack_wind_countdown)
-		return self.retrack_wind_countdown <= 0
+	# def reset_wind_track_countdown(self):
+	# 	self.logger.debug("Resetting wind track countdown to 6")
+	# 	self.retrack_wind_countdown = 6
 
-	def untrack_wind(self):
-		self.tracking_wind = False
-		self.reset_wind_track_countdown()
+	# def retrack_wind(self):
+	# 	self.retrack_wind_countdown -= 1
+	# 	self.logger.info("Wind track decremented to to %d", self.retrack_wind_countdown)
+	# 	return self.retrack_wind_countdown <= 0
+
+	# def untrack_wind(self):
+	# 	self.tracking_wind = False
+	# 	# self.reset_wind_track_countdown()
 
 	def track_wind(self, value=None):
 		if value is None:
 			value = True
 		self.tracking_wind = value
 
-		if not self.wind_thread:
-			self.wind_thread = threading.Thread(target=self.wind_thread_function, args=(self,), daemon=True)
-			self.wind_thread.start()
-		else:
-			abortable_sleep.abort()
-		self.reset_wind_track_countdown()
+		wind_target = WindTarget(self)
+		self.target_stack.push(wind_target)
+
+		# if not self.wind_thread:
+		# 	self.wind_thread = threading.Thread(target=self.wind_thread_function, args=(self,), daemon=True)
+		# 	self.wind_thread.start()
+		# else:
+		# 	abortable_sleep.abort()
+		# self.reset_wind_track_countdown()
+
 
 	def get_az_target(self):
 		if self.az_target:
@@ -194,29 +217,59 @@ class AzElControl:
 		else:
 			return None
 
+	# def get_wind_dir_from_yr(self):
+	# 	mn, ms, mw, me, my_lat, my_lon = mh.to_rect(self.app.ham_op.my_qth())
+	# 	ret = requests.get(
+	# 		url="https://api.met.no/weatherapi/nowcast/2.0/complete?altitude=125&lat=%f&lon=%f" % (my_lat, my_lon),
+	# 		headers={"User-Agent": "bernerus.se info@bernerus.se"})
+	# 	response = ret.json()
+	#
+	# 	details = response["properties"]["timeseries"][0]["data"]["instant"]["details"]
+	# 	wfd = details["wind_from_direction"]
+	# 	wtd = wfd + 180.0
+	# 	wtd = wtd + 360.0 if wtd < 0 else wtd
+	# 	wtd = wtd - 360 if wtd > 360 else wtd
+	# 	return int(wtd)
 
-	def wind_thread_function(self, azel):
-		while True:
-			if not azel.tracking_wind:
-				if azel.retrack_wind():
-					azel.logger.info("Wind tracking restarted")
-					azel.track_wind()
-			if azel.tracking_wind:
-				mn, ms, mw, me, my_lat, my_lon = mh.to_rect(self.app.ham_op.my_qth())
-				ret = requests.get(
-					url="https://api.met.no/weatherapi/nowcast/2.0/complete?altitude=125&lat=%f&lon=%f" % (my_lat, my_lon),
-					headers={"User-Agent": "bernerus.se info@bernerus.se"})
-				response = ret.json()
+	# def get_next_scanning_az(self):
+	# 	new_scan_dir = self.az_scan_dir + self.az_scan_increment
+	# 	if new_scan_dir >= self.az_scan_stop or new_scan_dir <= self.az_scan_start:
+	# 		if not self.az_scan_intro:
+	# 			self.az_scan_sweeps_left -= 1
+	# 			self.az_scan_increment = -self.az_scan_increment
+	# 			new_scan_dir = self.az_scan_dir + self.az_scan_increment
+	# 	else:
+	# 		self.az_scan_intro = False
+	# 	self.az_scan_dir = new_scan_dir
+	# 	return new_scan_dir
 
-				details = response["properties"]["timeseries"][0]["data"]["instant"]["details"]
-				wfd = details["wind_from_direction"]
-				wtd = wfd + 180.0
-				wtd = wtd + 360.0 if wtd < 0 else wtd
-				wtd = wtd - 360 if wtd > 360 else wtd
-				self.logger.info("Tracking current wind direction to %d" % int(wtd))
-				azel._az_track(int(wtd))
 
-			abortable_sleep(600)
+
+	# def wind_thread_function(self, azel):
+	# 	while True:
+	# 		if not azel.tracking_wind:
+	# 			if azel.az_scan_sweeps_left:
+	# 				self.logger.info("Sweeps left: %d" % azel.az_scan_sweeps_left)
+	# 				wtd = azel.get_next_scanning_az()
+	# 				self.logger.info("Az scan to %d degrees" % azel.ticks2az(wtd))
+	# 				azel._az_track(azel.ticks2az(wtd))
+	# 				sleep = datetime.datetime.now().second + 60 * datetime.datetime.now().minute
+	# 				self.logger.info("Raw sleep: %d seconds" % sleep)
+	# 				sleep = azel.az_scan_period - (sleep % azel.az_scan_period)
+	# 				self.logger.info("Sleeping for %d seconds" % sleep)
+	# 				abortable_sleep(sleep)
+	# 				continue
+	# 			if azel.retrack_wind():
+	# 				azel.logger.info("Wind tracking restarted")
+	# 				azel.track_wind()
+	# 			else:
+	# 				abortable_sleep(600)
+	# 		if azel.tracking_wind:
+	# 			wtd = azel.get_wind_dir_from_yr()
+	# 			self.logger.info("Tracking current wind direction to %d" % wtd)
+	# 			azel._az_track(wtd)
+	# 			abortable_sleep(600)
+
 
 	def ticks2az(self, ticks):
 		az = self.CCW_BEARING_STOP + ticks / self.ticks_per_degree
@@ -229,9 +282,9 @@ class AzElControl:
 	def az2ticks(self, degrees):
 		degs1 = degrees - self.CCW_BEARING_STOP
 		ticks = round(self.ticks_per_degree * degs1)
-		if ticks < self.AZ_CCW_MECH_STOP:
+		while ticks < self.AZ_CCW_MECH_STOP:
 			ticks += self.ticks_per_rev
-		if ticks >= self.AZ_CW_MECH_STOP:
+		while ticks >= self.AZ_CW_MECH_STOP:
 			ticks -= self.ticks_per_degree
 		if (ticks - self.AZ_CCW_MECH_STOP > self.ticks_per_rev or
 				ticks - self.AZ_CCW_MECH_STOP < self.TICKS_OVERLAP):
@@ -256,9 +309,11 @@ class AzElControl:
 	def el_interrupt(self, last, current):
 		pass
 
-	def manual_interrupt(self, _last, _current):
-		self.az_target = None
-		self.untrack_wind()
+	def manual_interrupt(self):
+		target = ManualTarget(self)
+		self.target_stack.push(target)
+		#self.az_target = None
+		#self.untrack_wind()
 		self.az_stop()
 
 	def stop_interrupt(self, _last, _current):
@@ -308,6 +363,7 @@ class AzElControl:
 			self.retrigger_az_timer()
 
 		#            self.logger.debug("Ticks: %d", self.az)
+		self.check_direction_az()
 		self.app.client_mgr.send_azel(azel=(self.ticks2az(self.az), self.el))
 		if self.current_az_sector() != self.az_sector:
 			self.az_sector = self.current_az_sector()
@@ -315,9 +371,26 @@ class AzElControl:
 			self.app.client_mgr.update_map_center()
 		self._az_track()
 
-	def az_track(self, target=None):
-		self.reset_wind_track_countdown()
-		self._az_track(target=target)
+	def check_direction_az(self):
+		""" Sometimes the I2C command to rotate gets misinterpreted by the hardware so this function
+			checks that we are rotating in the intended direction. If not, we stop and restart whatever was tracked."""
+		if self.az_target_degrees is None or abs(self.az - self.rotate_start_az) < 10:
+			return  # Allow for slight wind turning in the wrong direction
+
+		diff = self.az - self.rotate_start_az
+		if (diff > 0  and self.rotating_ccw) or (diff < 0 and self.rotating_cw):
+			self.logger.error("Azimuth going wrong way, stopping.")
+			self.az_stop()
+			self.az_stop()
+			self.az_stop()
+			self.az_track(self.az_target_degrees)
+
+
+	def az_track(self, az=None):
+		# self.reset_wind_track_countdown()
+		self.az_target_degrees = az
+		target = Target(self, str(az), az, 0 , 10, 3600)
+		self.target_stack.push(target)
 
 	def _az_track(self, target=None):
 		if target is not None:
@@ -358,6 +431,7 @@ class AzElControl:
 		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ, HIGH)
 		time.sleep(0.1)
+		self.rotate_start_az = self.az
 		self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, P20_ROTATE_CW)
 
 		#self.p20.bit_write(P20_ROTATE_CW, HIGH)
@@ -373,12 +447,13 @@ class AzElControl:
 		time.sleep(0.1)
 		#self.p20.bit_write(P20_ROTATE_CW, LOW)
 		#self.p20.bit_write(P20_AZ_TIMER, LOW)
+		self.rotate_start_az = self.az
 		self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, 0)
 		self.logger.debug("Rotating clockwise")
 
 	def interrupt_dispatch(self, _channel):
 
-		current_sense = self.p21.byte_read(0xff)
+		current_sense = self.p21.byte_read(0xff)  # type: int
 		# self.logger.debug("Interrupt %s %s" % (self.sense2str(self.last_sense), self.sense2str(current_sense)))
 
 		diff = current_sense ^ self.last_sense
@@ -396,7 +471,7 @@ class AzElControl:
 
 		if diff & MANUAL_MASK and (current_sense & MANUAL_MASK != MANUAL_MASK):
 			self.logger.warning("Manual intervention detected: diff=%s, current_sense=%s, manual_mask=%s" % (bin(diff), bin(current_sense), bin(MANUAL_MASK)))
-			self.manual_interrupt(self.last_sense & MANUAL_MASK, current_sense & MANUAL_MASK)
+			self.manual_interrupt()
 
 		self.last_sense = current_sense
 		self.app.ham_op.status_sense()
@@ -442,8 +517,9 @@ class AzElControl:
 
 	def calibrate(self):
 		self.calibrating = True
-		tw = self.tracking_wind
-		self.untrack_wind()
+		# tw = self.tracking_wind
+		self.target_stack.suspend()
+		#self.untrack_wind()
 		self.az_target = None
 		self.az_cw()
 		time.sleep(1)
@@ -453,19 +529,25 @@ class AzElControl:
 		self.logger.warning("Awaiting calibration")
 		while self.calibrating:
 			self.socket_io.sleep(1)
-		self.track_wind(tw)
+		self.target_stack.resume()
+		#self.track_wind(tw)
 
 	def set_az(self, az):
 		self.az = self.az2ticks(int(az))
 
 	def stop(self):
 		self.az_target = self.az
-		self.untrack_wind()
+		#self.untrack_wind()
+		self.manual_interrupt()
+		self.az_scan_sweeps_left=0
 		self.az_stop()
 
 	def untrack(self):
-		self.untrack_wind()
+		#self.untrack_wind()
+		self.manual_interrupt()
 		self.az_target = None
+		self.az_target_degrees = None
+		self.az_scan_sweeps_left=0
 		self.az_stop()
 		self.logger.info("Stopped tracking at az=%d degrees" % self.ticks2az(self.az))
 
@@ -479,7 +561,7 @@ class AzElControl:
 		from_az = 0
 		to_az = 360
 		for oct in self.az_sectors:
-			if az >= oct[0] and az <= oct[1]:
+			if oct[0] <= az <= oct[1]:
 				from_az = oct[0]
 				to_az = oct[1]
 				break

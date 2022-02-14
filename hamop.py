@@ -595,6 +595,14 @@ class HamOp:
             self.app.client_mgr.status_update(force=True)
 
     def az_track(self, what):
+
+        try:
+            az_value = int(what)
+            self.app.azel.az_track(az_value)
+            return
+        except ValueError:
+            pass
+
         try:
             mn, ms, mw, me, mlat, mlon = mh.to_rect(self.my_qth())
             n, s, w, e, lat, lon = mh.to_rect(what)

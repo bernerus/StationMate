@@ -1,4 +1,39 @@
 
+import os, signal
+
+def kill_siblings():
+
+    # Ask user for the name of process
+    name = "StnMate2/main.py"
+    try:
+
+        # iterating through each instance of the process
+        for line in os.popen("ps -ef | grep " + name + " | grep -v grep"):
+            fields = line.split()
+
+            # extracting Process ID from the output
+            pid = fields[1]
+            ppid = fields[2]
+            if int(pid) == os.getpid(): # Avoid suicide
+                continue
+            if fields[-1].endswith("debugging"):
+                continue
+
+            # terminating process
+            try:
+                os.kill(int(pid), signal.SIGKILL)
+                os.kill(int(ppid), signal.SIGSTOP)
+                print("Sibling %s successfully terminated" % pid)
+            except:
+                print ("Failed killing process %s", pid)
+                pass
+
+    except:
+        print("Error Encountered while running script")
+
+
+kill_siblings()
+
 from flask import Flask, render_template, request
 import psycopg2
 from config import DevelopmentConfig
@@ -19,7 +54,7 @@ logger.info("Starting stnMate")
 
 socket_io = SocketIO(async_mode="eventlet")
 
-def create_app(config=DevelopmentConfig):
+def create_app(config=DevelopmentConfig) -> Flask:
     _app = Flask(__name__)
     _app.config.from_object(config)
 
@@ -45,6 +80,11 @@ app.client_mgr = ClientMgr(app, logger, socket_io)
 from azel import AzElControl
 app.azel = AzElControl(app, logger, socket_io, hysteresis=2)
 app.azel.startup()
+
+# from airtracker import AirTracker
+# app.atrk = AirTracker(app, logger, socket_io, url="http://192.168.1.129:8754")
+# app.atrk.startup()
+
 
 app.keyer = Morser(logger, speed=None, p20=app.azel.p20)
 app.keyer_thread = threading.Thread(target=app.keyer.background_thread, args=())
@@ -113,10 +153,16 @@ def my_tx70_on():
 def my_tx70_off():
     return app.ham_op.my_tx70_off()
 
-
 @app.route('/wsjtx_upload', methods=['POST'])
 def my_wsjtx_upload():
     return app.ham_op.my_wsjtx_upload(request)
+
+@app.route('/az_scan', defaults={"start":0,"stop":180, "period":30, "sweeps":2, "increment":15})
+def az_scan(start,stop,period,sweeps, increment):
+    start=1
+    logger.info("AZ_scan start=%d, stop=%d, period=%d, sweeps=%d increnment=%d" % (start,stop,period,sweeps, increment))
+    return app.azel.sweep(start,stop,period,sweeps,increment)
+
 
 
 ##############
@@ -234,17 +280,12 @@ def handle_toggle_pa(_json):
 
 @socket_io.on("track az")
 def handle_track_az(json):
-    app.azel.untrack_wind()
+    # app.azel.untrack_wind()
 
     # logger.debug('received track_az: ' + str(json))
     # emit('my response', json, callback=messageReceived)
 
-    try:
-        az_value = int(json["az"])
-        app.azel.az_track(az_value)
-        return
-    except ValueError:
-        pass
+
 
     app.ham_op.az_track(json["az"])
 
@@ -274,6 +315,11 @@ def set_dx_call(grid):
     logger.info("Set DX grid to %s" % grid)
     emit("fill_dx_grid", grid, namespace="/", broadcast=True)
 
+
+@socket_io.event()
+def az_scan_go(json):
+    logger.info("Run AZ scan using %s" % json)
+    return app.azel.sweep(int(json["start"]), int(json["stop"]), int(json["period"]), int(json["sweeps"]), int(json["increment"]))
 
 @socket_io.event()
 def map_settings(settings):
