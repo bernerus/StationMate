@@ -91,13 +91,12 @@ app.keyer_thread = threading.Thread(target=app.keyer.background_thread, args=())
 app.keyer_thread.daemon = True  # Daemonize keyer_thread
 app.keyer_thread.start()
 
-# class ShowMap(View):
-#     def dispatch_request(self):
-#         return render_template('sm6fbq.html')
 
 @app.route('/')
 def index():
-    return render_template('sm6fbq.html',  async_mode=socket_io.async_mode)
+    with open("etc/g16e.txt") as f:
+        key=f.readline()
+    return render_template('sm6fbq.html',  gapikey=key, async_mode=socket_io.async_mode)
 
 @app.route('/az')
 def get_azimuth():
