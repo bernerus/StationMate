@@ -26,19 +26,24 @@
 
 
     <meta name="theme-color" content="#fafafa">
+
     <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"
             integrity="sha512-bLT0Qm9VnAYZDflyKcBaQ2gg0hSYNQrJ8RilYldYQ1FxQYoCLtUjuuRuZo+fjqhx/qtq/1itJ0C2ejDxltZVFg=="
-            crossorigin="anonymous"></script>
+            crossorigin="anonymous">
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.4/socket.io.js"
             integrity="sha512-aMGMvNYu8Ue4G+fHa359jcPb1u+ytAF+P2SCb+PxrjCdO3n3ZTxJ30zuH39rimUggmTwmh2u7wvQsDTHESnmfQ=="
             crossorigin="anonymous"></script>
 
-
     <script type="text/javascript">
         var socket
         var current_band
+
+
+        $('.tooltip_header').mouseenter(function (e) {$('#target_list').show(200);});
+        $('#antctrlhdr').mouseleave(function(e) {$('#target_list').hide(299);});
 
         $(document).ready(function () {
             var mypeer = 'http://' + document.domain + ':' + location.port;
@@ -141,6 +146,11 @@
                 fill_dx_grid(msg)
             })
 
+            socket.on("update_target_list", function(msg) {
+                console.log("update_target_list" + msg)
+                update_target_list(msg)
+            })
+
         });
     </script>
 
@@ -159,7 +169,10 @@
                 <tr style="border:none;">
                     <td style="border:none;">
                         <fieldset>
-                            <legend>Antennstyrning</legend>
+                            <legend id="antctrlhdr">
+                                <a href="#"> Antennstyrning <span class="tooltip" id="target_list">
+                                    </span></a>
+                            </legend>
                             <!--suppress HtmlFormInputWithoutLabel -->
                             <input id="track_input" type="text" class="trkaz" placeholder="Track az"/>
                             <button id="track_button" type="submit" onclick="send_track_az()">Track</button>
@@ -818,6 +831,12 @@
     function fill_dx_grid(msg) {
         var trackTo = document.getElementById("track_input");
         trackTo.value = msg;
+    }
+
+     function update_target_list(msg) {
+        var tgtList = document.getElementById("target_list");
+        console.log("Target list update ", msg)
+        tgtList.innerHTML = msg;
     }
 
     function fill_dx_note(json) {

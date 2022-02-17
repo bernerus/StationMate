@@ -383,13 +383,14 @@ class AzElControl:
 			self.az_stop()
 			self.az_stop()
 			self.az_stop()
-			self.az_track(self.az_target_degrees)
+			self._az_track(self.az_target_degrees)
 
 
 	def az_track(self, az=None):
 		# self.reset_wind_track_countdown()
 		self.az_target_degrees = az
 		target = Target(self, str(az), az, 0 , 10, 3600)
+		self.logger.info("az_track %s" % az)
 		self.target_stack.push(target)
 
 	def _az_track(self, target=None):
@@ -569,3 +570,6 @@ class AzElControl:
 
 	def get_az_sector(self):
 		return self.az_sector
+
+	def update_target_list(self):
+		self.target_stack.update_ui()

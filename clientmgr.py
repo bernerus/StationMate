@@ -295,7 +295,7 @@ class ClientMgr:
 
             emit("add_qsos", qsos)
             self.add_mhs_on_map(mhs)
-
+            self.app.azel.update_target_list()
             self.status_update(force=True)
         else:
             self.app.socket_io.emit('my_response', {'data': 'Connected', 'count': 0}, namespace="/wsjtx")
@@ -367,6 +367,15 @@ class ClientMgr:
 
     def send_reload(self):
         msg_q.put(("globalReload", {}))
+
+    def update_target_list(self, targets):
+        s = ""
+        if targets is None:
+            return
+        for t in targets:
+            ts = t.get_html()
+            s += ts + "<br/>"
+        msg_q.put(("update_target_list", s))
 
     def map_settings(self, json):
         self.logger.debug("Map settings received: %s", json)

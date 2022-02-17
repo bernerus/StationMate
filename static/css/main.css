@@ -380,3 +380,6 @@ label {
 }
 
 
+a span {display: none; font-size: 12px; font-weight: normal; position: absolute; color: #000000; background: #c59722; padding: 5px;}
+a {position: relative;}
+a:hover span {display: block; text-align: center;}
