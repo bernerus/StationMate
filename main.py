@@ -81,9 +81,9 @@ from azel import AzElControl
 app.azel = AzElControl(app, logger, socket_io, hysteresis=2)
 app.azel.startup()
 
-# from airtracker import AirTracker
-# app.atrk = AirTracker(app, logger, socket_io, url="http://192.168.1.129:8754")
-# app.atrk.startup()
+from airtracker import AirTracker
+app.atrk = AirTracker(app, logger, socket_io, url="http://192.168.1.129:8754")
+app.atrk.startup()
 
 
 app.keyer = Morser(logger, speed=None, p20=app.azel.p20)
@@ -257,6 +257,18 @@ def handle_my_custom_event(json):
 def handle_track_wind(_json):
     app.azel.track_wind()
 
+@socket_io.on("track moon")
+def handle_track_moon(_json):
+    app.azel.track_moon()
+
+@socket_io.on("track sun")
+def handle_track_sun(_json):
+    app.azel.track_sun()
+
+@socket_io.on("pop target")
+def handle_track_sun(_json):
+    app.azel.pop_target()
+
 
 @socket_io.on("toggle_qro")
 def handle_toggle_qro(_json):
@@ -283,8 +295,6 @@ def handle_track_az(json):
 
     # logger.debug('received track_az: ' + str(json))
     # emit('my response', json, callback=messageReceived)
-
-
 
     app.ham_op.az_track(json["az"])
 
@@ -315,10 +325,16 @@ def set_dx_call(grid):
     emit("fill_dx_grid", grid, namespace="/", broadcast=True)
 
 
+
 @socket_io.event()
 def az_scan_go(json):
     logger.info("Run AZ scan using %s" % json)
     return app.azel.sweep(int(json["start"]), int(json["stop"]), int(json["period"]), int(json["sweeps"]), int(json["increment"]))
+
+@socket_io.event()
+def plane_click(plane_id):
+    logger.info("Plane click on %s" % plane_id)
+    return app.atrk.track_plane(app.azel, plane_id)
 
 @socket_io.event()
 def map_settings(settings):

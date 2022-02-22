@@ -380,6 +380,20 @@ label {
 }
 
 
-a span {display: none; font-size: 12px; font-weight: normal; position: absolute; color: #000000; background: #c59722; padding: 5px;}
+a span {display: none; font-size: 12px; font-weight: normal; position: absolute; color: #000000; background: #e7d6a1; padding: 5px;}
 a {position: relative;}
 a:hover span {display: block; text-align: center;}
+
+#targets {
+    border:1px solid black;
+    border-collapse: collapse;
+    position: relative;
+    z-index: 9;
+}
+
+.tooltip {
+    border:1px solid black;
+    border-collapse: collapse;
+    position: relative;
+    z-index: 9;
+}

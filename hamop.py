@@ -608,7 +608,7 @@ class HamOp:
             n, s, w, e, lat, lon = mh.to_rect(what)
             bearing = sphere.bearing((mlon, mlat), (lon, lat))
             self.logger.debug("Calculated bearing from %s to %s to be %f" % (self.my_qth(), what, bearing))
-            self.app.azel.az_track(int(bearing))
+            self.app.azel.az_track(int(bearing), id=what)
             self.app.client_mgr.add_mh_on_map(what)
         except (TypeError, ValueError):
             pass
@@ -622,7 +622,7 @@ class HamOp:
             loc = lines[0][1]
             bearing, _distance = self.distance_to(loc)
             self.logger.debug("Tracking Az %d to %s at %s" % (int(bearing), what, loc))
-            self.app.azel.az_track(int(bearing))
+            self.app.azel.az_track(int(bearing), id="%s@%s"%(what, loc))
 
 
     def store_map_setting(self, json, current_band, map_mh_length, log_scope):

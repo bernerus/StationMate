@@ -12,7 +12,7 @@ msg_q = queue.Queue()
 thread_lock = Lock()
 
 def background_thread(app):
-    """Example of how to send server generated events to clients."""
+    """Send server generated events to clients."""
 
     app.client_mgr.logger.info("Starting background thread")
     count = 0
@@ -33,6 +33,8 @@ def status_update_thread(app):
             current_status = app.ham_op.get_status()
             app.client_mgr.status_push(current_status)
             app.socket_io.sleep(0.5)
+
+
 
 
 def send_update_class(key, clazz, value):
@@ -258,6 +260,8 @@ class ClientMgr:
                 if self.status_thread is None:
                     self.status_thread = self.socket_io.start_background_task(status_update_thread, current_app._get_current_object())
 
+            self.app.atrk.startup()
+
             emit('my_response', {'data': 'Connected', 'count': 0})
 
             rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
@@ -300,6 +304,7 @@ class ClientMgr:
         else:
             self.app.socket_io.emit('my_response', {'data': 'Connected', 'count': 0}, namespace="/wsjtx")
 
+        # self.update_planes()
 
 
     def update_map_center(self):
@@ -369,13 +374,39 @@ class ClientMgr:
         msg_q.put(("globalReload", {}))
 
     def update_target_list(self, targets):
-        s = ""
+        s = "<table id=\"targets\"><tr><th>Id</th><th>Active</th><th>Az/El</th><th>Period</th><th>TTL</th><th>Left</th><th>Note 1</th><th>Note 2</th></tr>"
+        th_count = s.count("<th>")
         if targets is None:
             return
         for t in targets:
-            ts = t.get_html()
-            s += ts + "<br/>"
+            ts = "<tr>"
+            tsr = t.get_html_row()
+            ct = tsr.count("<td>")
+            while ct < th_count:
+                tsr = tsr + "<td></td>"
+                ct += 1
+            s += ts + tsr + "</tr>"
+        s += "</table>"
         msg_q.put(("update_target_list", s))
+
+    def update_planes(self, planes):
+
+        planes1 = {
+            "3520": {"id": "TAY4537", "lat":57.6465, "lng": 13.0829, "alt":36000},
+            "4540": {"id": "WZZ9SJ", "lat":57.6236, "lng": 13.4089, "alt": 34263},
+        }
+
+        planes2 = {
+            "3520": {"id": "TAY4537", "lat": 57.7465, "lng": 13.2829, "alt": 36000},
+            "4540": {"id": "WZZ9SJ", "lat": 57.6036, "lng": 13.3089, "alt": 34263},
+        }
+        if planes is not None:
+            msg_q.put(("update_planes", planes))
+            return
+
+        msg_q.put(("update_planes", planes1))
+
+        msg_q.put(("update_planes", planes2))
 
     def map_settings(self, json):
         self.logger.debug("Map settings received: %s", json)

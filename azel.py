@@ -210,6 +210,23 @@ class AzElControl:
 		# 	abortable_sleep.abort()
 		# self.reset_wind_track_countdown()
 
+	def track_moon(self, value=None):
+		if value is None:
+			value = True
+
+		moon_target = MoonTarget(self)
+		self.target_stack.push(moon_target)
+
+	def pop_target(self):
+		self.target_stack.pop()
+
+	def track_sun(self, value=None):
+		if value is None:
+			value = True
+
+		sun_target = SunTarget(self)
+		self.target_stack.push(sun_target)
+
 
 	def get_az_target(self):
 		if self.az_target:
@@ -386,10 +403,12 @@ class AzElControl:
 			self._az_track(self.az_target_degrees)
 
 
-	def az_track(self, az=None):
+	def az_track(self, az=None, id=None):
 		# self.reset_wind_track_countdown()
+		if id is None:
+			id="Fixed_"+str(az)
 		self.az_target_degrees = az
-		target = Target(self, str(az), az, 0 , 10, 3600)
+		target = Target(self, id, az, 0 , 10, 3600)
 		self.logger.info("az_track %s" % az)
 		self.target_stack.push(target)
 

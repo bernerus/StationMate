@@ -4,6 +4,11 @@ import locator.src.maidenhead as mh
 import threading
 import requests
 import datetime
+import ephem
+import math
+
+
+from geo import sphere
 
 class TargetStack:
 	def __init__(self, azel, logger):
@@ -53,7 +58,7 @@ class TargetStack:
 	def push(self, tracking_object):
 		if not tracking_object:
 			return
-		self.logger.info("Pushing target id %s",tracking_object.id)
+		self.logger.info("Pushing target id %s, az=%s, el=%s" %(tracking_object.id, tracking_object.az, tracking_object.el))
 		self._target_stack.append(tracking_object)
 		tracking_object.start()
 		self.update_ui()
@@ -186,12 +191,14 @@ class Target:
 	def trigger_period(self) -> int:
 		return 0
 
-	def get_html(self):
-		ts = "%s: %s %s/%s %s %s %s" % (self.id, self.active, self.az, self.el, self.update_in, self.ttl, self.seconds_left())
+	def get_html_row(self):
+		az = self.az if self.az is not None else -360
+		el = self.el if self.el is not None else -180
+		ts = "<td>%s</td><td>%s</td><td>%4.2f/%3.2f</td><td>%s</td><td>%s</td><td>%s</td>" % (self.id, self.active, az, el, self.update_in, int(self.ttl), int(self.seconds_left()))
 		return ts
 
 class ManualTarget(Target):
-	""" This target is pushed whenever tracking is to be stopped, such as when pushing the manual buttons och the controller box"""
+	""" This target is pushed whenever tracking is to be stopped, such as when pushing the manual buttons on the controller box"""
 	def __init__(self, azel):
 		self.azel = azel
 		super().__init__(azel, "Manual", 0, 0, 90, 15*60)  # Manual targets updates every 90 seconds and lives for 15 minutes
@@ -244,7 +251,7 @@ class ScanTarget(Target):
 		self.az_ticks = azel.az2ticks(az)
 
 		if self.az_ticks > self.range_stop:
-			self.step = -self.step
+			self.step_ticks = -self.step_ticks
 
 		self.intro = (self.az_ticks > self.range_stop or self.az_ticks < self.range_start)  # If we start outside the sweep
 
@@ -266,10 +273,82 @@ class ScanTarget(Target):
 	def done(self):
 		return self.sweeps_left <= 0 or super().done()
 
-	def get_html(self):
-		ts = super().get_html()
-		ts += " sweeps_left=%s, intro=%s" % (self.sweeps_left, self.intro)
+	def get_html_row(self):
+		ts = super().get_html_row()
+		ts += "<td>sweeps_left=%s</td><td>Chase=%s</td>" % (self.sweeps_left, self.intro)
 		return ts
+
+class MoonTarget(Target):
+
+	def done(self):
+		return self.el < 0 or super().done()
+
+	def __init__(self, azel):
+		self.azel = azel
+		self.moon = ephem.Moon()
+		self.myqth = ephem.Observer()
+
+		mn, ms, mw, me, my_lat, my_lon = mh.to_rect(self.azel.app.ham_op.my_qth())
+		self.myqth.lon = my_lon * math.pi / 180.0
+		self.myqth.lat = my_lat * math.pi / 180.0
+
+		super().__init__(azel, "Moon", 0, 0, 300, 86400)  # Moon track lives for a day and is updated every 5 minutes
+		self.trigger_period()
+
+	def trigger_period(self)  -> int:
+		self.myqth.date = datetime.datetime.utcnow()
+		self.moon.compute(self.myqth)
+		self.az = self.moon.az * 180.0 / math.pi
+		self.el = self.moon.alt * 180.0 / math.pi
+		return self.az if self.el >= 0 else None
+
+class SunTarget(Target):
+
+	def done(self):
+		return self.el < 0 or super().done()
+
+	def __init__(self, azel):
+		self.azel = azel
+
+		self.sun = ephem.Sun()
+		self.myqth = ephem.Observer()
+
+		mn, ms, mw, me, my_lat, my_lon = mh.to_rect(self.azel.app.ham_op.my_qth())
+		self.myqth.lon = my_lon * math.pi / 180.0
+		self.myqth.lat = my_lat * math.pi / 180.0
+
+		super().__init__(azel, "Sun", 0, 0, 300, 86400)  # Sun track lives for a day and is updated every 5 minutes
+		self.trigger_period()
+
+	def trigger_period(self)  -> int:
+		self.myqth.date = datetime.datetime.utcnow()
+		self.sun.compute(self.myqth)
+		self.az = self.sun.az * 180.0 / math.pi
+		self.el = self.sun.alt * 180.0 / math.pi
+		return self.az if self.el >= 0 else None
+
+class PlaneTarget(Target):
+
+	def __init__(self, azel, plane_id):
+		self.plane_id = plane_id
+		_mn, _ms, _mw, _me, self.my_lat, self.my_lon = mh.to_rect(azel.app.ham_op.my_qth())
+		super().__init__(azel, plane_id, 0, 0, 12, 20*60)  # Plane track lives for 20 min and is updated every 12 seconds
+
+	def trigger_period(self) -> int:
+
+		(self.lng, self.lat)  = self.azel.app.atrk.get_position(self.plane_id)
+		if self.lng is None or self.lat is None:
+			return None
+		mn, ms, mw, me, mlat, mlon = mh.to_rect(self.azel.app.ham_op.my_qth())
+		self.az = sphere.bearing((mlon, mlat), (self.lng, self.lat))
+		self.azel.logger.debug("Calculated bearing from %s to %s to be %f" % (self.azel.app.ham_op.my_qth(), self.plane_id, self.az))
+		return self.az if self.el >= 0 else None
+
+
+	def done(self):
+		return not self.azel.app.atrk.has_plane(self.plane_id) or super().done()
+
+
 
 class AbortableSleep:
 	def __init__(self):

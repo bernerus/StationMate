@@ -42,8 +42,8 @@
         var current_band
 
 
-        $('.tooltip_header').mouseenter(function (e) {$('#target_list').show(200);});
-        $('#antctrlhdr').mouseleave(function(e) {$('#target_list').hide(299);});
+        $('.tooltip').mouseenter(function (e) {$('#target_list').show(200);});
+        $('#antctrlhdr').mouseleave(function(e) {$('#target_list').hide(200);});
 
         $(document).ready(function () {
             var mypeer = 'http://' + document.domain + ':' + location.port;
@@ -127,6 +127,12 @@
                 }
             })
 
+            socket.on("update_planes", function (planes)
+            {
+                console.log("update_planes" + planes)
+                updatePlanes(planes)
+            })
+
             socket.on("globalReload", function (msg) {
                 location.reload();
             })
@@ -169,10 +175,11 @@
                 <tr style="border:none;">
                     <td style="border:none;">
                         <fieldset>
-                            <legend id="antctrlhdr">
-                                <a href="#"> Antennstyrning <span class="tooltip" id="target_list">
-                                    </span></a>
-                            </legend>
+                            <div id="antctrlhdr">
+                                <legend>
+                                    <a href="#"> Antennstyrning <span class="tooltip" id="target_list"></span></a>
+                                </legend>
+                            </div>
                             <!--suppress HtmlFormInputWithoutLabel -->
                             <input id="track_input" type="text" class="trkaz" placeholder="Track az"/>
                             <button id="track_button" type="submit" onclick="send_track_az()">Track</button>
@@ -180,7 +187,9 @@
                             <button id="stop_button" type="button" onclick="send_stop()">Stop</button>
                             <button id="release_button" type="button" onclick="send_release()">Release</button>
                             <button id="pointing_north_button" type="button" onclick="send_az()">Pointing North</button>
-                            <button id="track_wind_button" type="button" onclick="send_track_wind()">Track wind</button>
+                            <button id="track_wind_button" type="button" onclick="send_track_wind()">Wind</button>
+                            <button id="track_moon_button" type="button" onclick="send_track_moon()">Moon</button>
+                            <button id="track_sun_button" type="button" onclick="send_track_sun()">Sun</button>
                             <br/>
                             Az scan
                             <input id="az_scan_start" type="text" class="az_scan_start" size=10 placeholder="Från"/>
@@ -189,6 +198,8 @@
                             <input id="az_scan_period" type="text" class="az_scan_period" size=4 placeholder="Period"/>
                             <input id="az_scan_sweeps" type="text" class="az_scan_sweeps" size=3 placeholder="Svep"/>
                             <button id="az_scan_go" type="button" onclick="az_scan()">Kör</button>
+                            |
+                            <button id="pop_target_button" type="button" onclick="pop_target()">Pop</button>
                         </fieldset>
                     </td>
                 </tr>
@@ -425,7 +436,7 @@
 
 <script src="{{ url_for('static', filename='js/vendor/modernizr-3.11.2.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/plugins.js') }}"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key={{gapikey}}&v=weekly" ></script>
+<script src="https://maps.googleapis.com/maps/api/js?key={{gapikey}}&v=weekly&libraries=geometry" ></script>
 
 <script>
     function initButtonGroup(parentId) {
@@ -580,6 +591,21 @@
         socket.emit('track wind', {});
     }
 
+    function send_track_moon(az) {
+        console.log("Tracking the Moon ");
+        socket.emit('track moon', {});
+    }
+
+    function send_track_sun(az) {
+        console.log("Tracking the Sun ");
+        socket.emit('track sun', {});
+    }
+
+       function pop_target(az) {
+        console.log("Popping top target ");
+        socket.emit('pop target', {});
+    }
+
     function set_cw_speed(speed) {
         console.log("Setting CW speed to " + speed);
         socket.emit('set_cw_speed', {'speed': speed});
@@ -614,11 +640,47 @@
         socket.emit('az_scan_go', {"start":start,"stop":stop, "increment":increment, "period":period,"sweeps":sweeps});
     }
 
+    function planeClick(plane_id) {
+        console.log("Clicked on plane " + plane_id);
+        socket.emit('plane_click', plane_id);
+    }
+
 </script>
 
 <script>
+
     var upstreamIcon = {
-        path: 'M28.6,17.5L16.1,4.9l0,0 c-0.1-0.1-0.2-0.2-0.3-0.2c0,0-0.1,0-0.1-0.1c-0.1,0-0.1-0.1-0.2-0.1c-0.1,0-0.1,0-0.2-0.1c0,0-0.1,0-0.1,0c-0.1,0-0.2,0-0.3,0 c0,0,0,0,0,0l0,0c-0.1,0-0.2,0-0.3,0c-0.1,0-0.1,0-0.1,0c-0.1,0-0.1,0-0.2,0.1c-0.1,0-0.1,0.1-0.2,0.1c0,0-0.1,0-0.1,0.1 c-0.1,0.1-0.2,0.1-0.3,0.2c0,0,0,0,0,0l0,0c0,0,0,0,0,0L1,17.5l0,0c-0.7,0.7-0.7,1.8,0,2.5s1.8,0.7,2.5,0l9.6-9.6 c0,6.7,0,34.2,0,34.2c0,1,0.8,1.7,1.7,1.7s1.7-0.8,1.7-1.7V10.4l9.6,9.6c0.7,0.7,1.8,0.7,2.5,0S29.3,18.2,28.6,17.5z',
+        path: 'M28.6,17.5' +
+            'L16.1,4.9' +
+            'l0,0 ' +
+            'c-0.1-0.1-0.2-0.2-0.3-0.2' +
+            'c0,0-0.1,0-0.1-0.1' +
+            'c-0.1,0-0.1-0.1-0.2-0.1' +
+            'c-0.1,0-0.1,0-0.2-0.1' +
+            'c0,0-0.1,0-0.1,0' +
+            'c-0.1,0-0.2,0-0.3,0 ' +
+            'c0,0,0,0,0,0l0,0' +
+            'c-0.1,0-0.2,0-0.3,0' +
+            'c-0.1,0-0.1,0-0.1,0' +
+            'c-0.1,0-0.1,0-0.2,0.1' +
+            'c-0.1,0-0.1,0.1-0.2,0.1' +
+            'c0,0-0.1,0-0.1,0.1 ' +
+            'c-0.1,0.1-0.2,0.1-0.3,0.2' +
+            'c0,0,0,0,0,0l0,0' +
+            'c0,0,0,0,0,0' +
+            'L1,17.5' +
+            'l0,0' +
+            'c-0.7,0.7-0.7,1.8,0,2.5' +
+            's1.8,0.7,2.5,0' +
+            'l9.6-9.6 ' +
+            'c0,6.7,0,34.2,0,34.2' +
+            'c0,1,0.8,1.7,1.7,1.7' +
+            's1.7-0.8,1.7-1.7' +
+            'V10.4l9.6,9.6' +
+            'c0.7,0.7,1.8,0.7,2.5,0' +
+            'S29.3,18.2,28.6,17.5' +
+            'z',
+
         fillColor: '#fbb040',
         fillOpacity: 1,
         scale: 1.5,
@@ -626,13 +688,24 @@
         strokeWeight: 0.5,
         origin: new google.maps.Point(0, 0),
         anchor: new google.maps.Point(15, 50),
-        rotation: 44,
+        rotation: 0,
     }
 
+    var planeIcon = {
+        path: 'm-246.683655,-59.615128l15.387878,-16.184708c9.011322,-9.011322 24.185303,-5.885406 24.185303,-5.885406l45.029465,6.161377l22.806168,-22.315704c12.015106,-11.800537 22.866943,6.253754 18.146729,12.475861l-11.709442,13.610046l48.493378,8.981598l16.460663,-19.189117c17.593536,-21.026459 30.683319,-2.083527 22.744781,9.073364l-10.636658,13.456879l72.862823,9.502472c62.650269,-60.290161 88.227356,-85.29892 104.711334,-70.441315c16.590332,14.9534 -12.756226,44.758545 -69.828003,103.546799l10.360687,75.069748l15.265106,-12.720795c9.011322,-7.50943 25.011871,4.537964 8.491058,20.2005l-20.997314,19.801788l8.858795,49.137024l13.119537,-10.084778c11.585999,-9.225861 25.655548,2.97467 9.992981,19.710022l-20.844177,20.997345c-0.858215,0.643646 6.805023,43.09845 6.805023,43.09845c4.720215,20.81189 -7.019592,28.415619 -7.019592,28.415619l-14.315094,12.475891l-54.378754,-153.603455c-4.505676,-13.516998 -15.925018,-28.19577 -35.006104,-26.453613c-10.084106,1.072784 -35.557983,18.269501 -38.990875,22.346069l-58.976837,56.708466c-1.501892,1.072784 9.073364,73.721039 9.073364,73.721039c0,2.145569 -18.698608,26.668213 -18.698608,26.668213l-37.366226,-66.517303l-18.453049,8.582855l10.789795,-16.798004l-67.283752,-37.979492l25.227692,-18.453033c12.015121,2.789215 75.008392,9.870178 76.295715,9.226501c0,0 51.296906,-50.87262 54.225616,-53.949646c16.94989,-17.808105 22.653015,-24.461853 25.227661,-33.258636c2.576782,-8.804016 -1.812836,-21.705841 -28.415619,-38.040894c-36.689026,-22.528351 -151.641449,-61.092026 -151.641449,-61.092026z',
+        fillColor: '#f3db79',
+        fillOpacity: 1,
+        scale:0.07,
+        strokeColor: "#000",
+        strokeWeight: 1,
+        anchor: new google.maps.Point(0,0),
+        rotation: 45,
+    }
+
+    var planesDict = new Object();
+
     var marker = new google.maps.Marker({
-        // The below line is equivalent to writing:
-        // position: new google.maps.LatLng(-34.397, 150.644)
-        position: {lat: 0.0, lng: 0.0},
+        position: {lat: 58.0, lng: 12.0},
         icon: upstreamIcon,
         draggable: true,
         map: map,
@@ -644,6 +717,62 @@
         infowindow.content = "<p>Marker Location:" + marker.getPosition() + "</p><p>Rotation:" + marker.icon.rotation + "</p>"
         infowindow.open(map, marker);
     });
+
+    function addPlane(key, id, longitude, latitude, alt, direction) {
+        console.log("Adding plane at ", longitude, latitude)
+        var thePlaneIcon =
+            {
+                path: 'm-246.683655,-59.615128l15.387878,-16.184708c9.011322,-9.011322 24.185303,-5.885406 24.185303,-5.885406l45.029465,6.161377l22.806168,-22.315704c12.015106,-11.800537 22.866943,6.253754 18.146729,12.475861l-11.709442,13.610046l48.493378,8.981598l16.460663,-19.189117c17.593536,-21.026459 30.683319,-2.083527 22.744781,9.073364l-10.636658,13.456879l72.862823,9.502472c62.650269,-60.290161 88.227356,-85.29892 104.711334,-70.441315c16.590332,14.9534 -12.756226,44.758545 -69.828003,103.546799l10.360687,75.069748l15.265106,-12.720795c9.011322,-7.50943 25.011871,4.537964 8.491058,20.2005l-20.997314,19.801788l8.858795,49.137024l13.119537,-10.084778c11.585999,-9.225861 25.655548,2.97467 9.992981,19.710022l-20.844177,20.997345c-0.858215,0.643646 6.805023,43.09845 6.805023,43.09845c4.720215,20.81189 -7.019592,28.415619 -7.019592,28.415619l-14.315094,12.475891l-54.378754,-153.603455c-4.505676,-13.516998 -15.925018,-28.19577 -35.006104,-26.453613c-10.084106,1.072784 -35.557983,18.269501 -38.990875,22.346069l-58.976837,56.708466c-1.501892,1.072784 9.073364,73.721039 9.073364,73.721039c0,2.145569 -18.698608,26.668213 -18.698608,26.668213l-37.366226,-66.517303l-18.453049,8.582855l10.789795,-16.798004l-67.283752,-37.979492l25.227692,-18.453033c12.015121,2.789215 75.008392,9.870178 76.295715,9.226501c0,0 51.296906,-50.87262 54.225616,-53.949646c16.94989,-17.808105 22.653015,-24.461853 25.227661,-33.258636c2.576782,-8.804016 -1.812836,-21.705841 -28.415619,-38.040894c-36.689026,-22.528351 -151.641449,-61.092026 -151.641449,-61.092026z',
+
+                fillColor: '#f3db79',
+                fillOpacity: 1,
+                scale: 0.07,
+                strokeColor: "#000",
+                strokeWeight: 1,
+                anchor: new google.maps.Point(0, 0),
+                labelOrigin: new google.maps.Point(13.5/0.07, 30/0.07),
+                rotation: direction,
+            };
+
+        var aPlane = new google.maps.Marker({
+            icon: thePlaneIcon,
+            position: {lat: latitude, lng: longitude},
+            opacity: 1.0,
+            zIndex: 15,
+            label: id,
+            map: map,
+        });
+
+        aPlane.addListener("click", () => {
+            planeClick(id)
+        });
+        planesDict[key] = aPlane
+    }
+
+    function removePlane(key) {
+        planesDict[key].setMap(null);
+        delete planesDict[key]
+    }
+
+    function updatePlanes(planes)
+    {
+         for (key in planes) {
+                p = planes[key]
+                if (key in planesDict) {
+                    removePlane(key)
+                    addPlane(key, p.id, p.lng, p.lat, p.alt, p.direction-45)
+                }
+                else {
+                    addPlane(key, p.id, p.lng, p.lat, p.alt, p.direction-45)
+                }
+         }
+         for (key in planesDict ){
+             if (!(key in planes)) {
+                 removePlane(key)
+             }
+         }
+    }
+
 
     function setAzimuth(az) {
         var icon = marker.getIcon();
