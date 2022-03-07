@@ -1,5 +1,8 @@
 
 import os, signal
+import sys
+import time
+
 
 def kill_siblings():
 
@@ -21,11 +24,12 @@ def kill_siblings():
 
             # terminating process
             try:
-                os.kill(int(pid), signal.SIGKILL)
-                os.kill(int(ppid), signal.SIGSTOP)
+                os.kill(int(pid), signal.SIGINT)
+                # os.kill(int(ppid), signal.SIGSTOP)
+                time.sleep(2)
                 print("Sibling %s successfully terminated" % pid)
             except:
-                print ("Failed killing process %s", pid)
+                print ("Failed killing process %s" % pid)
                 pass
 
     except:
@@ -33,6 +37,17 @@ def kill_siblings():
 
 
 kill_siblings()
+
+import socket
+
+address = ("", 8878)
+s = socket.socket()
+try:
+    s.bind(address)
+except OSError:
+    print("Another instance of StnMate2 is running. Quitting")
+    sys.exit(1)
+
 
 from flask import Flask, render_template, request
 import psycopg2
@@ -55,6 +70,7 @@ logger.info("Starting stnMate")
 socket_io = SocketIO(async_mode="eventlet")
 
 def create_app(config=DevelopmentConfig) -> Flask:
+
     _app = Flask(__name__)
     _app.config.from_object(config)
 
