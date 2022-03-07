@@ -50,7 +50,6 @@ class TargetStack:
 		if ret is None:
 			if self.track_thread:
 				self.azel.track_thread_running = False
-				abortable_sleep.abort()
 				self.track_thread.join()
 				self.azel.logger.info("Tracking thread stopped, no more targets")
 		return ret
