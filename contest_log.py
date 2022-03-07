@@ -6,10 +6,9 @@ import locator.src.maidenhead as mh
 import math
 from geo import sphere
 
-def get_nth_tuesday_this_month(n, today=date.today()):
-    yesterday = today - timedelta(days=1)
+def get_nth_tuesday(n, today=date.today()):
 
-    d = datetime(yesterday.year, yesterday.month, 1)
+    d = today.replace(day=1)
     offset = 1 - d.weekday()
     if offset < 0:
         offset += 7
@@ -17,12 +16,6 @@ def get_nth_tuesday_this_month(n, today=date.today()):
 
     return d + timedelta(offset)
 
-class StringWrapper:
-    def __init__(self):
-        self.string = ""
-
-    def write(self, string):
-        self.string += string
 
 def is_dst(dt=None, timezone="UTC"):
     if dt is None:
@@ -33,6 +26,33 @@ def is_dst(dt=None, timezone="UTC"):
     timezone_aware_date = timezone.localize(dt, is_dst=None)
     return timezone_aware_date.tzinfo._dst.seconds != 0
 
+
+def get_test_data(tuesday_number, today):
+
+    test_date = get_nth_tuesday(tuesday_number, today)
+    dst = is_dst(test_date, timezone="CET")
+    utcstart = "18:00:00" if not dst else "17:00:00"
+    utcend = "22:00:00" if not dst else "21:00:00"
+
+    t_date_start = test_date.isoformat()[:10] + " " + utcstart
+    t_date_stop = test_date.isoformat()[:10] + " " + utcend
+
+    return test_date, t_date_start, t_date_stop
+
+def get_contest_times(band_and_mode, tuesday_number=None, today=date.today()):
+
+    if tuesday_number is None:
+        tuesday_number = band_on_tuesday_number[band_and_mode]
+
+    test_date, t_date_start, t_date_stop = get_test_data(tuesday_number, today)
+
+    today_str = today.strftime("%Y-%m-%d %H:%M:%S")
+    if t_date_start > today_str:
+        first = today.replace(day=1)
+        last_month_end = first - timedelta(days=1)
+        test_date, t_date_start, t_date_stop = get_test_data(tuesday_number, last_month_end)
+    return test_date, t_date_start, t_date_stop
+
 band_on_tuesday_number = {
         "144": 0,
         "144-FT8": 0,
@@ -42,26 +62,18 @@ band_on_tuesday_number = {
         "1296": 2,
     }
 
-def get_contest_times(band_and_mode, tuesday_number=None):
-    if tuesday_number is None:
-        tuesday_number = band_on_tuesday_number[band_and_mode]
+class StringWrapper:
+    def __init__(self):
+        self.string = ""
 
-    test_date = get_nth_tuesday_this_month(tuesday_number)
-    dst = is_dst(test_date, timezone="CET")
-    utcstart = "18:00:00" if not dst else "17:00:00"
-    utcend = "23:00:00" if not dst else "22:00:00"
-
-    t_date_start = test_date.isoformat()[:10] + " " + utcstart
-    t_date_stop = test_date.isoformat()[:10] + " " + utcend
-
-    return t_date_start, t_date_stop
-
+    def write(self, string):
+        self.string += string
 
 def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
 
     contest_log = StringWrapper()  # Type: Optional[SupportsWrite[str]]
 
-    t_date_start, t_date_stop = get_contest_times(band_and_mode, tuesday_number)
+    test_date. t_date_start, t_date_stop = get_contest_times(band_and_mode, tuesday_number)
 
     band = int(band_and_mode.split('-')[0])
 
@@ -352,3 +364,13 @@ def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
     print("Contest log.")
     print(contest_log.string)
     return contest_log.string
+
+if __name__ == '__main__':
+    dates = ["2022-01-01 20:00",
+             "2022-01-04 17:59",
+             "2022-01-04 18:00"]
+
+    for d in dates:
+        pd = datetime.strptime(d, "%Y-%m-%d %H:%M")
+        test_date, t_date_start, t_date_stop = get_contest_times("144-FT8", None, pd)
+        print(test_date, t_date_start, t_date_stop)

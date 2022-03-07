@@ -101,7 +101,7 @@ class ClientMgr:
                 self.show_log_since = datetime.combine(date.today(), datetime.min.time())
                 self.show_log_until = None
             elif scope == "Contest":
-                fr, to = get_contest_times(self.current_band)
+                _dt, fr, to = get_contest_times(self.current_band)
                 self.show_log_since = datetime.strptime(fr, "%Y-%m-%d %H:%M:%S")
                 self.show_log_until = datetime.strptime(to, "%Y-%m-%d %H:%M:%S")
             self.send_reload()
