@@ -39,7 +39,7 @@ def get_test_data(tuesday_number, today):
 
     return test_date, t_date_start, t_date_stop
 
-def get_contest_times(band_and_mode, tuesday_number=None, today=date.today()):
+def get_contest_times(band_and_mode, tuesday_number=None, today=datetime.now()):
 
     if tuesday_number is None:
         tuesday_number = band_on_tuesday_number[band_and_mode]
@@ -73,7 +73,7 @@ def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
 
     contest_log = StringWrapper()  # Type: Optional[SupportsWrite[str]]
 
-    test_date. t_date_start, t_date_stop = get_contest_times(band_and_mode, tuesday_number)
+    test_date, t_date_start, t_date_stop = get_contest_times(band_and_mode, tuesday_number)
 
     band = int(band_and_mode.split('-')[0])
 
