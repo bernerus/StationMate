@@ -54,7 +54,11 @@ class TargetStack:
 				self.azel.track_thread_running = False
 				self.track_thread.join()
 				self.azel.logger.info("Tracking thread stopped, no more targets")
+
+		top.start()
 		self.update_ui(force=True)
+		abortable_sleep.abort()
+
 		return top
 
 	def push(self, tracking_object):
@@ -92,7 +96,7 @@ class TargetStack:
 				self.logger.info("No targets to track")
 				self.azel.untrack()
 				return
-			ret = target.trigger_period() # Notify that we have started a new period
+			target.trigger_period() # Notify that we have started a new period
 			taz=target.az  # target.az is volatile, keep the value fetched once herein
 			if target.done() or taz is None:
 				self.pop()
