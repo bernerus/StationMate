@@ -60,7 +60,7 @@ class TargetStack:
 		self.logger.info("Pushing target id %s, az=%s, el=%s" %(tracking_object.id, tracking_object.az, tracking_object.el))
 		self._target_stack.append(tracking_object)
 		tracking_object.start()
-		self.update_ui()
+		self.update_ui(force=True)
 		self.kick_thread()
 
 	def kick_thread(self):
@@ -70,7 +70,9 @@ class TargetStack:
 		else:
 			abortable_sleep.abort()
 
-	def update_ui(self):
+	def update_ui(self, force=False):
+		if not force:
+			return
 		tgts = self._target_stack[::-1]
 		self.azel.app.client_mgr.update_target_list(tgts)
 

@@ -64,7 +64,6 @@ class HamOp:
         self.last_p26_sense = None
         self.pa_running = None
         self.last_status = 0xff
-        self.tracking_wind = False
 
         pass
 
@@ -117,8 +116,6 @@ class HamOp:
         else:
             s = "Core station info is not available<br/>"
 
-        s += "Antenna is tracking the current wind<br/>" if self.app.azel.tracking_wind else "Antenna is not tracking the current wind.<br/>"
-        s += "Antenna is targeted at azimuth %d degrees<br/>" % self.app.azel.get_az_target() if self.app.azel.get_az_target() else "Antenna has no azimuth target<br/>"
 
         return s
 

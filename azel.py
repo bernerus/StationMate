@@ -158,10 +158,6 @@ class AzElControl:
 
 
 	def track_wind(self, value=None):
-		if value is None:
-			value = True
-		self.tracking_wind = value
-
 		wind_target = WindTarget(self)
 		self.target_stack.push(wind_target)
 
@@ -219,9 +215,7 @@ class AzElControl:
 		return ticks
 
 	def status_update(self, force=False):
-		if self.tracking_wind != self.last_tracking_wind or self.last_tracking_wind is None or force:
-			self.app.client_mgr.push_wind_led(self.tracking_wind)
-		self.last_tracking_wind = self.tracking_wind
+		self.target_stack.update_ui()
 
 	def el_interrupt(self, last, current):
 		pass
@@ -301,12 +295,13 @@ class AzElControl:
 			self._az_track(self.az_target_degrees)
 
 
-	def az_track(self, az=None, id=None):
-		# self.reset_wind_track_countdown()
+	def az_track(self, az=None, id=None, classes=None):
 		if id is None:
 			id="Fixed_"+str(az)
 		self.az_target_degrees = az
 		target = Target(self, id, az, 0 , 10, 3600)
+		if classes:
+			target.set_led_classes(classes)
 		self.logger.info("az_track %s" % az)
 		self.target_stack.push(target)
 
@@ -484,4 +479,4 @@ class AzElControl:
 		return self.az_sector
 
 	def update_target_list(self):
-		self.target_stack.update_ui()
+		self.target_stack.update_ui(force=True)

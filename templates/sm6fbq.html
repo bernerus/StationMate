@@ -80,8 +80,14 @@
                 updateClass(msg)
             })
 
+            socket.on("update_classes", function (msg) {
+                console.log("Got update_classes " + msg);
+                $('#log').append('<br>' + $('<div/>').text('Received update_class#' + msg).html());
+                updateClasses(msg)
+            })
+
             socket.on("update_state", function (msg) {
-                console.log("Got update_state " + msg);
+                //console.log("Got update_state " + msg);
                 $('#log').append('<br>' + $('<div/>').text('Received update_state#' + msg).html());
                 updateState(msg)
             })
@@ -208,7 +214,7 @@
         <td>
             <fieldset>
                 <legend>Stationstatus</legend>
-                <button id="wind_led" style="color: #0066FF; font-size: 18px;" class="fa-wind"></button>
+                <button id="track_led" style="color: #0066FF; font-size: 18px;" class="fa-power-off"></button>
                 <label>
                     Az: <span id="myaz"></span>
                     El: <span id="myel"></span>
@@ -719,7 +725,7 @@
     });
 
     function addPlane(key, id, longitude, latitude, alt, direction) {
-        console.log("Adding plane at ", longitude, latitude)
+        // console.log("Adding plane at ", longitude, latitude)
         var thePlaneIcon =
             {
                 path: 'm-246.683655,-59.615128l15.387878,-16.184708c9.011322,-9.011322 24.185303,-5.885406 24.185303,-5.885406l45.029465,6.161377l22.806168,-22.315704c12.015106,-11.800537 22.866943,6.253754 18.146729,12.475861l-11.709442,13.610046l48.493378,8.981598l16.460663,-19.189117c17.593536,-21.026459 30.683319,-2.083527 22.744781,9.073364l-10.636658,13.456879l72.862823,9.502472c62.650269,-60.290161 88.227356,-85.29892 104.711334,-70.441315c16.590332,14.9534 -12.756226,44.758545 -69.828003,103.546799l10.360687,75.069748l15.265106,-12.720795c9.011322,-7.50943 25.011871,4.537964 8.491058,20.2005l-20.997314,19.801788l8.858795,49.137024l13.119537,-10.084778c11.585999,-9.225861 25.655548,2.97467 9.992981,19.710022l-20.844177,20.997345c-0.858215,0.643646 6.805023,43.09845 6.805023,43.09845c4.720215,20.81189 -7.019592,28.415619 -7.019592,28.415619l-14.315094,12.475891l-54.378754,-153.603455c-4.505676,-13.516998 -15.925018,-28.19577 -35.006104,-26.453613c-10.084106,1.072784 -35.557983,18.269501 -38.990875,22.346069l-58.976837,56.708466c-1.501892,1.072784 9.073364,73.721039 9.073364,73.721039c0,2.145569 -18.698608,26.668213 -18.698608,26.668213l-37.366226,-66.517303l-18.453049,8.582855l10.789795,-16.798004l-67.283752,-37.979492l25.227692,-18.453033c12.015121,2.789215 75.008392,9.870178 76.295715,9.226501c0,0 51.296906,-50.87262 54.225616,-53.949646c16.94989,-17.808105 22.653015,-24.461853 25.227661,-33.258636c2.576782,-8.804016 -1.812836,-21.705841 -28.415619,-38.040894c-36.689026,-22.528351 -151.641449,-61.092026 -151.641449,-61.092026z',
@@ -802,15 +808,22 @@
 
     function updateClass(msg) {
         console.log(msg)
-        console.log("ForID=", msg.forId)
+        //console.log("ForID=", msg.forId)
         element = document.getElementById(msg.forId)
-
-        console.log("Element==", element)
+        //console.log("Element==", element)
         if (msg.value) {
             element.classList.add(msg.class);
         } else {
             element.classList.remove(msg.class);
         }
+    }
+
+    function updateClasses(msg) {
+        console.log(msg)
+        //console.log("ForID=", msg.forId)
+        element = document.getElementById(msg.forId)
+        //console.log("Element==", element)
+        element.className = msg.classes
     }
 
     function updateState(msg) {

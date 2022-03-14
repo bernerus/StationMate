@@ -204,10 +204,8 @@ class ClientMgr:
 
         self.app.azel.status_update()
 
-    def push_wind_led(self, tracking_wind):
-        send_update_class("wind_led", "fas", tracking_wind)
-        send_update_class("wind_led", "fa-thin", not tracking_wind)
-        self.last_tracking_wind = tracking_wind
+    def push_track_led(self, clazzes):
+        send_update_classes("track_led", clazzes)
 
     def status_update(self, force=False):
         current_p2_sense = self.app.ham_op.get_status()
@@ -251,7 +249,6 @@ class ClientMgr:
             self.send_qth()
             self.send_my_data()
             self.send_azel(force=True)
-            self.push_wind_led(self.app.azel.tracking_wind)
 
             with thread_lock:
                 if self.message_thread is None:
