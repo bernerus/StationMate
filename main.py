@@ -95,11 +95,9 @@ app.client_mgr = ClientMgr(app, logger, socket_io)
 
 from azel import AzElControl
 app.azel = AzElControl(app, logger, socket_io, hysteresis=2)
-app.azel.startup()
 
 from airtracker import AirTracker
 app.atrk = AirTracker(app, logger, socket_io, url="http://192.168.1.129:8754")
-app.atrk.startup()
 
 
 app.keyer = Morser(logger, speed=None, p20=app.azel.p20)
@@ -363,6 +361,8 @@ def goodbye():
     app.azel.GPIO_cleanup()  # clean up GPIO on exit
 
 
+app.azel.startup()
+app.atrk.startup()
 
 if __name__ == '__main__':
     try:
