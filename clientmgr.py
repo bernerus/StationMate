@@ -38,7 +38,12 @@ def status_update_thread(app):
 
 
 def send_update_class(key, clazz, value):
+    # print("Update class forId=%s, class=%s, value=%s" % (key, clazz, value))
     msg_q.put(("update_class", {"forId": key, "class": clazz, "value": value}))
+
+def send_update_classes(key, classes):
+    # print("Update classes forId=%s, classes=%s," % (key, classes))
+    msg_q.put(("update_classes", {"forId": key, "classes": classes}))
 
 
 def send_update_state(key, state, value):

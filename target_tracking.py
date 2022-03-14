@@ -32,8 +32,11 @@ class TargetStack:
 	def get_top(self):
 		if not self._target_stack:
 			return None
-		ret = self._target_stack[-1]
-		return ret
+		try:
+			ret = self._target_stack[-1]
+			return ret
+		except IndexError:
+			return None
 
 	def get_stack_json(self):
 		ret = []
@@ -45,14 +48,14 @@ class TargetStack:
 	def pop(self):
 		if not self._target_stack:
 			return None
-		ret = self._target_stack.pop()
-		self.update_ui()
-		if ret is None:
+		top = self._target_stack.pop()
+		if top is None:
 			if self.track_thread:
 				self.azel.track_thread_running = False
 				self.track_thread.join()
 				self.azel.logger.info("Tracking thread stopped, no more targets")
-		return ret
+		self.update_ui(force=True)
+		return top
 
 	def push(self, tracking_object):
 		if not tracking_object:
@@ -75,6 +78,11 @@ class TargetStack:
 			return
 		tgts = self._target_stack[::-1]
 		self.azel.app.client_mgr.update_target_list(tgts)
+		current_tracking_led_classes = None
+		if self.get_top():
+				current_tracking_led_classes = self.get_top().led_classes
+		self.logger.info("Pushing class %s to track_led" % (current_tracking_led_classes))
+		self.azel.app.client_mgr.push_track_led(current_tracking_led_classes)
 
 	def track_thread_function(self):
 		self.track_thread_running = True
@@ -115,6 +123,7 @@ class Target:
 		self.ttl = ttl
 		self.start_time = None
 		self.active = True
+		self.led_classes = "fas fa-bullseye"
 
 	def start(self):
 		self.start_time = time.time()
@@ -127,6 +136,9 @@ class Target:
 			return time.time() > self.start_time + self.ttl
 		else:
 			return False
+
+	def set_led_classes(self, classes):
+		self.led_classes = classes
 
 	@property
 	def active(self):
@@ -204,12 +216,15 @@ class ManualTarget(Target):
 		self.azel = azel
 		super().__init__(azel, "Manual", 0, 0, 90, 15*60)  # Manual targets updates every 90 seconds and lives for 15 minutes
 		self.deactivate()
+		self.led_classes = "fas fa-hand"
+
 
 class WindTarget(Target):
 	""" This target type points in the current wind direction which is taken from yr.no given current location."""
 	def __init__(self, azel):
 		self.azel = azel
 		super().__init__( azel, "YR_wind", self.trigger_period(), 0, 600, 365*86400)  # Wind track lives for a year, updates every 10 minutes
+		self.led_classes = "fas fa-wind"
 
 	def trigger_period(self)  -> int:
 			mn, ms, mw, me, my_lat, my_lon = mh.to_rect(self.azel.app.ham_op.my_qth())
@@ -254,6 +269,8 @@ class ScanTarget(Target):
 		if self.az_ticks > self.range_stop:
 			self.step_ticks = -self.step_ticks
 
+		self.led_classes = "fas fa-radar"
+
 		self.intro = (self.az_ticks > self.range_stop or self.az_ticks < self.range_start)  # If we start outside the sweep
 
 	def trigger_period(self):
@@ -296,6 +313,8 @@ class MoonTarget(Target):
 		super().__init__(azel, "Moon", 0, 0, 300, 86400)  # Moon track lives for a day and is updated every 5 minutes
 		self.trigger_period()
 
+		self.led_classes = "fas fa-moon"
+
 	def trigger_period(self)  -> int:
 		self.myqth.date = datetime.datetime.utcnow()
 		self.moon.compute(self.myqth)
@@ -321,6 +340,8 @@ class SunTarget(Target):
 		super().__init__(azel, "Sun", 0, 0, 300, 86400)  # Sun track lives for a day and is updated every 5 minutes
 		self.trigger_period()
 
+		self.led_classes = "fas fa-sun"
+
 	def trigger_period(self)  -> int:
 		self.myqth.date = datetime.datetime.utcnow()
 		self.sun.compute(self.myqth)
@@ -334,6 +355,8 @@ class PlaneTarget(Target):
 		self.plane_id = plane_id
 		_mn, _ms, _mw, _me, self.my_lat, self.my_lon = mh.to_rect(azel.app.ham_op.my_qth())
 		super().__init__(azel, plane_id, 0, 0, 12, 20*60)  # Plane track lives for 20 min and is updated every 12 seconds
+
+		self.led_classes = "fas fa-plane"
 
 	def trigger_period(self) -> int:
 
