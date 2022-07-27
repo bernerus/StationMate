@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="ham_station@pi3.bernerus.se" uuid="8a9f8bf8-6834-49a6-8c28-ecd29c43acf9">
+    <data-source source="LOCAL" name="PostgreSQL - ham_station@pi3.bernerus.se" uuid="8a9f8bf8-6834-49a6-8c28-ecd29c43acf9">
       <driver-ref>postgresql</driver-ref>
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
       <jdbc-url>jdbc:postgresql://pi3.bernerus.se:5432/ham_station</jdbc-url>
