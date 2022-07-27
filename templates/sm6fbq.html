@@ -125,6 +125,7 @@
 
             socket.on("add_qso", function (qso) {
                 enter_qso_in_table(qso);
+                console.log("added qso" + qso)
             })
 
             socket.on("add_qsos", function (qsos) {
@@ -240,6 +241,9 @@
                     <button id="loc_fields" onclick="send_set_map_mh_length(2)">Fält</button>
                     <button id="loc_squares" onclick="send_set_map_mh_length(4)">Rutor</button>
                     <button id="loc_locators" onclick="send_set_map_mh_length(6)">Lokatorer</button>
+                    <button id="loc_8char" onclick="send_set_map_mh_length(8)">8ch</button>
+                    <button id="loc_10char" onclick="send_set_map_mh_length(10)">10ch</button>
+                    <button id="loc_12char" onclick="send_set_map_mh_length(12)">12ch</button>
                 </div>
                 <button id="store_map_settings"
                         style="align-content: end;"
@@ -710,19 +714,69 @@
 
     var planesDict = new Object();
 
+     Number.prototype.toRad = function() {
+         return this * Math.PI / 180;
+    }
+
+    Number.prototype.toDeg = function() {
+         return this * 180 / Math.PI;
+    }
+
+    google.maps.LatLng.prototype.destinationPoint = function(frompoint, bearing, dist) {
+         dist = dist / 6371;
+         bearing = bearing.toRad();
+
+         var lat1 = frompoint.lat.toRad(), lon1 = frompoint.lng.toRad();
+
+         var lat2 = Math.asin(Math.sin(lat1) * Math.cos(dist) +
+                              Math.cos(lat1) * Math.sin(dist) * Math.cos(bearing));
+
+         var lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(dist) *
+                                      Math.cos(lat1),
+                                      Math.cos(dist) - Math.sin(lat1) *
+                                      Math.sin(lat2));
+
+         if (isNaN(lat2) || isNaN(lon2)) return null;
+
+         return {lat: lat2.toDeg(), lng: lon2.toDeg()};
+      }
+
+    var my_lat = 58.0;
+    var my_lng = 13.0;
+
     var marker = new google.maps.Marker({
-        position: {lat: 58.0, lng: 12.0},
+        position: {lat: my_lat, lng: my_lng},
         icon: upstreamIcon,
         draggable: true,
         map: map,
     });
+
+
+    var antdir = new google.maps.Polyline({
+        path:[
+            {lat:my_lat, lng:my_lng},
+            google.maps.LatLng.prototype.destinationPoint({lat:my_lat, lng:my_lng}, 22.2, 500)],
+            geodesic:true,
+            strokeColor:"#fe0000",
+            strokeWeight:3,
+            strokeOpacity:1,
+            map: map});
+
+
     const infowindow = new google.maps.InfoWindow({
         content: "<p>Marker Location:</p>",
     });
+
+
+
+
+
     google.maps.event.addListener(marker, "click", () => {
         infowindow.content = "<p>Marker Location:" + marker.getPosition() + "</p><p>Rotation:" + marker.icon.rotation + "</p>"
         infowindow.open(map, marker);
     });
+
+
 
     function addPlane(key, id, longitude, latitude, alt, direction) {
         // console.log("Adding plane at ", longitude, latitude)
@@ -785,6 +839,14 @@
         icon.rotation = az;
         marker.setIcon(icon);
         document.getElementById("myaz").innerHTML = az
+
+
+        antdir.setPath(
+        [
+            {lat:my_lat, lng:my_lng},
+            google.maps.LatLng.prototype.destinationPoint({lat:my_lat, lng:my_lng}, az, 1500)
+        ]);
+
     }
 
     function setElevation(el) {
@@ -799,10 +861,17 @@
     }
 
     function setQth(lat, lon, qth, n, s, w, e) {
+        my_lat = lat
+        my_lng = lon
         marker.setPosition({"lat": lat, "lng": lon});
         document.getElementById("my_qth").innerHTML = qth;
         console.log("Moved qth to " + lat + " " + lon);
         addRect(qth, n, s, w, e);
+        antdir.path =
+        [
+            {lat:my_lat, lng:my_lng},
+            google.maps.LatLng.prototype.destinationPoint({lat:my_lat, lng:my_lng}, 22.2, 500)
+        ]
     }
 
 
