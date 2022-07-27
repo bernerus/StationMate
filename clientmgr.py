@@ -298,8 +298,9 @@ class ClientMgr:
                 qsos.append(qso)
                 if self.current_band.split('-')[0] in row[13] and row[6]:
                     mhs.append(row[6].upper())
-
-            emit("add_qsos", qsos)
+            if qsos:
+                emit("add_qsos", qsos)
+                self.logger.debug("Adding qsqs from %s to %s" % (qsos[0]["callsign"], qsos[-1]["callsign"]))
             self.add_mhs_on_map(mhs)
             self.app.azel.update_target_list()
             self.status_update(force=True)
@@ -372,6 +373,10 @@ class ClientMgr:
     def emit_log(self, json):
         emit("log_data", json)
 
+    def add_qso(self, qso):
+        emit("add_qso", qso)
+        # emit("qso_committed", qso)
+
     def send_reload(self):
         msg_q.put(("globalReload", {}))
 
@@ -409,6 +414,9 @@ class ClientMgr:
         msg_q.put(("update_planes", planes1))
 
         msg_q.put(("update_planes", planes2))
+
+    def update_reachable_stations(self, stations):
+        msg_q.put(("update_reachable_stations", stations))
 
     def map_settings(self, json):
         self.logger.debug("Map settings received: %s", json)
