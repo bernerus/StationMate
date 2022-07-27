@@ -5,6 +5,7 @@ LOW = "LOW"
 
 import time
 
+retry_sleep = 0.2
 
 def setup(PCFAdd, bus, status):
     if status:
@@ -40,7 +41,7 @@ def bit_read(logger, pin_number, bus, addr):
             errcount += 1
             if errcount > 10:
                 raise
-            time.sleep(0.1)
+            time.sleep(retry_sleep)
 
 def byte_read(logger, pin_mask, bus, addr):
     errcount = 0
@@ -56,7 +57,7 @@ def byte_read(logger, pin_mask, bus, addr):
             errcount += 1
             if errcount > 10:
                 raise
-            time.sleep(0.1)
+            time.sleep(retry_sleep)
 
 
 
@@ -75,7 +76,7 @@ def byte_write(logger, pin_mask, bus, addr, value):
             errcount += 1
             if errcount > 10:
                 raise
-            time.sleep(0.1)
+            time.sleep(retry_sleep)
     errcount = 0
     value_write = (value_read & ~pin_mask) | value & pin_mask
     while True:
@@ -84,7 +85,7 @@ def byte_write(logger, pin_mask, bus, addr, value):
             bus.write_byte(addr, value_write)
             check = byte_read(logger, 0xff, bus, addr)
             if check != value_write:
-                logger.error("byte_write: reread from %x did not match written value, got %s, expected %x" % (addr, check, value_write))
+                logger.error("byte_write: reread from %x did not match written value, got %x, expected %x" % (addr, check, value_write))
                 raise IOError
             return
         except OSError as e:
@@ -92,7 +93,7 @@ def byte_write(logger, pin_mask, bus, addr, value):
             errcount += 1
             if errcount > 10:
                 raise
-            time.sleep(0.1)
+            time.sleep(retry_sleep)
 
 def test_bit(n, offset):
     mask = 1 << offset
@@ -134,27 +135,32 @@ def write_data(logger, pin_number: int, val, bus, flg, addr):
                 errcount += 1
                 if errcount > 10:
                     raise
-                time.sleep(0.1)
+                time.sleep(retry_sleep)
         errcount = 0
         while True:
             try:
                 if val == 0 and test_bit(value_read, pin_number):
-                    #logger.debug(f"I2C write_data %x %s"% (addr, format(clear_bit(value_read, pin_number),'b')))
+                    # logger.debug(f"I2C write_data %x %s"% (addr, format(clear_bit(value_read, pin_number),'b')))
                     bus.write_byte(addr, clear_bit(value_read, pin_number))
                     check = byte_read(logger, 0xff, bus, addr)
                     if check != clear_bit(value_read, pin_number):
-                        logger.error("byte_write: reread from %x did not match written value, got %s, expected %x" % (addr, check, clear_bit(value_read, pin_number)))
+                        logger.error("write_data: reread from %x did not match written value, got %s, expected %x" % (addr, check, clear_bit(value_read, pin_number)))
                         raise IOError
+                    if errcount:
+                        logger.info("write_data succeeded on retry number %d" % errcount)
                     return
                 elif val == 1 and not test_bit(value_read, pin_number):
-                    #logger.debug("I2C write_data %x %s"% (addr, format(set_bit(value_read, pin_number),'b')))
+                    # logger.debug("I2C write_data %x %s"% (addr, format(set_bit(value_read, pin_number),'b')))
                     bus.write_byte(addr, set_bit(value_read, pin_number))
                     check = byte_read(logger, 0xff, bus, addr)
                     if check != set_bit(value_read, pin_number):
                         logger.error("byte_write: reread from %x did not match written value, got %s, expected %x" % (addr, check, set_bit(value_read, pin_number)))
                         raise IOError
+                    if errcount:
+                        logger.info("write_data succeeded on retry number %d" % errcount)
                     return
                 else:
+
                     return
 
             except OSError as e:
@@ -162,4 +168,4 @@ def write_data(logger, pin_number: int, val, bus, flg, addr):
                 errcount += 1
                 if errcount > 10:
                     raise
-                time.sleep(0.1)
+                time.sleep(retry_sleep)
