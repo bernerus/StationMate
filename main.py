@@ -2,6 +2,7 @@
 import os, signal
 import sys
 import time
+import datetime
 
 
 def kill_siblings():
@@ -23,14 +24,15 @@ def kill_siblings():
                 continue
 
             # terminating process
-            try:
-                os.kill(int(pid), signal.SIGINT)
-                # os.kill(int(ppid), signal.SIGSTOP)
-                time.sleep(2)
-                print("Sibling %s successfully terminated" % pid)
-            except:
-                print ("Failed killing process %s" % pid)
-                pass
+            while True:
+                try:
+                    os.kill(int(pid), signal.SIGTERM)
+                    # os.kill(int(ppid), signal.SIGSTOP)
+                    print("Sent kill signal to process %d" % int(pid))
+                    time.sleep(1)
+                except Exception as e:
+                    print ("Process %s is now dead: %s" % (int(pid), e))
+                    break
 
     except:
         print("Error Encountered while running script")
@@ -59,7 +61,7 @@ import atexit
 import logging
 
 logger=logging.getLogger(__name__)
-logger.setLevel("INFO")
+logger.setLevel("DEBUG")
 hdlr = logging.StreamHandler()
 hdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)8s %(filename)20s:%(lineno)-5s %(message)s'))
 logger.addHandler(hdlr)
@@ -94,7 +96,7 @@ from clientmgr import ClientMgr
 app.client_mgr = ClientMgr(app, logger, socket_io)
 
 from azel import AzElControl
-app.azel = AzElControl(app, logger, socket_io, hysteresis=2)
+app.azel = AzElControl(app, logger, socket_io, hysteresis=10)
 
 from airtracker import AirTracker
 app.atrk = AirTracker(app, logger, socket_io, url="http://192.168.1.129:8754")
@@ -173,9 +175,12 @@ def my_wsjtx_upload():
 @app.route('/az_scan', defaults={"start":0,"stop":180, "period":30, "sweeps":2, "increment":15})
 def az_scan(start,stop,period,sweeps, increment):
     start=1
-    logger.info("AZ_scan start=%d, stop=%d, period=%d, sweeps=%d increnment=%d" % (start,stop,period,sweeps, increment))
+    logger.info("AZ_scan start=%d, stop=%d, period=%d, sweeps=%d increment=%d" % (start,stop,period,sweeps, increment))
     return app.azel.sweep(start,stop,period,sweeps,increment)
 
+@app.route('/commit_qso', methods=['POST'])
+def commit_qso():
+    return app.ham_op.commit_qso(request)
 
 
 ##############
@@ -294,11 +299,11 @@ def handle_toggle_pa(_json):
     app.ham_op.toggle_pa()
 
 @socket_io.on("toggle_tx70")
-def handle_toggle_pa(_json):
+def handle_toggle_tx70(_json):
     app.ham_op.toggle_tx70()
 
 @socket_io.on("toggle_rx70")
-def handle_toggle_pa(_json):
+def handle_toggle_rx70(_json):
     app.ham_op.toggle_rx70()
     emit("fill_dx_grid", "JP70PQ", namespace="/qwdgh")
 
@@ -331,6 +336,11 @@ def test_disconnect():
 @socket_io.on("set_dx_note", namespace="/wsjtx")
 def set_dx_note(json):
     logger.info("Fill DX note %s" % json)
+    callsign = json["callsign"]
+    locator = json["locator"]
+    knowns = app.ham_op.callsigns_in_locator(locator)
+    if callsign in knowns:
+        emit("fill_dx_grid", callsign,  namespace="/", broadcast=True)
     emit("fill_dx_note", json, namespace="/", broadcast=True)
 
 @socket_io.on("set_dx_grid", namespace="/wsjtx")
@@ -338,7 +348,56 @@ def set_dx_call(grid):
     logger.info("Set DX grid to %s" % grid)
     emit("fill_dx_grid", grid, namespace="/", broadcast=True)
 
+@socket_io.on("commit_wsjtx_qso", namespace="/wsjtx")
+def commit_wsjtx_qso(json):
+    dt = json["date_time_on"]  # type: str
+    fq = int(json["dial_frequency"])
+    qso = {
+        "callsign": json["dx_call"],
+        "band": "%f" % (fq/1000000),
+        "transmit_mode": json["mode"],
+        "tx": json["report_sent"],
+        "rx": json["report_received"],
+        "locator": json["dx_grid"],
+        "frequency":  "%f" % (fq / 1000000),
+        "date": dt[:10],
+        "time": dt[11:13] + dt[14:16],
+        "complete":True,
+        "mode": json["prop_mode"]
+    }
 
+    # If given only the square, look up any known full locator if worked before in that square.
+    found_loc = app.ham_op.lookup_locator(json["dx_call"],json["dx_grid"])
+    if found_loc:
+        qso["locator"] = found_loc
+
+    bearing, distance, points, square_count = app.ham_op.distance_to(qso["locator"], qso["date"],qso["time"])
+    qso["distance"] = "%4.1f" % distance
+    qso["points"] = points
+
+    # "dx_grid": p.dx_grid,
+    # "dx_call": p.dx_call,
+    # "dial_frequency": p.dial_frequency,
+    # "mode": p.mode,
+    # "comments": p.comments,
+    # "date_time_off": p.date_time_off,
+    # "date_time_on": p.date_time_on,
+    # "exch_received": p.exch_received,
+    # "exch_sent": p.exch_sent,
+    # "my_call": p.my_call,
+    # "my_grid": p.my_grid,
+    # "name": p.name,
+    # "op_name": p.op_name,
+    # "prop_mode": p.prop_mode,
+    # "report_received": p.report_received,
+    # "report_sent": p.report_send,
+    # "tx_power": p.tx_power
+
+
+    logger.info("Commit QSO from WSJT-X %s", qso)
+    new_qso_id = app.ham_op.do_commit_qso(qso)
+    qso["id"] = new_qso_id
+    app.client_mgr.add_qso(qso)
 
 @socket_io.event()
 def az_scan_go(json):
