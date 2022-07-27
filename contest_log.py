@@ -78,7 +78,7 @@ def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
     band = int(band_and_mode.split('-')[0])
 
     db = psycopg2.connect(dbname='ham_station')
-
+    # TODO: Get this table from internet.
     prefixes = {
         "LA": "NO",
         "LB": "NO",
@@ -99,12 +99,19 @@ def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
         "8S": "SE",
         "7S": "SE",
         "OZ": "DK",
+        "OV": "DK",
         "DL": "DE",
         "DK": "DE",
         "DG": "DE",
         "DF": "DE",
         "OH": "OH",
-
+        "YL": "YL",
+        "ES": "ES",
+        "PA":"PA",
+        "PE":"PA",
+        "SP":"SP",
+        "SO":"SP",
+        "SN":"SP"
     }
 
     contest_log_header = {
