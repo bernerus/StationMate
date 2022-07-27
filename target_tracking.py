@@ -18,15 +18,19 @@ class TargetStack:
 		self.track_thread = None
 		self.track_thread_running = True
 		self.suspended_activity = None
+		self.suspended_tracking = False
 
 	def suspend(self):
 		if self._target_stack:
 			self.suspended_activity = self.get_top().active
+			self.suspended_tracking = True
 			self.update_ui()
 
 	def resume(self):
-		if self._target_stack and self.suspended_activity:
-			self.get_top().activate()
+		if self._target_stack and self.suspended_tracking:
+			self.suspended_tracking = False
+			if self.suspended_activity:
+				self.get_top().activate()
 			self.update_ui()
 
 	def get_top(self):
@@ -85,12 +89,15 @@ class TargetStack:
 		current_tracking_led_classes = None
 		if self.get_top():
 				current_tracking_led_classes = self.get_top().led_classes
-		self.logger.info("Pushing class %s to track_led" % (current_tracking_led_classes))
+		self.logger.debug("Pushing class %s to track_led" % (current_tracking_led_classes))
 		self.azel.app.client_mgr.push_track_led(current_tracking_led_classes)
 
 	def track_thread_function(self):
 		self.track_thread_running = True
 		while self.track_thread_running:
+			if self.suspended_tracking:
+				abortable_sleep(1)
+				continue
 			target = self.get_top()  # type: Target
 			if target is None:
 				self.logger.info("No targets to track")
@@ -98,21 +105,25 @@ class TargetStack:
 				return
 			target.trigger_period() # Notify that we have started a new period
 			taz=target.az  # target.az is volatile, keep the value fetched once herein
-			if target.done() or taz is None:
+			if target.done() or (taz is None and target.active):
 				self.pop()
+				self.update_ui(force=True)
 				continue
 			if target.active:
-				self.logger.info("Tracking target %s %s" % (target.id, taz))
-				self.azel._az_track(taz)
+				if taz != self.azel.az:
+					self.logger.info("Tracking target %s %s" % (target.id, taz))
+					self.azel._az_track(taz)
+					self.update_ui(force=True)
 			else:
 				self.logger.info("Untracking target %s" % target.id)
 				self.azel.untrack()
-			self.update_ui()
+				self.update_ui(force=True)
 			sleep = datetime.datetime.now().second + 60 * datetime.datetime.now().minute
-			#self.logger.info("Raw sleep: %d seconds" % sleep)
+			self.logger.info("Raw sleep: %d seconds" % sleep)
 			sleep = target.update_in - (sleep % target.update_in)
-
+			self.logger.info("Cooked sleep: %d seconds" % sleep)
 			abortable_sleep(sleep)
+
 
 
 
@@ -131,6 +142,7 @@ class Target:
 
 	def start(self):
 		self.start_time = time.time()
+		abortable_sleep.abort()
 
 	def seconds_left(self):
 		return self.start_time + self.ttl - time.time()
@@ -172,8 +184,8 @@ class Target:
 
 	@property
 	def id(self):
-		if not self.active:
-			return None
+		#if not self.active:
+			#return None
 		return self._target_id
 
 	@id.setter
@@ -237,13 +249,37 @@ class WindTarget(Target):
 				headers={"User-Agent": "bernerus.se info@bernerus.se"})
 			response = ret.json()
 
-			details = response["properties"]["timeseries"][0]["data"]["instant"]["details"]
-			wfd = details["wind_from_direction"] # type: float
+			self.details = response["properties"]["timeseries"][0]["data"]["instant"]["details"]
+			wfd = self.details["wind_from_direction"] # type: float
 			wtd = wfd + 180.0
 			wtd = wtd + 360.0 if wtd < 0 else wtd
 			wtd = wtd - 360 if wtd > 360 else wtd
 			self.az = wtd
 			return wtd
+
+	@Target.active.getter
+	def active(self):
+		if not self.details:
+			return False
+		if self.details["air_temperature"] < -4:
+			return True   # Avoid freezing the rotator by moving it around now and then.
+		if self.details["wind_speed_of_gust"] > 10  or self.details["wind_speed"] > 7:
+			return True
+		return False # No need for turning around
+
+
+	def get_html_row(self):
+		if self.details:
+			wfd = self.details["wind_from_direction"]  # type: float
+			wtd = wfd + 180.0
+			wtd = wtd + 360.0 if wtd < 0 else wtd
+			az = wtd - 360 if wtd > 360 else wtd
+			ts = "<td>%s</td><td>%s</td><td>%4.2f/0.00</td><td>%s</td><td>%s</td><td>%s</td><td>speed=%2.1f</td><td>gusts=%2.1f</td>" % (self.id, self.active,az,self.update_in, int(self.ttl), int(self.seconds_left()), self.details["wind_speed"], self.details["wind_speed_of_gust"])
+		else:
+			ts = "<td>%s</td><td>%s</td><td>None/None</td><td>%s</td><td>%s</td><td>%s</td>" % (self.id, self.active, self.update_in, int(self.ttl), int(self.seconds_left()))
+
+		return ts
+
 
 class ScanTarget(Target):
 	""" This target type generates new directions on every update."""
@@ -314,7 +350,7 @@ class MoonTarget(Target):
 		self.myqth.lon = my_lon * math.pi / 180.0
 		self.myqth.lat = my_lat * math.pi / 180.0
 
-		super().__init__(azel, "Moon", 0, 0, 300, 86400)  # Moon track lives for a day and is updated every 5 minutes
+		super().__init__(azel, "Moon", 0, 0, 241, 86400)  # Moon track lives for a day and is updated every 4.01 minutes
 		self.trigger_period()
 
 		self.led_classes = "fas fa-moon"
@@ -341,7 +377,7 @@ class SunTarget(Target):
 		self.myqth.lon = my_lon * math.pi / 180.0
 		self.myqth.lat = my_lat * math.pi / 180.0
 
-		super().__init__(azel, "Sun", 0, 0, 300, 86400)  # Sun track lives for a day and is updated every 5 minutes
+		super().__init__(azel, "Sun", 0, 0, 240, 86400)  # Sun track lives for a day and is updated every 4.08 minutes
 		self.trigger_period()
 
 		self.led_classes = "fas fa-sun"
@@ -376,6 +412,40 @@ class PlaneTarget(Target):
 	def done(self):
 		return not self.azel.app.atrk.has_plane(self.plane_id) or super().done()
 
+class AzTarget(Target):
+	def __init__(self, azel, az):
+		super().__init__(azel, "AZ: %d"%az, 0, 5, 3600)
+		self.az = az
+
+	def trigger_period(self) -> int:
+		return self.az
+
+class MhTarget(Target):
+	def __init__(self, azel, what:str):
+		ham_op = azel.app.ham_op
+		try:
+			(self.az, _dist) = ham_op.distance_to( what)
+			azel.app.client_mgr.add_mh_on_map(what)
+		except (TypeError, ValueError):
+			return
+		super().__init__(azel, what, 0, 5, 3600)
+
+		self.led_classes = "fas fa-globe"
+
+	def trigger_period(self) -> int:
+		return self.az
+
+class StationTarget(Target):
+	def __init__(self, azel, who:str):
+		ham_op = azel.app.ham_op
+		found_loc = ham_op.lookup_locator(who)
+		if found_loc:
+			(self.az, _distance) = ham_op.distance_to(found_loc)
+			azel.logger.debug("Tracking Az %d to %s at %s" % (int(self.az), who, found_loc))
+		self.led_classes = "fas fa-broadcast-tower"
+
+	def trigger_period(self) -> int:
+		return self.az
 
 
 class AbortableSleep:
