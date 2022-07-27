@@ -42,6 +42,7 @@ class HamOp:
             self.logger.info("Found I2C port %x" % P27_I2C_ADDRESS)
 
         except OSError:
+            self.logger.error("I2C port %x not found" % P27_I2C_ADDRESS)
             self.p27 = None
 
         try:
@@ -58,6 +59,7 @@ class HamOp:
             self.logger.info("Found I2C port %x" % P26_I2C_ADDRESS)
 
         except OSError:
+            self.logger.error("I2C port %x not found" % P26_I2C_ADDRESS)
             self.p26 = None
 
 
@@ -142,27 +144,29 @@ class HamOp:
         if until is not None:
             t_date_stop = until.isoformat()
 
-        self.logger.info("Start %s"% t_date_start)
-        self.logger.info("Stop %s"% t_date_stop)
+        self.logger.info("Log rows start %s"% t_date_start)
+        self.logger.info("Log rows end %s"% t_date_stop)
 
         args = (
             t_date_start[:10], t_date_stop[:10], t_date_start[11:16].replace(":", ""), t_date_stop[11:16].replace(":", ""))
-        self.logger.info("Args =  %s" % str(args))
+        # self.logger.info("Args =  %s" % str(args))
         cur = self.db.cursor()
-        cur.execute(
-            """SELECT qsoid, date, time, callsign, tx, rx, locator, distance, square, points, complete, mode, accumulated_sqn, band
-               FROM nac_log_new WHERE date >= %s and date <= %s and ((time >= %s and time <= %s) or time is null) ORDER BY date, time""", args)
+        q = """SELECT qsoid, date, time, callsign, tx, rx, locator, distance, square, points, complete, mode, accumulated_sqn, band
+               FROM nac_log_new WHERE date >= %s and date <= %s and ((time >= %s and time <= %s) or time is null) ORDER BY date, time"""
+        cur.execute(q , args)
 
         rows = cur.fetchall()
         return rows
 
     def distance_to(self, other_loc, qso_date=None, qso_time=None):
-        mn, ms, mw, me, mlat, mlon = mh.to_rect(self.my_qth()[:6])
+       # mn, ms, mw, me, mlat, mlon = mh.to_rect(self.my_qth()[:6])
 
-        n, s, w, e, lat, lon = mh.to_rect(other_loc)
+        #n, s, w, e, lat, lon = mh.to_rect(other_loc)
 
-        bearing = sphere.bearing((mlon, mlat), (lon, lat))
-        distance = sphere.distance((mlon, mlat), (lon, lat)) / 1000.0 * 0.9989265959409077
+        #bearing = sphere.bearing((mlon, mlat), (lon, lat))
+        #distance = sphere.distance((mlon, mlat), (lon, lat)) / 1000.0 * 0.9989265959409077
+
+        bearing, distance = mh.distance_between(self.my_qth()[:6], other_loc)
         points = math.ceil(distance)
 
         if qso_date and qso_time:
@@ -418,6 +422,8 @@ class HamOp:
                 # self.do_commit_qso(qso)
                 ret["added"] += 1
 
+    def commit_qso(self, request):
+        ret = {"added": 0, "adjusted": 0}
 
     def my_wsjtx_upload(self, request):
         ret = {"added": 0, "adjusted": 0}
@@ -540,7 +546,7 @@ class HamOp:
                 else:
                     self.p27.bit_write(P27_PA_ON_L, LOW)
             else:
-                self.p27.bit_write(P27_PA_ON_L, LOW)
+                self.p27.bit_write(P27_PA_ON_L, HIGH)
             self.app.client_mgr.status_update(force=True)
 
 
@@ -610,16 +616,39 @@ class HamOp:
         except (TypeError, ValueError):
             pass
 
+        found_loc = self.lookup_locator(what)
+        if found_loc:
+            bearing, _distance = self.distance_to(found_loc)
+            self.logger.debug("Tracking Az %d to %s at %s" % (int(bearing), what, found_loc))
+            self.app.azel.az_track(int(bearing), id="%s@%s" % (what, found_loc), classes="fas fa-broadcast-tower")
+
+
+    def lookup_locator(self, callsign, loc=None) -> str:
         q = """SELECT qsoid, locator from nac_log_new where callsign = %s order by date desc"""
 
         cur = self.db.cursor()
-        cur.execute(q, (what,))
-        lines = cur.fetchall()
-        if lines:
-            loc = lines[0][1]
-            bearing, _distance = self.distance_to(loc)
-            self.logger.debug("Tracking Az %d to %s at %s" % (int(bearing), what, loc))
-            self.app.azel.az_track(int(bearing), id="%s@%s"%(what, loc), classes="fas fa-broadcast-tower")
+        cur.execute(q, (callsign,))
+        rows = cur.fetchall()
+        found_loc = None
+
+        for row in rows:
+            if len(row[1]) < 6:
+                continue
+            found_loc = row[1]
+
+        if loc is None:
+            q = """SELECT locator from callbook where callsign = %s"""
+            cur = self.db.cursor()
+            cur.execute(q, (callsign,))
+            rows = cur.fetchall()
+            for row in rows:
+                if len(row[0]) < 6:
+                    continue
+                found_loc = row[0]
+            return found_loc if loc[:4] == found_loc[:4] else None
+        else:
+            return found_loc if loc[:4] == found_loc[:4] else None
+
 
 
     def store_map_setting(self, json, current_band, map_mh_length, log_scope):
@@ -646,3 +675,24 @@ class HamOp:
         if lines:
             return lines[0]
 
+    def get_reachable_stations(self, max_age=3600, max_dist=850, max_beamwidth=30):  # max_age in seconds, max_distance in km, mav_beamwidth in degrees
+
+        q = """ select distinct on (r.rx_callsign, r.rx_loc) r.rx_callsign as callsign , r.rx_loc as locator, r.rx_heading as az, r.my_rx_distance as dist, (extract(epoch from now()) - r.happened_at)/60 as age_minutes
+                from reports as r
+                where ABS(MOD(r.rx_heading - 180, 360) - r.my_rx_heading) < 30
+                    and r.my_rx_distance < 800 
+                    and  extract(epoch from now()) - happened_at < 3600
+                group by callsign, locator, az, dist, age_minutes
+                union
+                select distinct on (t.dx_callsign, t.dx_loc) t.dx_callsign as callsign , t.dx_loc as locator, t.tx_heading as az, t.my_tx_distance as dist, (extract(epoch from now()) - t.happened_at)/60 as age_minutes
+                from reports as t
+                where ABS(MOD(t.tx_heading - 180, 360) - t.my_tx_heading) < 30
+                    and t.my_tx_distance < 800 
+                    and  extract(epoch from now()) - t.happened_at < 3600
+                group by callsign, locator, az, dist, age_minutes
+                order by age_minutes;
+            """
+        cur = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(q, (max_beamwidth, max_dist, max_age, max_beamwidth, max_dist, max_age))
+        rows = cur.fetchall()
+        return {x["callsign"]: x for x in rows}
