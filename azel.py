@@ -384,6 +384,18 @@ class AzElControl:
 				self.azrot_err_count = 0
 				self._az_track(self.az_target_degrees)
 
+	def az_track_bearing(self, bearing:int) -> None:
+		target = AzTarget(self, bearing)
+		self.target_stack.push(target)
+
+	def az_track_loc(self, loc:str) -> None:
+		target = MhTarget(self, loc)
+		self.target_stack.push(target)
+
+	def az_track_station(self, who:str) -> None:
+		target = StationTarget(self, who)
+		self.target_stack.push(target)
+
 
 	def az_track(self, az=None, id=None, classes=None):
 		if id is None:
