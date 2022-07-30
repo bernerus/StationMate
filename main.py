@@ -101,6 +101,13 @@ app.azel = AzElControl(app, logger, socket_io, hysteresis=10)
 from airtracker import AirTracker
 app.atrk = AirTracker(app, logger, socket_io, url="http://192.168.1.129:8754")
 
+from station_tracker import StationTracker
+app.station_tracker = StationTracker(app, logger, socket_io)
+
+rows = app.ham_op.fetch_my_current_data("144")
+my_data = {x["key"]: x["value"] for x in rows}
+
+
 
 app.keyer = Morser(logger, speed=None, p20=app.azel.p20)
 app.keyer_thread = threading.Thread(target=app.keyer.background_thread, args=())
@@ -270,6 +277,7 @@ def handle_my_custom_event(json):
     logger.debug('received my event: ' + str(json))
     emit('my response', json, callback=message_received)
     app.client_mgr.send_azel(force=True)
+    app.station_tracker.refresh()
 
 
 @socket_io.on("track wind")
@@ -410,6 +418,11 @@ def plane_click(plane_id):
     return app.atrk.track_plane(app.azel, plane_id)
 
 @socket_io.event()
+def station_click(callsign):
+    logger.info("Station click on %s" % callsign)
+    return app.station_tracker.track_station(app.azel, callsign)
+
+@socket_io.event()
 def map_settings(settings):
     app.client_mgr.map_settings(settings)
 
@@ -422,6 +435,7 @@ def goodbye():
 
 app.azel.startup()
 app.atrk.startup()
+app.station_tracker.startup()
 
 if __name__ == '__main__':
     try:

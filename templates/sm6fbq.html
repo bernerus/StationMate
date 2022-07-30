@@ -164,6 +164,11 @@
                 update_target_list(msg)
             })
 
+            socket.on("update_reachable_stations", function(json) {
+                console.log("update_reachable_stations" + json)
+                updateReachableStations(json)
+            })
+
         });
     </script>
 
@@ -655,6 +660,10 @@
         socket.emit('plane_click', plane_id);
     }
 
+    function stationClick(callsign) {
+        console.log("Clicked on station " + callsign);
+        socket.emit('station_click', callsign);
+    }
 </script>
 
 <script>
@@ -713,6 +722,7 @@
     }
 
     var planesDict = new Object();
+    var stationsDict = new Object();
 
      Number.prototype.toRad = function() {
          return this * Math.PI / 180;
@@ -809,9 +819,103 @@
         planesDict[key] = aPlane
     }
 
+    function addStation(key, callsign, position, direction, antwidth, mode, age) {
+        if (age > 3600) {return}
+        console.log("Adding station ", callsign, " at ", position, " width", antwidth, mode)
+
+        r = 50
+        let v1x = r*Math.cos((antwidth/2+90)*Math.PI/180)
+        let v2x = -v1x
+        let v2y = r*Math.sin((antwidth/2+90)*Math.PI/180)
+        let v1y = v2y
+
+
+
+
+        console.log( "adding Station: direction:", direction,  "width:", antwidth, "mode:", mode)
+
+        fillcolor = '#e1266e';
+        if (mode=='MSK144') {
+             fillcolor = '#3c46b0';
+        }
+        if (mode=='JT65' || mode=='JT65B')
+            {
+             fillcolor = '#8d5008';
+        }
+
+
+        // Pick your pin (hole or no hole)
+        var pinSVGHole = "M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z";
+        var labelOriginHole = new google.maps.Point(12,15);
+        var pinSVGFilled = "M 12,2 C 8.1340068,2 5,5.1340068 5,9 c 0,5.25 7,13 7,13 0,0 7,-7.75 7,-13 0,-3.8659932 -3.134007,-7 -7,-7 z";
+        var labelOriginFilled =  new google.maps.Point(12,9);
+
+        fillopacity = 1-age/60
+
+        var otherStationIcon = {
+            path: pinSVGFilled,
+            anchor: new google.maps.Point(12,17),
+            fillOpacity: fillopacity,
+            fillColor: fillcolor,
+            strokeWeight: 2,
+            strokeColor: "white",
+            scale: 2,
+            labelOrigin: labelOriginFilled
+        };
+
+        // this.marker        = new google.maps.Marker({
+        //     map: map.MapObject,
+        //     //OPTIONAL: label: label,
+        //     position: this.geographicCoordinates,
+        //     icon: markerImage,
+        //     //OPTIONAL: animation: google.maps.Animation.DROP,
+        // });
+
+        beamPath = `M ${v1x},0.0  L 0.0,${v1y} L ${v2x},0.0`
+        var beamingStationIcon = {
+                path: beamPath,
+                fillColor: fillcolor,
+                fillOpacity: fillopacity,
+                scale: 1.0,
+                strokeColor: "#b879f3",
+                strokeWeight: 1,
+                anchor: new google.maps.Point(0, r),
+                labelOrigin: new google.maps.Point(13.5, 60),
+                rotation: direction,
+            };
+
+        if (antwidth >= 360) {
+            theStationIcon = otherStationIcon
+        } else
+            theStationIcon = beamingStationIcon
+
+        var aStation = new google.maps.Marker({
+            icon: theStationIcon,
+            position: position,
+            opacity: 1.0,
+            zIndex: 14,
+            label:callsign,
+            rotation: direction,
+            map: map,
+        })
+
+
+        aStation.addListener("click", () => {
+            stationClick(callsign)
+        });
+
+        stationsDict[key] = aStation
+
+    }
+
     function removePlane(key) {
         planesDict[key].setMap(null);
         delete planesDict[key]
+    }
+
+    function removeStation(key) {
+        stationsDict[key].setMap[null];
+        delete stationsDict[key]
     }
 
     function updatePlanes(planes)
@@ -829,6 +933,23 @@
          for (key in planesDict ){
              if (!(key in planes)) {
                  removePlane(key)
+             }
+         }
+    }
+
+    function updateReachableStations(stations)
+    {
+         for (key in stations) {
+                stn = stations[key]
+                if (key in stationsDict) {
+                    removePlane(key)
+                }
+                addStation(key, stn.callsign, stn.position, stn.antenna_azimuth, stn.antenna_width, stn.mode, stn.age)
+
+         }
+         for (key in stationsDict ){
+             if (!(key in stations)) {
+                 removeStation(key)
              }
          }
     }
@@ -982,7 +1103,7 @@
         tx_report = document.getElementById("new_tx_rst").value
         rx_report = document.getElementById("new_rx_rst").value
         new_loc = document.getElementById("new_locator").value
-        if (tx_report.length > 2) {
+        if (tx_report.length > 3) {
             console.log("Sending report")
             if (rx_report.length >= 2 && new_loc.length == 6) {
                 console.log("Sending report with R")

@@ -300,7 +300,7 @@ class ClientMgr:
                     mhs.append(row[6].upper())
             if qsos:
                 emit("add_qsos", qsos)
-                self.logger.debug("Adding qsqs from %s to %s" % (qsos[0]["callsign"], qsos[-1]["callsign"]))
+                self.logger.debug("Adding qso:s from %s to %s" % (qsos[0]["callsign"], qsos[-1]["callsign"]))
             self.add_mhs_on_map(mhs)
             self.app.azel.update_target_list()
             self.status_update(force=True)
@@ -308,6 +308,8 @@ class ClientMgr:
             self.app.socket_io.emit('my_response', {'data': 'Connected', 'count': 0}, namespace="/wsjtx")
 
         # self.update_planes()
+        # stations =self.app.ham_op.get_reachable_stations()
+        # self.update_reachable_stations(stations)
 
 
     def update_map_center(self):
@@ -415,8 +417,47 @@ class ClientMgr:
 
         msg_q.put(("update_planes", planes2))
 
-    def update_reachable_stations(self, stations):
-        msg_q.put(("update_reachable_stations", stations))
+    def update_reachable_stations(self, beaming, other):
+        json={}
+        for s in beaming:
+            station = beaming[s]
+            callsign = station[0]
+            locator = station[1]
+            antaz = station[2]
+            dist = station[3]
+            age = station[4]
+            myaz = station[5]
+            antwidth=30
+            try:
+                mode = station[6]
+            except IndexError:
+                mode = "FT8"
+            #antwidth = station["antwidth"] if "antwidth" in station else 30
+            _n, _s, _w, _e, latitude, longitude = mh.to_rect(locator)
+            if dist > 100:
+                json[callsign] = {"callsign":callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az":myaz, "mode": mode, "age": age, "distance": dist}
+        for s in other:
+            station = other[s]
+            callsign = station[0]
+            if callsign in json:
+                continue
+            locator = station[1]
+            antaz = station[2]
+            dist = station[3]
+            age = station[4]
+            myaz = station[5]
+            antwidth = 360
+            try:
+                mode = station[6]
+            except IndexError:
+                mode = "FT8"
+            _n, _s, _w, _e, latitude, longitude = mh.to_rect(locator)
+            if dist > 100:
+                json[callsign] = {"callsign": callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az": myaz, "mode": mode,"age": age,"siatance":dist}
+        #import pprint
+        #pprint.pprint(json)
+        self.logger.info("Pushing %d stations to client" % len(json))
+        msg_q.put(("update_reachable_stations", json))
 
     def map_settings(self, json):
         self.logger.debug("Map settings received: %s", json)

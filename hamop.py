@@ -601,29 +601,24 @@ class HamOp:
 
         try:
             az_value = int(what)
-            self.app.azel.az_track(az_value)
+            self.app.azel.az_track_bearing(az_value)
             return
         except ValueError:
             pass
 
         try:
-            mn, ms, mw, me, mlat, mlon = mh.to_rect(self.my_qth())
             n, s, w, e, lat, lon = mh.to_rect(what)
-            bearing = sphere.bearing((mlon, mlat), (lon, lat))
-            self.logger.debug("Calculated bearing from %s to %s to be %f" % (self.my_qth(), what, bearing))
-            self.app.azel.az_track(int(bearing), id=what, classes="fas fa-globe")
+            self.app.azel.az_track_loc(what)
             self.app.client_mgr.add_mh_on_map(what)
         except (TypeError, ValueError):
             pass
 
         found_loc = self.lookup_locator(what)
         if found_loc:
-            bearing, _distance = self.distance_to(found_loc)
-            self.logger.debug("Tracking Az %d to %s at %s" % (int(bearing), what, found_loc))
-            self.app.azel.az_track(int(bearing), id="%s@%s" % (what, found_loc), classes="fas fa-broadcast-tower")
+            self.app.azel.az_track_station(what)
 
 
-    def lookup_locator(self, callsign, loc=None) -> str:
+    def lookup_locator(self, callsign, given_loc=None) -> str:
         q = """SELECT qsoid, locator from nac_log_new where callsign = %s order by date desc"""
 
         cur = self.db.cursor()
@@ -635,8 +630,9 @@ class HamOp:
             if len(row[1]) < 6:
                 continue
             found_loc = row[1]
+            break
 
-        if loc is None:
+        if found_loc is None:
             q = """SELECT locator from callbook where callsign = %s"""
             cur = self.db.cursor()
             cur.execute(q, (callsign,))
@@ -645,9 +641,15 @@ class HamOp:
                 if len(row[0]) < 6:
                     continue
                 found_loc = row[0]
-            return found_loc if loc[:4] == found_loc[:4] else None
+            if given_loc:
+                return found_loc if given_loc[:4] == found_loc[:4] else None
+            else:
+                return found_loc
         else:
-            return found_loc if loc[:4] == found_loc[:4] else None
+            if given_loc:
+                return found_loc if given_loc[:4] == found_loc[:4] else None
+            else:
+                return found_loc
 
 
 
@@ -675,24 +677,24 @@ class HamOp:
         if lines:
             return lines[0]
 
-    def get_reachable_stations(self, max_age=3600, max_dist=850, max_beamwidth=30):  # max_age in seconds, max_distance in km, mav_beamwidth in degrees
+    def get_reachable_stations(self, max_age=3600, max_dist=850, max_beamwidth=30):  # max_age in seconds, max_distance in km, max_beamwidth in degrees
 
-        q = """ select distinct on (r.rx_callsign, r.rx_loc) r.rx_callsign as callsign , r.rx_loc as locator, r.rx_heading as az, r.my_rx_distance as dist, (extract(epoch from now()) - r.happened_at)/60 as age_minutes
+        q = """ select distinct on (r.rx_callsign, r.rx_loc) r.rx_callsign as callsign , r.rx_loc as locator, r.rx_heading as az, r.my_rx_distance as dist, (extract(epoch from now()) - r.happened_at)/60 as age_minutes, r.my_rx_heading as my_az, r.mode as mode
                 from reports as r
-                where ABS(MOD(r.rx_heading - 180, 360) - r.my_rx_heading) < 30
-                    and r.my_rx_distance < 800 
-                    and  extract(epoch from now()) - happened_at < 3600
-                group by callsign, locator, az, dist, age_minutes
+                where ABS(MOD(r.rx_heading - 180, 360) - r.my_rx_heading) < %s/2
+                    and r.my_rx_distance < %s 
+                    and  extract(epoch from now()) - happened_at < %s
+                group by callsign, locator, az, dist, age_minutes, my_az, mode
                 union
-                select distinct on (t.dx_callsign, t.dx_loc) t.dx_callsign as callsign , t.dx_loc as locator, t.tx_heading as az, t.my_tx_distance as dist, (extract(epoch from now()) - t.happened_at)/60 as age_minutes
+                select distinct on (t.dx_callsign, t.dx_loc) t.dx_callsign as callsign , t.dx_loc as locator, t.tx_heading as az, t.my_tx_distance as dist, (extract(epoch from now()) - t.happened_at)/60 as age_minutes, t.my_tx_heading as my_az, t.mode as mode
                 from reports as t
-                where ABS(MOD(t.tx_heading - 180, 360) - t.my_tx_heading) < 30
-                    and t.my_tx_distance < 800 
-                    and  extract(epoch from now()) - t.happened_at < 3600
-                group by callsign, locator, az, dist, age_minutes
+                where ABS(MOD(t.tx_heading - 180, 360) - t.my_tx_heading) < %s/2
+                    and t.my_tx_distance < %s 
+                    and  extract(epoch from now()) - t.happened_at < %s
+                group by callsign, locator, az, dist, age_minutes, my_az, mode
                 order by age_minutes;
             """
-        cur = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur = self.db.cursor(cursor_factory=psycopg2.extras.DictCursor)
         cur.execute(q, (max_beamwidth, max_dist, max_age, max_beamwidth, max_dist, max_age))
         rows = cur.fetchall()
         return {x["callsign"]: x for x in rows}
