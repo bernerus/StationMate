@@ -68,6 +68,8 @@ class TargetStack:
 	def push(self, tracking_object):
 		if not tracking_object:
 			return
+		if not hasattr(tracking_object, "update_in"):
+			return
 		self.logger.info("Pushing target id %s, az=%s, el=%s" %(tracking_object.id, tracking_object.az, tracking_object.el))
 		self._target_stack.append(tracking_object)
 		tracking_object.start()
@@ -158,7 +160,10 @@ class Target:
 
 	@property
 	def active(self):
-		return self._active
+		try:
+			return self._active
+		except AttributeError:
+			return None
 
 	@active.setter
 	def active(self, value):
@@ -166,7 +171,10 @@ class Target:
 
 	@property
 	def ttl(self):
-		return self._ttl
+		try:
+			return self._ttl
+		except AttributeError:
+			return None
 
 	@ttl.setter
 	def ttl(self, value):
@@ -176,7 +184,10 @@ class Target:
 	def az(self):
 		if not self.active:
 			return None
-		return self._az
+		try:
+			return self._az
+		except AttributeError:
+			return None
 
 	@az.setter
 	def az(self, value):
@@ -186,7 +197,10 @@ class Target:
 	def id(self):
 		#if not self.active:
 			#return None
-		return self._target_id
+		try:
+			return self._target_id
+		except AttributeError:
+			return None
 
 	@id.setter
 	def id(self, value):
@@ -196,8 +210,10 @@ class Target:
 	def el(self):
 		if not self.active:
 			return None
-
-		return self._el
+		try:
+			return self._el
+		except AttributeError:
+			return None
 
 	@el.setter
 	def el(self, value):
@@ -255,7 +271,7 @@ class WindTarget(Target):
 			wtd = wtd + 360.0 if wtd < 0 else wtd
 			wtd = wtd - 360 if wtd > 360 else wtd
 			self.az = wtd
-			return wtd
+			return int(wtd)
 
 	@Target.active.getter
 	def active(self):
@@ -414,21 +430,23 @@ class PlaneTarget(Target):
 
 class AzTarget(Target):
 	def __init__(self, azel, az):
-		super().__init__(azel, "AZ: %d"%az, 0, 5, 3600)
-		self.az = az
+		super().__init__(azel, "AZ: %d"%az, int(az), 5, 3600)
 
 	def trigger_period(self) -> int:
 		return self.az
 
 class MhTarget(Target):
 	def __init__(self, azel, what:str):
+		self._active=False
 		ham_op = azel.app.ham_op
 		try:
-			(self.az, _dist) = ham_op.distance_to( what)
+			(az, _dist) = ham_op.distance_to( what)
+			self._active=True
 			azel.app.client_mgr.add_mh_on_map(what)
 		except (TypeError, ValueError):
+			error=True
 			return
-		super().__init__(azel, what, 0, 5, 3600)
+		super().__init__(azel, what, round(az), 5, 3600)
 
 		self.led_classes = "fas fa-globe"
 
@@ -437,12 +455,16 @@ class MhTarget(Target):
 
 class StationTarget(Target):
 	def __init__(self, azel, who:str):
+		self._active=False
 		ham_op = azel.app.ham_op
 		found_loc = ham_op.lookup_locator(who)
+		self._active = True
 		if found_loc:
-			(self.az, _distance) = ham_op.distance_to(found_loc)
-			azel.logger.debug("Tracking Az %d to %s at %s" % (int(self.az), who, found_loc))
+			(az, _dist) = ham_op.distance_to(found_loc)
+			azel.logger.debug("Tracking Az %s to %s at %s" % (az, who, found_loc))
+			super().__init__(azel,who, round(az), 5, 3600)
 		self.led_classes = "fas fa-broadcast-tower"
+
 
 	def trigger_period(self) -> int:
 		return self.az
