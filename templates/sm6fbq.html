@@ -169,6 +169,10 @@
                 updateReachableStations(json)
             })
 
+            socket.on("hiding_logged_stations", function(msg) {
+                hidingLoggedStations(msg)
+            })
+
         });
     </script>
 
@@ -249,6 +253,7 @@
                     <button id="loc_8char" onclick="send_set_map_mh_length(8)">8ch</button>
                     <button id="loc_10char" onclick="send_set_map_mh_length(10)">10ch</button>
                     <button id="loc_12char" onclick="send_set_map_mh_length(12)">12ch</button>
+                    <button id="show_hide_logged" style="float: right;" onclick="send_toggle_hide_logged()">Göm loggade</button>
                 </div>
                 <button id="store_map_settings"
                         style="align-content: end;"
@@ -645,6 +650,12 @@
         socket.emit("map_settings", {"lat": pos.lat(), "lon": pos.lng(), "zoom": zoom});
     }
 
+    function send_toggle_hide_logged()
+    {
+        console.log("Toggling hide logged")
+        socket.emit("toggle_hide_logged",{})
+    }
+
     function az_scan() {
         let start = $('input.az_scan_start').val();
         let stop =  $('input.az_scan_stop').val();
@@ -819,7 +830,7 @@
         planesDict[key] = aPlane
     }
 
-    function addStation(key, callsign, position, direction, antwidth, mode, age) {
+    function addStation(key, callsign, position, direction, antwidth, mode, age, info) {
         if (age > 3600) {return}
         console.log("Adding station ", callsign, " at ", position, " width", antwidth, mode)
 
@@ -899,6 +910,16 @@
             map: map,
         })
 
+        aStation['infowindow'] = new google.maps.InfoWindow({content: info});
+
+        google.maps.event.addListener(aStation, 'mouseover', function() {
+            this['infowindow'].open(map, this);
+        });
+
+        google.maps.event.addListener(aStation, 'mouseout', function() {
+            this['infowindow'].close(map, this);
+        });
+
 
         aStation.addListener("click", () => {
             stationClick(callsign)
@@ -909,12 +930,13 @@
     }
 
     function removePlane(key) {
+        plane = planesDict[key]
         planesDict[key].setMap(null);
         delete planesDict[key]
     }
 
     function removeStation(key) {
-        stationsDict[key].setMap[null];
+        stationsDict[key].setMap(null);
         delete stationsDict[key]
     }
 
@@ -942,9 +964,9 @@
          for (key in stations) {
                 stn = stations[key]
                 if (key in stationsDict) {
-                    removePlane(key)
+                    removeStation(key)
                 }
-                addStation(key, stn.callsign, stn.position, stn.antenna_azimuth, stn.antenna_width, stn.mode, stn.age)
+                addStation(key, stn.callsign, stn.position, stn.antenna_azimuth, stn.antenna_width, stn.mode, stn.age, stn.info)
 
          }
          for (key in stationsDict ){
@@ -952,6 +974,14 @@
                  removeStation(key)
              }
          }
+    }
+
+    function hidingLoggedStations(hiding)
+    {
+        if (hiding)
+            document.getElementById("show_hide_logged").innerHTML = "Visa loggade"
+        else
+            document.getElementById("show_hide_logged").innerHTML = "Göm loggade"
     }
 
 

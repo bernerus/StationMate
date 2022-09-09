@@ -315,6 +315,9 @@ def handle_toggle_rx70(_json):
     app.ham_op.toggle_rx70()
     emit("fill_dx_grid", "JP70PQ", namespace="/qwdgh")
 
+@socket_io.on("toggle_hide_logged")
+def handle_toggle_hide_logged(_json):
+    app.client_mgr.toggle_hide_logged()
 
 @socket_io.on("track az")
 def handle_track_az(json):
@@ -331,11 +334,13 @@ def commit_qso(qso):
     new_qso_id = app.ham_op.do_commit_qso(qso)
     qso["id"] = new_qso_id
     emit("qso_committed", qso)
+    app.station_tracker.refresh()
 
 
 @socket_io.event()
 def delete_qso(qso):
     app.ham_op.do_delete_qso(qso)
+    app.station_tracker.refresh()
 
 @socket_io.on('disconnect')
 def test_disconnect():
@@ -374,10 +379,10 @@ def commit_wsjtx_qso(json):
         "mode": json["prop_mode"]
     }
 
-    # If given only the square, look up any known full locator if worked before in that square.
+    # If given only the square, look up any known full locator if previously known
     found_loc = app.ham_op.lookup_locator(json["dx_call"],json["dx_grid"])
     if found_loc:
-        qso["locator"] = found_loc
+        qso["augmented_locator"] = found_loc
 
     bearing, distance, points, square_count = app.ham_op.distance_to(qso["locator"], qso["date"],qso["time"])
     qso["distance"] = "%4.1f" % distance
@@ -405,7 +410,7 @@ def commit_wsjtx_qso(json):
     logger.info("Commit QSO from WSJT-X %s", qso)
     new_qso_id = app.ham_op.do_commit_qso(qso)
     qso["id"] = new_qso_id
-    app.client_mgr.add_qso(qso)
+    # app.client_mgr.add_qso(qso)  # do_commit_qso does this.
 
 @socket_io.event()
 def az_scan_go(json):

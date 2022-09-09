@@ -269,7 +269,7 @@ def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
         lon, lat)) / 1000.0 * 1  # 0.9989265959409077  # Macic  constant compensates for the IARU geoid.
 
     log["CODXC"] = "%s;%s;%s" % (
-        odxrow["callsign"].upper(), odxrow["locator"].upper(), str(int(distance * 100) / 100.0))
+        odxrow["callsign"].upper(), odxrow["locator"][:6].upper(), str(int(distance * 100) / 100.0))
 
     qsorecs = []
 
@@ -306,7 +306,7 @@ def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
         rx = row["rx"].upper()
         rx_qson = ""
         rx_exch = ""
-        rx_wwl = row["locator"].upper()
+        rx_wwl = row["locator"][:6].upper()
         new_dxcc = ""
         new_exchange = ""
 

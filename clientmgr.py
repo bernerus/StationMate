@@ -78,6 +78,7 @@ class ClientMgr:
         self.show_log_since = None
         self.show_log_until = None
         self.current_log_scope = "Forever"
+        self.hiding_logged = False
 
         pass
 
@@ -370,6 +371,7 @@ class ClientMgr:
         new_band = json.get("band", "144")
         if new_band != self.current_band:
             self.current_band = new_band
+            self.app.station_tracker.set_band(new_band)
             self.send_reload()
 
     def emit_log(self, json):
@@ -419,41 +421,75 @@ class ClientMgr:
 
     def update_reachable_stations(self, beaming, other):
         json={}
+
+        worked_callsigns = set()
+        if self.hiding_logged:
+            rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
+            for row in rows:
+                cs = row[3].upper()
+                worked_callsigns.add(cs)
+
         for s in beaming:
             station = beaming[s]
-            callsign = station[0]
-            locator = station[1]
-            antaz = station[2]
-            dist = station[3]
-            age = station[4]
-            myaz = station[5]
+            callsign = station['callsign'].upper()
+            if callsign in worked_callsigns:
+                continue
+            locator = station['locator'].upper()
+            antaz = station['az']
+            dist = station['dist']
+            age = station['age_minutes']
+            myaz = station['my_az']
+            dx_callsign = station["dx_callsign"]
+            dx_loc=station["dx_loc"]
+            freq = station["frequency"]
+            mode = station["mode"]
             antwidth=30
+
+            info = f"""<span style=\"font-size:12pt\"> 
+                        <b>{callsign}:</b><br/>
+                        Locator:{locator}<br/>
+                        QTF:{antaz}<br/>
+                        Last report {age:2.1f} min ago with {dx_callsign}@{dx_loc}<br/>
+                        Distance:{dist} km<br/>
+                        QRG: {freq}, "mode: {mode}</span>
+                    """
             try:
-                mode = station[6]
+                mode = station['mode']
             except IndexError:
                 mode = "FT8"
             #antwidth = station["antwidth"] if "antwidth" in station else 30
             _n, _s, _w, _e, latitude, longitude = mh.to_rect(locator)
-            if dist > 100:
-                json[callsign] = {"callsign":callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az":myaz, "mode": mode, "age": age, "distance": dist}
+            if dist > 10:
+                json[callsign] = {"callsign":callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az":myaz, "mode": mode, "age": age, "distance": dist, "info":info}
         for s in other:
             station = other[s]
-            callsign = station[0]
-            if callsign in json:
+            callsign = station['callsign'].upper()
+            if callsign in json or callsign in worked_callsigns:
                 continue
-            locator = station[1]
-            antaz = station[2]
-            dist = station[3]
-            age = station[4]
-            myaz = station[5]
+            locator = station['locator'].upper()
+            antaz = station['az']
+            dist = station['dist']
+            age = station['age_minutes']
+            myaz = station['my_az']
+            dx_callsign = station["dx_callsign"]
+            dx_loc=station["dx_loc"]
+            freq = station["frequency"]
+            mode = station["mode"]
             antwidth = 360
+            info = f"""<span style=\"font-size:12pt\"> 
+                                    <b>{callsign}:</b><br/>
+                                    Locator:{locator}<br/>
+                                    QTF:{antaz}<br/>
+                                    Last report {age:2.1f} min ago with {dx_callsign}@{dx_loc}<br/>
+                                    Distance:{dist} km<br/>
+                                    QRG: {freq}, "mode: {mode}</span>
+                                """
             try:
-                mode = station[6]
+                mode = station['mode']
             except IndexError:
                 mode = "FT8"
             _n, _s, _w, _e, latitude, longitude = mh.to_rect(locator)
-            if dist > 100:
-                json[callsign] = {"callsign": callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az": myaz, "mode": mode,"age": age,"siatance":dist}
+            json[callsign] = {"callsign": callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az": myaz, "mode": mode,"age": age,"distance":dist, "info": info}
         #import pprint
         #pprint.pprint(json)
         self.logger.info("Pushing %d stations to client" % len(json))
@@ -462,6 +498,12 @@ class ClientMgr:
     def map_settings(self, json):
         self.logger.debug("Map settings received: %s", json)
         self.app.ham_op.store_map_setting(json, self.current_band, self.map_mh_length, self.current_log_scope)
+
+    def toggle_hide_logged(self):
+        self.hiding_logged = not self.hiding_logged
+        emit("hiding_logged_stations", self.hiding_logged)
+        self.app.station_tracker.refresh()
+
 
 def circle(size, user_location):
     c = {  # draw circle on map (user_location as center)

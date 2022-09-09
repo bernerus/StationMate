@@ -243,15 +243,19 @@ class HamOp:
         if "frequency" in qso and qso["frequency"]:
             band_or_fq = qso["frequency"]
 
-        cur.execute("""INSERT INTO nac_log_new (date, time, callsign, tx , rx , locator, distance, square, points, complete, band, accumulated_sqn, transmit_mode, mode) 
-                      values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s) RETURNING qsoid""",
+        if "augmented_locator" not in qso or not qso["augmented_locator"] and "locator" in qso and qso["locator"]:
+            qso["augmented_locator"] = qso["locator"]
+
+        cur.execute("""INSERT INTO nac_log_new (date, time, callsign, tx , rx , locator, distance, square, points, complete, band, accumulated_sqn, transmit_mode, mode, augmented_locator) 
+                      values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s, %s) RETURNING qsoid""",
                     (qso["date"], qso["time"], qso["callsign"], qso["tx"], qso["rx"], qso["locator"],
                      qso["distance"], qso["square"], qso["points"], qso["complete"], band_or_fq, accumulated_square,
-                     transmit_mode, propagation_mode))
+                     transmit_mode, propagation_mode, qso["augmented_locator"]))
         new_qso_id = cur.fetchone()[0]
         self.db.commit()
         cur.close()
-        self.app.client_mgr.add_mh_on_map(qso["locator"])
+        self.app.client_mgr.add_mh_on_map(qso["augmented_locator"])
+        self.app.client_mgr.add_qso(qso)
         return new_qso_id
 
     def callsigns_in_locator(self, loc):
@@ -677,24 +681,63 @@ class HamOp:
         if lines:
             return lines[0]
 
-    def get_reachable_stations(self, max_age=3600, max_dist=850, max_beamwidth=30):  # max_age in seconds, max_distance in km, max_beamwidth in degrees
+    def get_reachable_stations(self, max_age=900, max_dist=40000, max_beamwidth=30):  # max_age in seconds, max_distance in km, max_beamwidth in degrees
 
-        q = """ select distinct on (r.rx_callsign, r.rx_loc) r.rx_callsign as callsign , r.rx_loc as locator, r.rx_heading as az, r.my_rx_distance as dist, (extract(epoch from now()) - r.happened_at)/60 as age_minutes, r.my_rx_heading as my_az, r.mode as mode
+        q1 = """ select distinct on (r.rx_callsign, r.rx_loc) r.rx_callsign as callsign, 
+                                    r.rx_loc as locator, r.rx_heading as az, r.my_rx_distance as dist, 
+                                    (extract(epoch from now()) - r.happened_at)/60 as age_minutes, 
+                                    r.my_rx_heading as my_az, r.mode as mode, r.happened_at as happened_at, r.dx_callsign as dx_callsign, r.dx_loc as dx_loc
                 from reports as r
                 where ABS(MOD(r.rx_heading - 180, 360) - r.my_rx_heading) < %s/2
                     and r.my_rx_distance < %s 
                     and  extract(epoch from now()) - happened_at < %s
-                group by callsign, locator, az, dist, age_minutes, my_az, mode
+                group by callsign, locator, az, dist, age_minutes, my_az, mode, happened_at, dx_callsign, dx_loc
                 union
-                select distinct on (t.dx_callsign, t.dx_loc) t.dx_callsign as callsign , t.dx_loc as locator, t.tx_heading as az, t.my_tx_distance as dist, (extract(epoch from now()) - t.happened_at)/60 as age_minutes, t.my_tx_heading as my_az, t.mode as mode
+                select distinct on (t.dx_callsign, t.dx_loc) t.dx_callsign as callsign , 
+                                    t.dx_loc as locator, t.tx_heading as az, t.my_tx_distance as dist, 
+                                    (extract(epoch from now()) - t.happened_at)/60 as age_minutes, 
+                                    t.my_tx_heading as my_az, t.mode as mode, t.happened_at as happened_at, t.rx_callsign as dx_callsign, t.rx_loc as dx_loc
                 from reports as t
                 where ABS(MOD(t.tx_heading - 180, 360) - t.my_tx_heading) < %s/2
                     and t.my_tx_distance < %s 
                     and  extract(epoch from now()) - t.happened_at < %s
-                group by callsign, locator, az, dist, age_minutes, my_az, mode
+                group by callsign, locator, az, dist, age_minutes, my_az, mode, happened_at, dx_callsign, dx_loc
                 order by age_minutes;
             """
+        q = """ select r.rx_callsign as callsign, 
+                                            r.rx_loc as locator, r.rx_heading as az, r.my_rx_distance as dist, 
+                                            (extract(epoch from now()) - r.happened_at)/60 as age_minutes, 
+                                            r.my_rx_heading as my_az, r.mode as mode, r.happened_at as happened_at, r.dx_callsign as dx_callsign, 
+                                            r.dx_loc as dx_loc, r.my_tx_heading, r.tx_heading, r.my_tx_distance, r.frequency, r.snr
+                        from reports as r
+                        where ABS(MOD(r.rx_heading - 180, 360) - r.my_rx_heading) < %s/2
+                            and r.my_rx_distance < %s 
+                            and  extract(epoch from now()) - happened_at < %s
+                        order by happened_at desc 
+                    """
         cur = self.db.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        cur.execute(q, (max_beamwidth, max_dist, max_age, max_beamwidth, max_dist, max_age))
+        #cur.execute(q, (max_beamwidth, max_dist, max_age, max_beamwidth, max_dist, max_age))
+        cur.execute(q, (max_beamwidth, max_dist, max_age))
         rows = cur.fetchall()
-        return {x["callsign"]: x for x in rows}
+        ret = {}
+        for r in rows:
+            cs = r["callsign"]
+            if cs not in ret or ret[cs]["happened_at"] < r["happened_at"]:
+                ret[cs] = r
+            dxcs = r["dx_callsign"]
+            if dxcs not in ret or ret[dxcs]["happened_at"] < r["happened_at"]:
+                rp = r.copy()
+                rp["callsign"] = dxcs
+                rp["locator"] = r["dx_loc"]
+                rp["dx_loc"] = r["locator"]
+                rp["dx_callsign"] = cs
+                rp["az"] = r["tx_heading"]
+                rp["tx_heading"] = r["az"]
+                rp["dist"] = r["my_tx_distance"]
+                rp["my_tx_distance"] = r["dist"]
+                rp["my_az"] = r["my_tx_heading"]
+                rp["my_tx_heading"] = r["my_az"]
+                ret[cs] = dict(r)
+                ret[dxcs] = dict(rp)
+
+        return ret
