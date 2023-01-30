@@ -1,3 +1,5 @@
+import pprint
+
 from pcf8574 import *
 
 from p27_defs import *
@@ -557,7 +559,15 @@ class HamOp:
         band = json.get("band", None)
         log_remarks = json.get("log_remarks", None)
         if band:
-            contest_log = produce_contest_log(band, log_remarks=log_remarks)
+            contest_log = produce_contest_log(band, self.logger, log_remarks=log_remarks)
+            json["contest_log"] = contest_log
+            self.app.client_mgr.emit_log(json)
+
+    def make_adif_log(self, json):
+        from adif_log import produce_adif_log
+        band = json.get("band", None)
+        if band:
+            contest_log = produce_adif_log(band, self.logger)
             json["contest_log"] = contest_log
             self.app.client_mgr.emit_log(json)
 
