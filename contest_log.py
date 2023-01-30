@@ -69,11 +69,15 @@ class StringWrapper:
     def write(self, string):
         self.string += string
 
-def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
+def produce_contest_log(band_and_mode, logger, tuesday_number=None, log_remarks=None):
 
     contest_log = StringWrapper()  # Type: Optional[SupportsWrite[str]]
 
+    logger.info("Producing contest log for band and mode %s, tuesday number=%s, remarks=%s" % (band_and_mode, tuesday_number, log_remarks ))
+
     test_date, t_date_start, t_date_stop = get_contest_times(band_and_mode, tuesday_number)
+
+    logger.info("Test date = %s, start time %s, end time %s" % (test_date, t_date_start, t_date_stop))
 
     band = int(band_and_mode.split('-')[0])
 
@@ -82,6 +86,9 @@ def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
     prefixes = {
         "LA": "NO",
         "LB": "NO",
+
+
+
         "LG": "NO",
         "SA": "SE",
         "SB": "SE",
@@ -101,6 +108,7 @@ def produce_contest_log(band_and_mode, tuesday_number=None, log_remarks=None):
         "OZ": "DK",
         "OV": "DK",
         "DL": "DE",
+        "DJ": "DE",
         "DK": "DE",
         "DG": "DE",
         "DF": "DE",
