@@ -33,6 +33,7 @@ class Reporter:
 
 	@classmethod
 	def file_age_in_seconds(cls, pathname):
+
 		return time.time() - os.path.getmtime(pathname)
 
 	def cache_file_valid(self):
@@ -45,6 +46,9 @@ class Reporter:
 		except FileNotFoundError:
 			return False
 		return False
+
+	def invalidate_cache_file(self):
+		os.unlink(self.cache_file_name)
 
 	def truncate(self, max_age = None):
 		cur = self.db.cursor()
@@ -59,6 +63,7 @@ class Reporter:
 
 	def retrieve(self):
 		# Handle the file cache not to annoy PSKreporter server
+		et= None
 		if self.cache_file_valid():
 			self.logger.info("Using cached file")
 			fd= open(self.cache_file_name, "r")
@@ -67,13 +72,19 @@ class Reporter:
 		else:
 			self.logger.info("Fetching from pskreporter")
 			res = requests.get(self.retrieve_uri)
-			fd = open(self.cache_file_name, "w")
 			xml = res.text
-			fd.write(xml)
-			fd.close()
-
-		self.logger.info("Parsing element tree")
-		et = ElementTree(fromstring(xml))
+			self.logger.info("Parsing element tree")
+			try:
+				et = ElementTree(fromstring(xml))
+				fd = open(self.cache_file_name, "w")
+				fd.write(xml)
+				fd.close()
+			except ParseError:
+				self.logger.error("Parse error from pskreporter, using cached file")
+				fd = open(self.cache_file_name, "r")
+				xml = fd.read()
+				fd.close()
+				et = ElementTree(fromstring(xml))
 		root=et.getroot()
 		# print(root)
 		kids = list(root)
