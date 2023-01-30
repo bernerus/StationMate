@@ -1364,7 +1364,7 @@
 
         socket.once("qso_committed", function (json) {
             new_qso["id"] = json["id"]
-            enter_qso_in_table(new_qso)
+            // enter_qso_in_table(new_qso)
             if (new_qso["rx"].length > 2) {
                 socket.emit('transmit_cw', {'msg': 'RR FB 73 # ee'})
             }
