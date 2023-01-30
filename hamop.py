@@ -19,57 +19,74 @@ if TYPE_CHECKING:
 
 class HamOp:
     """ Handles all data and functions pertaining to the ham operator and station"""
+    def try_init_p27(self):
+        if not self.p27:
+            try:
+                self.p27 = PCF(self.logger, P27_I2C_ADDRESS, {P27_PA_OFF_L: (0, OUTPUT),
+                                                              P27_UNUSED_1: (1, INPUT),
+                                                              P27_PA_ON_L: (2, OUTPUT),
+                                                              P27_UNUSED_3: (3, INPUT),
+                                                              P27_RX_432_L: (4, OUTPUT),
+                                                              P27_TX_432_L: (5, OUTPUT),
+                                                              P27_UNUSED_6: (6, INPUT),
+                                                              P27_UNUSED_7: (7, INPUT),
+                                                              })
+                self.p27.bit_write(P27_PA_OFF_L, HIGH)
+                # self.p27.bit_write(P27_PA_ON_L, HIGH)
+                self.p27.bit_write(P27_RX_432_L, HIGH)
+                self.p27.bit_write(P27_TX_432_L, HIGH)
+                self.logger.info("Found I2C port %x" % P27_I2C_ADDRESS)
+
+            except OSError:
+                self.logger.error("I2C port %x not found" % P27_I2C_ADDRESS)
+                self.p27 = None
+                self.disable_core_controls()
+
+    def try_init_p26(self):
+        if not self.p26:
+            try:
+                self.p26 = PCF(self.logger, P26_I2C_ADDRESS, {P26_UNUSED_0: (0, OUTPUT),
+                                                 P26_PA_READY: (1, INPUT),
+                                                 P26_PA_ON_L: (2, OUTPUT),
+                                                 P26_XRX_432_L: (3, INPUT),
+                                                 P26_RX_432_L: (4, OUTPUT),
+                                                 P26_TX_432_L: (5, OUTPUT),
+                                                 P26_TRX_RX_ACTIVE_L: (6, INPUT),
+                                                 P26_TRX_TX_ACTIVE_L: (7, INPUT),
+                                                 })
+                self.p26.bit_read(P26_PA_READY)
+                self.logger.info("Found I2C port %x" % P26_I2C_ADDRESS)
+
+            except OSError:
+                self.logger.error("I2C port %x not found" % P26_I2C_ADDRESS)
+                self.p26 = None
+                self.disable_core_controls()
+
 
     def __init__(self, app, logger, db: psycopg2):
         self.app = app
         self.logger = logger
         self.db = db
+        self.core_controls = True
+        self.p27 = None
+        self.p26 = None
 
-        try:
-            self.p27 = PCF(self.logger, P27_I2C_ADDRESS, {P27_PA_OFF_L: (0, OUTPUT),
-                                                     P27_UNUSED_1: (1, INPUT),
-                                                     P27_PA_ON_L: (2, OUTPUT),
-                                                     P27_UNUSED_3: (3, INPUT),
-                                                     P27_RX_432_L: (4, OUTPUT),
-                                                     P27_TX_432_L: (5, OUTPUT),
-                                                     P27_UNUSED_6: (6, INPUT),
-                                                     P27_UNUSED_7: (7, INPUT),
-                                                     })
-            self.p27.bit_write(P27_PA_OFF_L, HIGH)
-            # self.p27.bit_write(P27_PA_ON_L, HIGH)
-            self.p27.bit_write(P27_RX_432_L, HIGH)
-            self.p27.bit_write(P27_TX_432_L, HIGH)
-            self.logger.info("Found I2C port %x" % P27_I2C_ADDRESS)
-
-        except OSError:
-            self.logger.error("I2C port %x not found" % P27_I2C_ADDRESS)
-            self.p27 = None
-
-        try:
-            self.p26 = PCF(self.logger, P26_I2C_ADDRESS, {P26_UNUSED_0: (0, OUTPUT),
-                                             P26_PA_READY: (1, INPUT),
-                                             P26_PA_ON_L: (2, OUTPUT),
-                                             P26_XRX_432_L: (3, INPUT),
-                                             P26_RX_432_L: (4, OUTPUT),
-                                             P26_TX_432_L: (5, OUTPUT),
-                                             P26_TRX_RX_ACTIVE_L: (6, INPUT),
-                                             P26_TRX_TX_ACTIVE_L: (7, INPUT),
-                                             })
-            self.p26.bit_read(P26_PA_READY)
-            self.logger.info("Found I2C port %x" % P26_I2C_ADDRESS)
-
-        except OSError:
-            self.logger.error("I2C port %x not found" % P26_I2C_ADDRESS)
-            self.p26 = None
-
+        self.try_init_p27()
+        self.try_init_p26()
 
         self.last_p26_sense = None
         self.pa_running = None
         self.last_status = 0xff
 
         pass
+    def disable_core_controls(self):
+        self.core_controls=False
+
+    def enable_core_controls(self):
+        self.core_controls = True
 
     def status_sense(self):
+        self.try_init_p26()
         if not self.p26:
             return
         current_p26_sense = self.p26.byte_read(0xff)
@@ -95,12 +112,16 @@ class HamOp:
         return msg
 
     def get_status(self):
+        self.try_init_p26()
+        self.try_init_p27()
         if not self.p26:
             return
         current_p26_sense = self.p26.byte_read(0xff)
         return current_p26_sense
 
     def my_status(self):
+        self.try_init_p26()
+        self.try_init_p27()
         if self.p27 and self.p26:
             pa_rdy = self.p26.bit_read(P26_PA_READY)
             trx_tx = not self.p26.bit_read(P26_TRX_TX_ACTIVE_L)
@@ -539,6 +560,7 @@ class HamOp:
             contest_log = produce_contest_log(band, log_remarks=log_remarks)
             json["contest_log"] = contest_log
             self.app.client_mgr.emit_log(json)
+
 
     def toggle_qro(self):
         if self.p27 and self.p26:

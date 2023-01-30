@@ -82,6 +82,24 @@ class ClientMgr:
 
         pass
 
+    def disable_core_controls(self):
+        send_update_state("pa_ready_led", "disabled", True)
+        send_update_state("pa_active_led", "disabled", True)
+        send_update_state("trx_rx_led", "disabled", True)
+        send_update_state("trx_tx_led", "disabled", True)
+        send_update_state("rx70_led", "disabled", True)
+        send_update_state("tx70_led", "disabled", True)
+        pass
+
+    def enable_core_controls(self):
+        send_update_state("pa_ready_led", "disabled", False)
+        send_update_state("pa_active_led", "disabled", False)
+        send_update_state("trx_rx_led", "disabled", False)
+        send_update_state("trx_tx_led", "disabled", False)
+        send_update_state("rx70_led", "disabled", False)
+        send_update_state("tx70_led", "disabled", False)
+        pass
+
     def get_map_mh_length(self):
         return self.map_mh_length
 

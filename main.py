@@ -38,6 +38,8 @@ def kill_siblings():
         print("Error Encountered while running script")
 
 
+
+
 kill_siblings()
 
 import socket
@@ -125,6 +127,30 @@ def index():
 def get_azimuth():
     return "Az=%d ticks" % app.azel.az
 
+@app.route("/help")
+def help():
+    s = """
+        <table>
+        <tr><td>/</td><td>Start antenna and log view</td></tr>
+        <tr><td>/help</td><td>See this help text</td></tr>
+        <tr><td>/az</td><td>Return current antenna azimuth in ticks</td></tr>
+        <tr><td>/myqth</td><td>Return my configured QTH locator</td></tr>
+        <tr><td>/translate_qras</td><td>Translate all legacy QRA locators in the log to Maidenhead locators</td></tr>
+        <tr><td>/recompute_distances</td><td>Recompute all distances in the log and add distances where missing</td></tr>
+        <tr><td>/status</td><td>Return rig status</td></tr>
+        <tr><td>/paon</td><td>Turn on the power supply to the transmitter power amplifiers</td></tr>
+        <tr><td>/paoff</td><td>Turn off the power supply to the transmitter power amplifiers</td></tr>
+        <tr><td>/qroon</td><td>Enable high power transmission</td></tr>
+        <tr><td>/qrooff</td><td>Disable high power transmission</td></tr>
+        <tr><td>/rx70</td><td>Configure core station for 70cm reception (Just causes RX disconnect from the antenna)</td></tr>
+        <tr><td>/tx70</td><td>Configure core station for 70cm transmission.</td></tr>
+        <tr><td>/rx2</td><td>Opposite of rx70</td></tr>
+        <tr><td>/tx2</td><td>Opposite of tx70</td></tr>
+        <tr><td>/wsjtx_upload</td><td>Upload a wsjt-x log file to the station log.</td></tr>
+        <tr><td>/az_scan</td><td>Sweep the antenna azimuth. Requires parameters</td></tr>
+        <tr><td>/commit_qso</td><td>Commit a qso to the station log. Requires parameters</td></tr></table>
+        """
+    return s
 
 @app.route("/myqth")
 def my_qth():
@@ -134,6 +160,9 @@ def my_qth():
 def translate_qras():
     return app.ham_op.translate_qras()
 
+@app.route("/recompute_distances")  # Maintenance entry, recomputes all distances
+def recompute_distances():
+    return app.ham_op.recompute_distances()
 
 @app.route("/status")
 def my_status():
