@@ -166,6 +166,11 @@ class ClientMgr:
 
     def status_push(self, current, force=False):
 
+        # if not self.app.ham_op.core_controls:
+        #     self.disable_core_controls()
+        # else:
+        #     self.enable_core_controls()
+
         if current and ((current != self.last_pushed_status)  or self.last_pushed_status is None or force):
             if current & P26_PA_READY:
                 send_update_class("pa_ready_led", "active", True)
@@ -437,7 +442,7 @@ class ClientMgr:
             locator = station['locator'].upper()
             antaz = station['az']
             dist = station['dist']
-            age = station['age_minutes']
+            age = float(station['age_minutes'])
             myaz = station['my_az']
             dx_callsign = station["dx_callsign"]
             dx_loc=station["dx_loc"]
@@ -469,7 +474,7 @@ class ClientMgr:
             locator = station['locator'].upper()
             antaz = station['az']
             dist = station['dist']
-            age = station['age_minutes']
+            age = float(station['age_minutes'])
             myaz = station['my_az']
             dx_callsign = station["dx_callsign"]
             dx_loc=station["dx_loc"]
@@ -492,7 +497,7 @@ class ClientMgr:
             json[callsign] = {"callsign": callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az": myaz, "mode": mode,"age": age,"distance":dist, "info": info}
         #import pprint
         #pprint.pprint(json)
-        self.logger.info("Pushing %d stations to client" % len(json))
+        self.logger.info("Pushing %d stations to client" % (len(json)))
         msg_q.put(("update_reachable_stations", json))
 
     def map_settings(self, json):

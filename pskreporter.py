@@ -1,5 +1,5 @@
 # from defusedxml import ElementTree as ET
-from xml.etree.ElementTree import fromstring, ElementTree
+from xml.etree.ElementTree import fromstring, ElementTree, ParseError
 import requests
 import os
 import time
@@ -36,7 +36,10 @@ class Reporter:
 		return time.time() - os.path.getmtime(pathname)
 
 	def cache_file_valid(self):
+
+		self.logger.debug("Cache file %s time is %d" % (self.cache_file_name, os.path.getmtime(self.cache_file_name)))
 		try:
+			self.logger.debug("Cache file age is %d seconds" % self.file_age_in_seconds(self.cache_file_name))
 			if self.file_age_in_seconds(self.cache_file_name) < self.max_file_age:
 				return True
 		except FileNotFoundError:
@@ -156,9 +159,9 @@ class Reporter:
 							# except:
 							# 	pass
 
-			self.logger.info("Batch insert all receivers")
+			self.logger.info("Batch insert all %d receivers" % len(all_receivers))
 			psycopg2.extras.execute_batch(cur, q0, all_receivers)
-			self.logger.info("Batch insert all reports")
+			self.logger.info("Batch insert all %d reports" % len(all_receivers))
 			psycopg2.extras.execute_batch(cur, q1, all_reports)
-			self.logger.info("Batch insert all callbook updates")
+			self.logger.info("Batch insert all %d callbook updates" % len(all_callbooks))
 			psycopg2.extras.execute_batch(cur, q2, all_callbooks)

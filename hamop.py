@@ -681,63 +681,149 @@ class HamOp:
         if lines:
             return lines[0]
 
-    def get_reachable_stations(self, max_age=900, max_dist=40000, max_beamwidth=30):  # max_age in seconds, max_distance in km, max_beamwidth in degrees
+    def get_reachable_stations(self, max_age=1800, max_dist=40000, max_beamwidth=30):  # max_age in seconds, max_distance in km, max_beamwidth in degrees
+        self.logger.debug("get_reachable_stations max_age=%d, max_dist=%d. max_beamwidth=%d" %(max_age, max_dist, max_beamwidth))
+
+        dt = datetime.now()
+        # getting the timestamp
+        ts = datetime.timestamp(dt)
 
         q1 = """ select distinct on (r.rx_callsign, r.rx_loc) r.rx_callsign as callsign, 
                                     r.rx_loc as locator, r.rx_heading as az, r.my_rx_distance as dist, 
-                                    (extract(epoch from now()) - r.happened_at)/60 as age_minutes, 
+                                    (extract(epoch from statement_timestamp()) - r.happened_at)/60 as age_minutes, 
                                     r.my_rx_heading as my_az, r.mode as mode, r.happened_at as happened_at, r.dx_callsign as dx_callsign, r.dx_loc as dx_loc
                 from reports as r
                 where ABS(MOD(r.rx_heading - 180, 360) - r.my_rx_heading) < %s/2
                     and r.my_rx_distance < %s 
-                    and  extract(epoch from now()) - happened_at < %s
+                    and  extract(epoch from statement_timestamp()) - happened_at < %s
                 group by callsign, locator, az, dist, age_minutes, my_az, mode, happened_at, dx_callsign, dx_loc
                 union
                 select distinct on (t.dx_callsign, t.dx_loc) t.dx_callsign as callsign , 
                                     t.dx_loc as locator, t.tx_heading as az, t.my_tx_distance as dist, 
-                                    (extract(epoch from now()) - t.happened_at)/60 as age_minutes, 
+                                    (extract(epoch from statement_timestamp()) - t.happened_at)/60 as age_minutes, 
                                     t.my_tx_heading as my_az, t.mode as mode, t.happened_at as happened_at, t.rx_callsign as dx_callsign, t.rx_loc as dx_loc
                 from reports as t
                 where ABS(MOD(t.tx_heading - 180, 360) - t.my_tx_heading) < %s/2
                     and t.my_tx_distance < %s 
-                    and  extract(epoch from now()) - t.happened_at < %s
+                    and  extract(epoch from statement_timestamp()) - t.happened_at < %s
                 group by callsign, locator, az, dist, age_minutes, my_az, mode, happened_at, dx_callsign, dx_loc
                 order by age_minutes;
             """
         q = """ select r.rx_callsign as callsign, 
                                             r.rx_loc as locator, r.rx_heading as az, r.my_rx_distance as dist, 
-                                            (extract(epoch from now()) - r.happened_at)/60 as age_minutes, 
+                                            (%s - r.happened_at)/60 as age_minutes, 
                                             r.my_rx_heading as my_az, r.mode as mode, r.happened_at as happened_at, r.dx_callsign as dx_callsign, 
                                             r.dx_loc as dx_loc, r.my_tx_heading, r.tx_heading, r.my_tx_distance, r.frequency, r.snr
                         from reports as r
                         where ABS(MOD(r.rx_heading - 180, 360) - r.my_rx_heading) < %s/2
                             and r.my_rx_distance < %s 
-                            and  extract(epoch from now()) - happened_at < %s
+                            and  %s - happened_at < %s
                         order by happened_at desc 
                     """
-        cur = self.db.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        #cur.execute(q, (max_beamwidth, max_dist, max_age, max_beamwidth, max_dist, max_age))
-        cur.execute(q, (max_beamwidth, max_dist, max_age))
-        rows = cur.fetchall()
-        ret = {}
-        for r in rows:
-            cs = r["callsign"]
-            if cs not in ret or ret[cs]["happened_at"] < r["happened_at"]:
-                ret[cs] = r
-            dxcs = r["dx_callsign"]
-            if dxcs not in ret or ret[dxcs]["happened_at"] < r["happened_at"]:
-                rp = r.copy()
-                rp["callsign"] = dxcs
-                rp["locator"] = r["dx_loc"]
-                rp["dx_loc"] = r["locator"]
-                rp["dx_callsign"] = cs
-                rp["az"] = r["tx_heading"]
-                rp["tx_heading"] = r["az"]
-                rp["dist"] = r["my_tx_distance"]
-                rp["my_tx_distance"] = r["dist"]
-                rp["my_az"] = r["my_tx_heading"]
-                rp["my_tx_heading"] = r["my_az"]
-                ret[cs] = dict(r)
-                ret[dxcs] = dict(rp)
+        with self.db.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            #cur.execute(q, (max_beamwidth, max_dist, max_age, max_beamwidth, max_dist, max_age))
+            # self.logger.debug("executing %s with max_beamwidth=%d, max_dist=%d, max_age=%d" %(q, max_beamwidth, max_dist, max_age))
+            cur.execute(q, (ts, max_beamwidth, max_dist, ts, max_age))
+            rows = cur.fetchall()
+            self.logger.debug("q returns %d rows" % len(rows))
+            ret = {}
+            for r in rows:
+                cs = r["callsign"]
+                if cs not in ret or ret[cs]["happened_at"] < r["happened_at"]:
+                    ret[cs] = r
+                dxcs = r["dx_callsign"]
+                if dxcs not in ret or ret[dxcs]["happened_at"] < r["happened_at"]:
+                    rp = r.copy()
+                    rp["callsign"] = dxcs
+                    rp["locator"] = r["dx_loc"]
+                    rp["dx_loc"] = r["locator"]
+                    rp["dx_callsign"] = cs
+                    rp["az"] = r["tx_heading"]
+                    rp["tx_heading"] = r["az"]
+                    rp["dist"] = r["my_tx_distance"]
+                    rp["my_tx_distance"] = r["dist"]
+                    rp["my_az"] = r["my_tx_heading"]
+                    rp["my_tx_heading"] = r["my_az"]
+                    ret[cs] = dict(r)
+                    ret[dxcs] = dict(rp)
 
-        return ret
+            return ret
+
+    def translate_qras(self):
+        import locator.src.qra as qra
+        with self.db.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            q = "SELECT qsoid, callsign, locator from nac_log_new where length(locator) = 5"
+
+            cur.execute(q)
+            rows = cur.fetchall()
+            n=0
+            ret = ""
+            for r in rows:
+                try:
+                    lat, lon = qra.to_location(r['locator'])
+                except:
+                    self.logger.error("QRA locator %s of %s is not recognizable"%(r['locator'],r['callsign']))
+                    continue
+                mhloc = mh.to_maiden(lat, lon).upper()
+                s = "QRA locator %s of %s corresponds to MH locator %s" %(r['locator'], r['callsign'], mhloc)
+                ret += s + "<br/>"
+                self.logger.info(s)
+                q1="UPDATE nac_log_new set locator = %s where qsoid=%s"
+                cur.execute(q1, (mhloc, r['qsoid']))
+                n += 1
+        return ret + "%d QRA locators translated" % n
+
+    def recompute_distances(self):
+        from collections import defaultdict
+        q =  "SELECT qsoid,callsign,locator,my_locator, distance, mode, band from nac_log_new"
+
+        with self.db.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(q)
+            rows = cur.fetchall()
+            ret = ""
+            n=0
+            odxs = {}  # {mode/band: (callsign, distance)
+            mhfields = {}  # {field/band: count}
+            for r in rows:
+                band = r["band"].split('.')[0]
+                dx_loc = r["locator"]
+                my_loc = r["my_locator"]
+                callsign = r["callsign"]
+                if dx_loc and my_loc:
+                    dx_loc = dx_loc.upper()
+                    my_loc = my_loc.upper()
+                    bearing, distance = mh.distance_between(my_loc, dx_loc)
+                    odx_key = r["mode"]+"/"+band
+                    if odx_key not in odxs:
+                        odxs[odx_key] = "",0.0;
+                    if distance > odxs[odx_key][1]:
+                        odxs[odx_key] = callsign,distance
+                    field_key = dx_loc[0:2]+"/"+band
+                    if field_key not in mhfields:
+                        mhfields[field_key] = 1
+                    else:
+                        mhfields[field_key] += 1
+                    if not  r["distance"] or abs(distance - r["distance"]) > 0.1:
+                        if not r["distance"]:
+                            s = "Distance computed for %s to %5.1f" % (callsign, distance)
+                        else:
+                            s = "Distance changed for %s from %5.1f to %5.1f" % (callsign, r["distance"], distance)
+                        self.logger.info(s)
+                        ret += s + "<br/>"
+                        q1="UPDATE nac_log_new set distance = %s where qsoid=%s"
+                        cur.execute(q1, (distance, r["qsoid"]))
+                        n += 1
+            # ret += pprint.pformat(odxs)
+            pprint.pprint(mhfields)
+            ret += "ODX list:<br/>"
+            for k,v in odxs.items():
+                ret += "%s: %s %5.0f km<br/>" % (k, v[0],v[1])
+            ret += "MH fields: <br/>"
+            for band in ["144","432","1296"]:
+                nf=0
+                for k,v in mhfields.items():
+                    if k.endswith(band):
+                        ret += "%s: %d<br/>" % (k, v)
+                        nf += 1
+                ret += "%d fields on %s MHz<br/>" % (nf, band)
+        return ret + "%d distances changed" % n

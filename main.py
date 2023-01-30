@@ -130,6 +130,9 @@ def get_azimuth():
 def my_qth():
     return app.ham_op.my_qth()
 
+@app.route("/translate_qras")  # Maintenance entry, converts all legacy QRA locators to maidenhead locators.
+def translate_qras():
+    return app.ham_op.translate_qras()
 
 
 @app.route("/status")
