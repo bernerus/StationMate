@@ -43,6 +43,7 @@ class HamOp:
                 self.logger.error("I2C port %x not found" % P27_I2C_ADDRESS)
                 self.p27 = None
                 self.disable_core_controls()
+        return self.p27
 
     def try_init_p26(self):
         if not self.p26:
@@ -63,6 +64,7 @@ class HamOp:
                 self.logger.error("I2C port %x not found" % P26_I2C_ADDRESS)
                 self.p26 = None
                 self.disable_core_controls()
+        return self.p26
 
 
     def __init__(self, app, logger, db: psycopg2):
@@ -87,11 +89,47 @@ class HamOp:
     def enable_core_controls(self):
         self.core_controls = True
 
+    def p26_byte_read(self, xx):
+        try:
+            return self.p26.byte_read(xx)
+        except IOError:
+            self.p26 = None
+            self.try_init_p26()
+            return self.p26.byte_read(xx)
+
+    def p27_byte_read(self, xx):
+        try:
+            return self.p27.byte_read(xx)
+        except IOError:
+            self.p27 = None
+            self.p27 = self.try_init_p27()
+            if not self.p27:
+                return
+            return self.p27.byte_read(xx)
+
+    def p26_bit_read(self, xx):
+        try:
+            return self.p26.bit_read(xx)
+        except IOError:
+            self.p26 = None
+            self.p26 = self.try_init_p26()
+            return self.p26.bit_read(xx)
+
+    def p27_bit_read(self, xx):
+        try:
+            return self.p27.bit_read(xx)
+        except IOError:
+            self.p27 = None
+            self.try_init_p27()
+            if not self.p27:
+                return
+            return self.p27.bit_read(xx)
+
     def status_sense(self):
         self.try_init_p26()
         if not self.p26:
             return
-        current_p26_sense = self.p26.byte_read(0xff)
+        current_p26_sense = self.p26_byte_read(0xff)
 
         if current_p26_sense != self.last_p26_sense or self.last_p26_sense is None:
             self.app.client_mgr.status_push(current_p26_sense)
@@ -118,19 +156,19 @@ class HamOp:
         self.try_init_p27()
         if not self.p26:
             return
-        current_p26_sense = self.p26.byte_read(0xff)
+        current_p26_sense = self.p26_byte_read(0xff)
         return current_p26_sense
 
     def my_status(self):
         self.try_init_p26()
         self.try_init_p27()
         if self.p27 and self.p26:
-            pa_rdy = self.p26.bit_read(P26_PA_READY)
-            trx_tx = not self.p26.bit_read(P26_TRX_TX_ACTIVE_L)
-            trx_rx = not self.p26.bit_read(P26_TRX_RX_ACTIVE_L)
-            pa_active = not self.p26.bit_read(P26_PA_ON_L)
-            rx70 = not self.p26.bit_read(P26_RX_432_L)
-            tx70 = not self.p26.bit_read(P26_TX_432_L)
+            pa_rdy = self.p26_bit_read(P26_PA_READY)
+            trx_tx = not self.p26_bit_read(P26_TRX_TX_ACTIVE_L)
+            trx_rx = not self.p26_bit_read(P26_TRX_RX_ACTIVE_L)
+            pa_active = not self.p26_bit_read(P26_PA_ON_L)
+            rx70 = not self.p26_bit_read(P26_RX_432_L)
+            tx70 = not self.p26_bit_read(P26_TX_432_L)
             s = ""
             s += "Transceiver is receiving<br/>" if trx_rx else "Transceiver is not receiving.<br/>"
             s += "Transceiver is transmitting<br/>" if trx_tx else "Transceiver is not transmitting.<br/>"
@@ -299,7 +337,7 @@ class HamOp:
         if not self.p27:
             return "Core station out of control"
 
-        pa_rdy = self.p26.bit_read(P26_PA_READY)
+        pa_rdy = self.p26_bit_read(P26_PA_READY)
         if not pa_rdy:
             self.logger.info("Igniting booster")
             self.p27.bit_write(P27_PA_ON_L, LOW)
@@ -322,7 +360,7 @@ class HamOp:
     def my_qro_on(self):
         if not self.p27:
             return "Core station out of control"
-        pa_rdy = self.p26.bit_read(P26_PA_READY)
+        pa_rdy = self.p26_bit_read(P26_PA_READY)
         if not pa_rdy:
             return "Power booster is not ready<br/>"
         self.p27.bit_write(P27_PA_ON_L, LOW)
@@ -574,9 +612,9 @@ class HamOp:
 
     def toggle_qro(self):
         if self.p27 and self.p26:
-            pa_rdy = self.p26.bit_read(P26_PA_READY)
+            pa_rdy = self.p26_bit_read(P26_PA_READY)
             if pa_rdy:
-                pa_on = not self.p26.bit_read(P26_PA_ON_L)
+                pa_on = not self.p26_bit_read(P26_PA_ON_L)
                 if pa_on:
                     self.p27.bit_write(P27_PA_ON_L, HIGH)
                 else:
@@ -589,7 +627,7 @@ class HamOp:
     def toggle_rx70(self):
         if self.p27 and self.p26:
 
-            rx70_on = not self.p26.bit_read(P26_RX_432_L)
+            rx70_on = not self.p26_bit_read(P26_RX_432_L)
             if rx70_on:
                 self.p27.bit_write(P27_RX_432_L, HIGH)
             else:
@@ -600,7 +638,7 @@ class HamOp:
     def toggle_tx70(self):
         if self.p27 and self.p26:
 
-            tx70_on = not self.p26.bit_read(P26_TX_432_L)
+            tx70_on = not self.p26_bit_read(P26_TX_432_L)
             if tx70_on:
                 self.p27.bit_write(P27_TX_432_L, HIGH)
             else:
@@ -613,11 +651,11 @@ class HamOp:
         if self.p27 and self.p26:
 
             if self.pa_running is None:
-                pa_rdy = self.p26.bit_read(P26_PA_READY)
+                pa_rdy = self.p26_bit_read(P26_PA_READY)
                 self.pa_running = pa_rdy
 
-            rx_on = not self.p26.bit_read(P26_TRX_RX_ACTIVE_L)
-            tx_on = not self.p26.bit_read(P26_TRX_TX_ACTIVE_L)
+            rx_on = not self.p26_bit_read(P26_TRX_RX_ACTIVE_L)
+            tx_on = not self.p26_bit_read(P26_TRX_TX_ACTIVE_L)
 
             if self.pa_running:
                 self.p27.bit_write(P27_PA_OFF_L, LOW)
