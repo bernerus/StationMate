@@ -40,8 +40,8 @@ class Reporter:
 		""" Check if there are data cached, parseable and not older that max_file_age.
 		    If so return the parsed element tree, else return False."""
 		try:
-			self.logger.debug("Cache file %s time is %d" % (self.cache_file_name, os.path.getmtime(self.cache_file_name)))
-			self.logger.debug("Cache file age is %d seconds" % self.file_age_in_seconds(self.cache_file_name))
+			# self.logger.debug("Cache file %s time is %d" % (self.cache_file_name, os.path.getmtime(self.cache_file_name)))
+			# self.logger.debug("Cache file age is %d seconds" % self.file_age_in_seconds(self.cache_file_name))
 			if self.file_age_in_seconds(self.cache_file_name) < self.max_file_age:
 				return self.parse_cached_file()
 		except FileNotFoundError:
@@ -60,7 +60,7 @@ class Reporter:
 	def truncate(self, max_age = None):
 		""" Truncate the reports table, deletes the entries that are older than max_age."""
 		cur = self.db.cursor()
-		self.logger.info("Truncating reports table")
+		# self.logger.info("Truncating reports table")
 		q = "delete from reports where  (extract(epoch from statement_timestamp()) - happened_at) > %s"
 		if max_age is None:
 			max_age = self.max_db_age
@@ -79,7 +79,7 @@ class Reporter:
 		self.logger.info("Fetching from pskreporter")
 		res = requests.get(self.retrieve_uri)
 		xml = res.text
-		self.logger.info("Parsing element tree")
+		# self.logger.info("Parsing element tree")
 		et = ElementTree(fromstring(xml))
 		with open(self.cache_file_name, "w") as fd:
 			fd.write(xml)
@@ -116,7 +116,7 @@ class Reporter:
 			q2 = """INSERT INTO callbook VALUES (%s, %s, NULL, NULL) ON CONFLICT ON CONSTRAINT callbook_pk DO NOTHING"""
 			all_callbooks = []
 
-			self.logger.debug("Building batch data")
+			#self.logger.debug("Building batch data")
 			for kid in kids:
 				if kid.tag=="activeReceiver":
 					if "callsign" in kid.attrib and "locator" in kid.attrib and len(kid.attrib["locator"]) >= 6:
@@ -180,9 +180,9 @@ class Reporter:
 							# except:
 							# 	pass
 
-			self.logger.info("Batch insert all %d receivers" % len(all_receivers))
+			# self.logger.info("Batch insert all %d receivers" % len(all_receivers))
 			psycopg2.extras.execute_batch(cur, q0, all_receivers)
-			self.logger.info("Batch insert all %d reports" % len(all_receivers))
+			# self.logger.info("Batch insert all %d reports" % len(all_receivers))
 			psycopg2.extras.execute_batch(cur, q1, all_reports)
-			self.logger.info("Batch insert all %d callbook updates" % len(all_callbooks))
+			# self.logger.info("Batch insert all %d callbook updates" % len(all_callbooks))
 			psycopg2.extras.execute_batch(cur, q2, all_callbooks)
