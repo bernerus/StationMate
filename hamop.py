@@ -752,7 +752,7 @@ class HamOp:
             return lines[0]
 
     def get_reachable_stations(self, max_age=1800, max_dist=40000, max_beamwidth=30):  # max_age in seconds, max_distance in km, max_beamwidth in degrees
-        self.logger.debug("get_reachable_stations max_age=%d, max_dist=%d. max_beamwidth=%d" %(max_age, max_dist, max_beamwidth))
+        # self.logger.debug("get_reachable_stations max_age=%d, max_dist=%d. max_beamwidth=%d" %(max_age, max_dist, max_beamwidth))
 
         dt = datetime.now()
         # getting the timestamp
@@ -795,7 +795,7 @@ class HamOp:
             # self.logger.debug("executing %s with max_beamwidth=%d, max_dist=%d, max_age=%d" %(q, max_beamwidth, max_dist, max_age))
             cur.execute(q, (ts, max_beamwidth, max_dist, ts, max_age))
             rows = cur.fetchall()
-            self.logger.debug("q returns %d rows" % len(rows))
+            # self.logger.debug("q returns %d rows" % len(rows))
             ret = {}
             for r in rows:
                 cs = r["callsign"]
