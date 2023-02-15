@@ -53,6 +53,10 @@ class TargetStack:
 		if not self._target_stack:
 			return None
 		top = self._target_stack.pop()
+		if top:
+			self.logger.info("Popped target stack. New top=%s"% top.id)
+		else:
+			self.logger.info("Popped target stack. Stack is now empty")
 		if top is None:
 			if self.track_thread:
 				self.azel.track_thread_running = False
