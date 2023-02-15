@@ -304,6 +304,7 @@ class AzElControl:
 		pass
 
 	def manual_interrupt(self):
+		self.rotate_start_az = self.az
 		target = ManualTarget(self)
 		self.target_stack.push(target)
 		self.az_stop()
