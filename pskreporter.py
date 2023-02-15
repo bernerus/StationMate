@@ -37,54 +37,64 @@ class Reporter:
 		return time.time() - os.path.getmtime(pathname)
 
 	def cache_file_valid(self):
-
-		self.logger.debug("Cache file %s time is %d" % (self.cache_file_name, os.path.getmtime(self.cache_file_name)))
+		""" Check if there are data cached, parseable and not older that max_file_age.
+		    If so return the parsed element tree, else return False."""
 		try:
+			self.logger.debug("Cache file %s time is %d" % (self.cache_file_name, os.path.getmtime(self.cache_file_name)))
 			self.logger.debug("Cache file age is %d seconds" % self.file_age_in_seconds(self.cache_file_name))
 			if self.file_age_in_seconds(self.cache_file_name) < self.max_file_age:
-				return True
+				return self.parse_cached_file()
 		except FileNotFoundError:
+			return False
+		except ParseError:
 			return False
 		return False
 
 	def invalidate_cache_file(self):
-		os.unlink(self.cache_file_name)
+		""" Invalidate the cache file by removing it, if it exists"""
+		try:
+			os.unlink(self.cache_file_name)
+		except FileNotFoundError:
+			pass
 
 	def truncate(self, max_age = None):
+		""" Truncate the reports table, deletes the entries that are older than max_age."""
 		cur = self.db.cursor()
 		self.logger.info("Truncating reports table")
-		q = "delete from reports where  (extract(epoch from now()) - happened_at) > %s"
+		q = "delete from reports where  (extract(epoch from statement_timestamp()) - happened_at) > %s"
 		if max_age is None:
 			max_age = self.max_db_age
 		cur.execute(q,(max_age,))
 		self.db.commit()
 
+	def parse_cached_file(self):
+		""" Parse the cached file"""
+		with open(self.cache_file_name, "r") as fd:
+			xml = fd.read()
+		et = ElementTree(fromstring(xml))
+		return et
+
+	def parse_retrieved_data(self):
+		"""Parse the extracted data from pskreporter. In case of a parse error, the extracted data is not cached"""
+		self.logger.info("Fetching from pskreporter")
+		res = requests.get(self.retrieve_uri)
+		xml = res.text
+		self.logger.info("Parsing element tree")
+		et = ElementTree(fromstring(xml))
+		with open(self.cache_file_name, "w") as fd:
+			fd.write(xml)
+		return et
 
 
 	def retrieve(self):
-		# Handle the file cache not to annoy PSKreporter server
-		et= None
-		if self.cache_file_valid():
-			self.logger.info("Using cached file")
-			fd= open(self.cache_file_name, "r")
-			xml = fd.read()
-			fd.close()
-		else:
-			self.logger.info("Fetching from pskreporter")
-			res = requests.get(self.retrieve_uri)
-			xml = res.text
-			self.logger.info("Parsing element tree")
+		""" Retrieve data from the PSKreporter. Use cached data in order not to annoy the PSKreporter server """
+		et = self.cache_file_valid() # This both tests the age of the cached file and that it can be parsed.
+		if not et:
 			try:
-				et = ElementTree(fromstring(xml))
-				fd = open(self.cache_file_name, "w")
-				fd.write(xml)
-				fd.close()
+				et = self.parse_retrieved_data()
 			except ParseError:
 				self.logger.error("Parse error from pskreporter, using cached file")
-				fd = open(self.cache_file_name, "r")
-				xml = fd.read()
-				fd.close()
-				et = ElementTree(fromstring(xml))
+				et = self.parse_cached_file()
 		root=et.getroot()
 		# print(root)
 		kids = list(root)
@@ -106,7 +116,7 @@ class Reporter:
 			q2 = """INSERT INTO callbook VALUES (%s, %s, NULL, NULL) ON CONFLICT ON CONSTRAINT callbook_pk DO NOTHING"""
 			all_callbooks = []
 
-			self.logger.info("Building batch data")
+			self.logger.debug("Building batch data")
 			for kid in kids:
 				if kid.tag=="activeReceiver":
 					if "callsign" in kid.attrib and "locator" in kid.attrib and len(kid.attrib["locator"]) >= 6:
