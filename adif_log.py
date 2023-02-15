@@ -38,9 +38,9 @@ def produce_adif_log(band_and_mode, logger):
 
     adif_log.write(qsos, filename.name)
 
-    fd=open(filename.name,"r")
-    lines = fd.read().splitlines()
-    fd.close()
+    with open(filename.name,"r") as fd:
+        lines = fd.read().splitlines()
+
     for line in lines:
         print(line)
 
