@@ -40,7 +40,7 @@ class StationTracker:
 			self.beaming_stations, self.other_stations = self.get_stations()
 			self.app.client_mgr.update_reachable_stations(self.beaming_stations, self.other_stations)
 			st_abortable_sleep(300)
-			print("StationThread is awake")
+			# print("StationThread is awake")
 
 	def set_band(self, band:str):
 		if band != self.current_band:
@@ -67,7 +67,7 @@ class StationTracker:
 		return callsign in self.other_stations
 
 	def refresh(self):
-		self.logger.info("Aborting station tracker sleep")
+		# self.logger.info("Aborting station tracker sleep")
 		st_abortable_sleep.abort()
 
 	def startup(self) -> None:
@@ -77,16 +77,16 @@ class StationTracker:
 				self.station_thread.start()
 
 	def get_stations(self):
-		self.logger.info("Truncating reports table")
+		# self.logger.info("Truncating reports table")
 		self.pskreporter.truncate()
-		self.logger.info("Retrieving reports table")
+		# self.logger.info("Retrieving reports table")
 		self.pskreporter.retrieve()
-		self.logger.info("Finding beaming stations")
+		# self.logger.info("Finding beaming stations")
 		stns1 = self.app.ham_op.get_reachable_stations()
-		self.logger.info("%d stations possibly beaming me" % len(stns1))
-		self.logger.info("Finding other stations")
+		# self.logger.info("%d stations possibly beaming me" % len(stns1))
+		# self.logger.info("Finding other stations")
 		stns2 = self.app.ham_op.get_reachable_stations(max_beamwidth=720)
-		self.logger.info("%d stations active" % len(stns2))
+		# self.logger.info("%d stations active" % len(stns2))
 		return stns1, stns2
 
 	def get_position(self, callsign:str) -> Tuple[float,float]:

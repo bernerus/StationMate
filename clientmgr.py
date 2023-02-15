@@ -515,7 +515,7 @@ class ClientMgr:
             json[callsign] = {"callsign": callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az": myaz, "mode": mode,"age": age,"distance":dist, "info": info}
         #import pprint
         #pprint.pprint(json)
-        self.logger.info("Pushing %d stations to client" % (len(json)))
+        # self.logger.info("Pushing %d stations to client" % (len(json)))
         msg_q.put(("update_reachable_stations", json))
 
     def map_settings(self, json):
