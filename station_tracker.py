@@ -111,12 +111,14 @@ class AbortableSleep:
 	def __call__(self, secs):
 		with self._condition:
 			self._aborted = False
-			print("AbortableSleep id=%s, sleeping for %d second, thread=%s" % (self.id, secs, threading.currentThread()))
+			# print("AbortableSleep id=%s, sleeping for %d second, thread=%s" % (self.id, secs, threading.currentThread()))
 			self._condition.wait(timeout=secs)
 			if self._aborted:
-				print("AbortableSleep id=%s, aborted" % self.id)
+				# print("AbortableSleep id=%s, aborted" % self.id)
+				pass
 			else:
-				print("AbortableSleep id=%s, wakeup" % self.id)
+				# print("AbortableSleep id=%s, wakeup" % self.id)
+				pass
 			return not self._aborted
 
 	def abort(self):
