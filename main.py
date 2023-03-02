@@ -134,7 +134,6 @@ def help():
         <tr><td>/</td><td>Start antenna and log view</td></tr>
         <tr><td>/help</td><td>See this help text</td></tr>
         <tr><td>/az</td><td>Return current antenna azimuth in ticks</td></tr>
-        <tr><td>/myqth</td><td>Return my configured QTH locator</td></tr>
         <tr><td>/translate_qras</td><td>Translate all legacy QRA locators in the log to Maidenhead locators</td></tr>
         <tr><td>/recompute_distances</td><td>Recompute all distances in the log and add distances where missing</td></tr>
         <tr><td>/status</td><td>Return rig status</td></tr>
@@ -457,6 +456,7 @@ def plane_click(plane_id):
 @socket_io.event()
 def station_click(callsign):
     logger.info("Station click on %s" % callsign)
+    emit("fill_dx_grid", callsign, namespace="/", broadcast=True)
     return app.station_tracker.track_station(app.azel, callsign)
 
 @socket_io.event()
