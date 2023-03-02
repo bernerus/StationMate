@@ -194,17 +194,16 @@ class ClientMgr:
                 send_update_class("pa_ready_led", "active", True)
                 send_update_class("pa_ready_led", "warming", False)
             else:
-                if self.last_pushed_status is None or self.last_pushed_status & P26_PA_READY:
-                    self.app.ham_op.pa_running = False
+                if current & P26_PA_PWR_ON_L:
                     send_update_class("pa_ready_led", "warming", False)
                     send_update_class("pa_ready_led", "active", False)
-                if self.app.ham_op.pa_running:
+                else:
                     send_update_class("pa_ready_led", "warming", True)
                     send_update_class("pa_ready_led", "active", False)
 
             # self.send_update_class("pa_ready_led", "led-gray", not (current & 0x02))
 
-            send_update_class("pa_active_led", "active", not (current & P26_PA_ON_L))
+            send_update_class("pa_active_led", "active", not (current & P26_PA_QRO_ACTIVE))
 
             send_update_class("trx_rx_led", "active", not (current & P26_TRX_RX_ACTIVE_L))
             send_update_class("trx_tx_led", "active", not (current & P26_TRX_TX_ACTIVE_L))
@@ -310,7 +309,7 @@ class ClientMgr:
                        "callsign": row[3].upper(),
                        "tx": row[4],
                        "rx": row[5],
-                       "locator": row[6].upper() if row[6] else None,
+                       "locator": row[14].upper() if row[14] else row[6].upper() if row[6] else None,
                        "distance": row[7],
                        "square": row[8],
                        "points": row[9],
@@ -320,8 +319,8 @@ class ClientMgr:
                        "band": row[13],
                        }
                 qsos.append(qso)
-                if self.current_band.split('-')[0] in row[13] and row[6]:
-                    mhs.append(row[6].upper())
+                if self.current_band.split('-')[0] in row[13] and (row[6] or row[14]):
+                    mhs.append(row[14].upper() if row[14] and len(row[14]) > len(row[6]) else row[6].upper())
             if qsos:
                 emit("add_qsos", qsos)
                 self.logger.debug("Adding qso:s from %s to %s" % (qsos[0]["callsign"], qsos[-1]["callsign"]))

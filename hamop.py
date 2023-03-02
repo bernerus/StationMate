@@ -48,9 +48,9 @@ class HamOp:
     def try_init_p26(self):
         if not self.p26:
             try:
-                self.p26 = PCF(self.logger, P26_I2C_ADDRESS, {P26_UNUSED_0: (0, OUTPUT),
+                self.p26 = PCF(self.logger, P26_I2C_ADDRESS, {P26_PA_PWR_ON_L: (0, INPUT),
                                                  P26_PA_READY: (1, INPUT),
-                                                 P26_PA_ON_L: (2, OUTPUT),
+                                                 P26_PA_QRO_ACTIVE: (2, OUTPUT),
                                                  P26_XRX_432_L: (3, INPUT),
                                                  P26_RX_432_L: (4, OUTPUT),
                                                  P26_TX_432_L: (5, OUTPUT),
@@ -164,14 +164,16 @@ class HamOp:
         self.try_init_p27()
         if self.p27 and self.p26:
             pa_rdy = self.p26_bit_read(P26_PA_READY)
+            pa_pwr_on = not self.p26_bit_read(P26_PA_PWR_ON_L)
             trx_tx = not self.p26_bit_read(P26_TRX_TX_ACTIVE_L)
             trx_rx = not self.p26_bit_read(P26_TRX_RX_ACTIVE_L)
-            pa_active = not self.p26_bit_read(P26_PA_ON_L)
+            pa_active = not self.p26_bit_read(P26_PA_QRO_ACTIVE)
             rx70 = not self.p26_bit_read(P26_RX_432_L)
             tx70 = not self.p26_bit_read(P26_TX_432_L)
             s = ""
             s += "Transceiver is receiving<br/>" if trx_rx else "Transceiver is not receiving.<br/>"
             s += "Transceiver is transmitting<br/>" if trx_tx else "Transceiver is not transmitting.<br/>"
+            s += "Power accelerator on<br/>" if pa_pwr_on else "Power accelerator off<br/>"
             s += "Power accelerator ready<br/>" if pa_rdy else "Power accelerator is not ready<br/>"
             s += "Power accelerator active<br/>" if pa_active else "Power accelerator is inactive.<br/>"
             s += "RX 70cm active<br/>" if rx70 else "RX 70cm is inactive.<br/>"
@@ -212,7 +214,7 @@ class HamOp:
             t_date_start[:10], t_date_stop[:10], t_date_start[11:16].replace(":", ""), t_date_stop[11:16].replace(":", ""))
         # self.logger.info("Args =  %s" % str(args))
         cur = self.db.cursor()
-        q = """SELECT qsoid, date, time, callsign, tx, rx, locator, distance, square, points, complete, mode, accumulated_sqn, band
+        q = """SELECT qsoid, date, time, callsign, tx, rx, locator, distance, square, points, complete, mode, accumulated_sqn, band, augmented_locator
                FROM nac_log_new WHERE date >= %s and date <= %s and ((time >= %s and time <= %s) or time is null) ORDER BY date, time"""
         cur.execute(q , args)
 
@@ -612,9 +614,10 @@ class HamOp:
 
     def toggle_qro(self):
         if self.p27 and self.p26:
-            pa_rdy = self.p26_bit_read(P26_PA_READY)
-            if pa_rdy:
-                pa_on = not self.p26_bit_read(P26_PA_ON_L)
+            # pa_rdy = self.p26_bit_read(P26_PA_READY)
+            pa_pwr_on = not self.p26_bit_read(P26_PA_PWR_ON_L)
+            if pa_pwr_on:
+                pa_on = not self.p26_bit_read(P26_PA_QRO_ACTIVE)
                 if pa_on:
                     self.p27.bit_write(P27_PA_ON_L, HIGH)
                 else:
