@@ -341,6 +341,10 @@ def handle_toggle_pa(_json):
 def handle_toggle_tx70(_json):
     app.ham_op.toggle_tx70()
 
+@socket_io.on("toggle_auto_track")
+def handle_toggle_auto_track(_json):
+    app.client_mgr.toggle_auto_track()
+
 @socket_io.on("toggle_rx70")
 def handle_toggle_rx70(_json):
     app.ham_op.toggle_rx70()
@@ -352,12 +356,8 @@ def handle_toggle_hide_logged(_json):
 
 @socket_io.on("track az")
 def handle_track_az(json):
-    # app.azel.untrack_wind()
-
     # logger.debug('received track_az: ' + str(json))
-    # emit('my response', json, callback=messageReceived)
-
-    app.ham_op.az_track(json["az"])
+    app.ham_op.az_track(json["az"].upper())
 
 
 @socket_io.event()
@@ -384,11 +384,11 @@ def set_dx_note(json):
     locator = json["locator"]
     knowns = app.ham_op.callsigns_in_locator(locator)
     if callsign in knowns:
-        emit("fill_dx_grid", callsign,  namespace="/", broadcast=True)
+        app.client_mgr.set_dx_call(callsign)
     emit("fill_dx_note", json, namespace="/", broadcast=True)
 
 @socket_io.on("set_dx_grid", namespace="/wsjtx")
-def set_dx_call(grid):
+def set_dx_grid(grid):
     logger.info("Set DX grid to %s" % grid)
     emit("fill_dx_grid", grid, namespace="/", broadcast=True)
 

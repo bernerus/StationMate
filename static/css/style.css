@@ -152,8 +152,9 @@ body {
     background: #fa6501;
 }
 
-.active {
-    background: #7dabf1;
+
+#auto_track.active {
+    background: cyan;
 }
 
 #rx70_led.active {
@@ -162,6 +163,10 @@ body {
 
 #tx70_led.active {
     background: #7df1cc;
+}
+
+.active {
+    background: #7dabf1;
 }
 
 .trkaz {

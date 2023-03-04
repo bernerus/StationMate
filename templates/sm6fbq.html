@@ -197,15 +197,17 @@
                                 </legend>
                             </div>
                             <!--suppress HtmlFormInputWithoutLabel -->
-                            <input id="track_input" type="text" class="trkaz" placeholder="Track az"/>
-                            <button id="track_button" type="submit" onclick="send_track_az()">Track</button>
-                            <button id="calibrate_button" type="button" onclick="send_calibrate()">Calibrate</button>
-                            <button id="stop_button" type="button" onclick="send_stop()">Stop</button>
-                            <button id="release_button" type="button" onclick="send_release()">Release</button>
-                            <button id="pointing_north_button" type="button" onclick="send_az()">Pointing North</button>
-                            <button id="track_wind_button" type="button" onclick="send_track_wind()">Wind</button>
-                            <button id="track_moon_button" type="button" onclick="send_track_moon()">Moon</button>
-                            <button id="track_sun_button" type="button" onclick="send_track_sun()">Sun</button>
+                            <button id="auto_track" type="button" onclick="send_toggle_auto_track()" title="Auto track new entered objects">Auto</button>
+                            <input id="track_input" style="text-transform: uppercase; width:6em;" type="text" class="trkaz" placeholder="Track az"
+                                onkeydown="if (event.keyCode === 13) { send_track_az(); return false; }"/>
+                            <button id="track_button" type="submit" onclick="send_track_az()" title="Track azimuth of object entered">Track</button>
+                            <button id="calibrate_button" type="button" onclick="send_calibrate()" title="Calibrate indicator with real azimuth">Calibrate</button>
+                            <button id="stop_button" type="button" onclick="send_stop()" title="Stop rotation">Stop</button>
+                            <button id="release_button" type="button" onclick="send_release()" title="Stop tracking">Release</button>
+                            <button id="pointing_north_button" type="button" onclick="send_az()" title="Adjust for actually pointing north">Pointing North</button>
+                            <button id="track_wind_button" type="button" onclick="send_track_wind()" title="Track current wind direction"> Wind</button>
+                            <button id="track_moon_button" type="button" onclick="send_track_moon()" title="Track the moon if above horizon" >Moon</button>
+                            <button id="track_sun_button" type="button" onclick="send_track_sun()" title="Track the Sun if above the horizon">Sun</button>
                             <br/>
                             Az scan
                             <input id="az_scan_start" type="text" class="az_scan_start" size=10 placeholder="Från"/>
@@ -568,9 +570,14 @@
         socket.emit("toggle_rx70", {});
     }
 
-     function send_toggle_tx70() {
+    function send_toggle_tx70() {
         console.log("Toggling TX70")
         socket.emit("toggle_tx70", {});
+    }
+
+    function send_toggle_auto_track() {
+        console.log("Toggling auto-track")
+        socket.emit("toggle_auto_track", {});
     }
 
     function make_log() {
@@ -832,7 +839,7 @@
 
     function addStation(key, callsign, position, direction, antwidth, mode, age, info) {
         if (age > 3600) {return}
-        console.log("Adding station ", callsign, " at ", position, " width", antwidth, mode)
+        // console.log("Adding station ", callsign, " at ", position, " width", antwidth, mode)
 
         r = 50
         let v1x = r*Math.cos((antwidth/2+90)*Math.PI/180)
@@ -843,7 +850,7 @@
 
 
 
-        console.log( "adding Station: direction:", direction,  "width:", antwidth, "mode:", mode)
+        //console.log( "adding Station: direction:", direction,  "width:", antwidth, "mode:", mode)
 
         fillcolor = '#e1266e';
         if (mode=='MSK144') {

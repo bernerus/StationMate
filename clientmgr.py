@@ -80,6 +80,8 @@ class ClientMgr:
         self.current_log_scope = "Forever"
         self.hiding_logged = False
 
+        self.auto_track = False
+
         pass
 
     def disable_core_controls(self):
@@ -525,6 +527,16 @@ class ClientMgr:
         self.hiding_logged = not self.hiding_logged
         emit("hiding_logged_stations", self.hiding_logged)
         self.app.station_tracker.refresh()
+
+    def toggle_auto_track(self):
+        self.auto_track = not self.auto_track
+        emit("Auto track", self.auto_track)
+        send_update_class("auto_track", "active", self.auto_track)
+
+    def set_dx_call(self, callsign):
+        emit("fill_dx_grid", callsign)
+        if self.auto_track:
+            self.app.azel.az_track_station(callsign)
 
 
 def circle(size, user_location):
