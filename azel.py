@@ -138,6 +138,9 @@ class AzElControl:
 		self.az_control_thread = None
 
 		self.last_status = 0xff
+		self.stop_count = 0
+		self.az_at_stop = 0
+
 		self.map_mh_length = 6
 		self.mhs_on_map = []
 		self.distinct_mhs_on_map = False
@@ -313,15 +316,21 @@ class AzElControl:
 
 		if not self.p20.bit_read(P20_STOP_AZ):
 			self.logger.warning("Stop interrupt skipped. timer is cleared")
-			return  # Timed is cleared
+			return  # Timer is cleared
 		if self.p20.bit_read(P20_AZ_TIMER) and not self.calibrating and not self.rotating_cw and not self.rotating_ccw:
 			self.logger.warning("Stop interrupt skipped. No rotation going on, retrig=%s, cw=%s, ccw=%s, calibrating=%s" %
 			      (self.retriggering, self.rotating_cw, self.rotating_ccw, self.calibrating))
 			return  # We are not rotating
-		self.logger.warning("Azel interrupt, retrig=%s, cw=%s, ccw=%s, calibrating=%s" %
-		      (self.retriggering, self.rotating_cw, self.rotating_ccw, self.calibrating))
-		time.sleep(1)
+		self.logger.warning("Azel stop interrupt, retrig=%s, cw=%s, ccw=%s, calibrating=%s, stop_count=%d" %
+		      (self.retriggering, self.rotating_cw, self.rotating_ccw, self.calibrating, self.stop_count))
+		# time.sleep(1)
+		if self.stop_count < 1:
+			self.stop_count += 1
+			self.az_at_stop = self.az
+			self.retrigger_az_timer()
+			return # Fake stop?
 		# We ran into a mech stop
+		self.stop_count=0
 
 		if not self.p20.bit_read(P20_ROTATE_CW):
 			self.logger.warning("Mechanical stop clockwise")
@@ -349,7 +358,7 @@ class AzElControl:
 
 	def az_interrupt(self, last_az, current_az):
 
-		# print("Azint; %x %x" % (last_az, current_az))
+		# print("Azint; %x %x, %d" % (last_az, current_az, self.stop_count))
 		try:
 			inc = self.azz2inc[last_az << 2 | current_az]
 		except KeyError:
@@ -357,10 +366,13 @@ class AzElControl:
 			self._az_track()
 			return
 		self.az += inc
+
+		# self.logger.debug("Ticks: %d, stop_count=%d" % (self.az, self.stop_count))
 		if inc:
 			self.retrigger_az_timer()
-
-		#            self.logger.debug("Ticks: %d", self.az)
+		if self.stop_count and abs(self.az - self.az_at_stop) > 1:
+			self.stop_count=0
+		# self.logger.debug("Ticks: %d, stop_count=%d"% (self.az, self.stop_count))
 		self.check_direction_az()
 		self.app.client_mgr.send_azel(azel=(self.ticks2az(self.az), self.el))
 		if self.current_az_sector() != self.az_sector:
