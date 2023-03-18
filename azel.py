@@ -643,6 +643,14 @@ class AzElControl:
 	def set_az(self, az):
 		self.az = self.az2ticks(int(az))
 
+	def add_az(self, diff):
+		if self.az_target:
+			self.az_target += diff
+			self._az_track(self.ticks2az(self.az_target) + diff)
+		else:
+			self._az_track(self.ticks2az(self.az)+diff)
+
+
 	def stop(self):
 		self.az_target = self.az
 		self.az_scan_sweeps_left=0

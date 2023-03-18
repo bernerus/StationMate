@@ -218,6 +218,9 @@
                             <button id="az_scan_go" type="button" onclick="az_scan()">Kör</button>
                             |
                             <button id="pop_target_button" type="button" onclick="pop_target()">Pop</button>
+                            |
+                            <button id="decrement_az_button" type="button" onclick="add_az(-10)">-10°</button>
+                            <button id="increment_az_button" type="button" onclick="add_az(10)">+10°</button>
                         </fieldset>
                     </td>
                 </tr>
@@ -613,6 +616,11 @@
         socket.emit('track az', {'az': track_az});
     }
 
+    function add_az(diff) {
+        console.log("Add az: " + diff);
+        socket.emit('add_az', {'diff': diff});
+    }
+
     function send_track_wind(az) {
         console.log("Tracking the wind ");
         socket.emit('track wind', {});
@@ -628,7 +636,7 @@
         socket.emit('track sun', {});
     }
 
-       function pop_target(az) {
+    function pop_target(az) {
         console.log("Popping top target ");
         socket.emit('pop target', {});
     }

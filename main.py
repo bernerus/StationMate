@@ -254,6 +254,12 @@ def set_az(json):
     app.azel.set_az(json["az"])
     app.client_mgr.send_azel(force=True)
 
+@socket_io.event
+def add_az(json):
+    print("Adjusting az target %d" % json["diff"])
+    app.azel.add_az(json["diff"])
+    app.client_mgr.send_azel(force=True)
+
 
 @socket_io.event
 def stop(_json):
@@ -324,7 +330,8 @@ def handle_track_sun(_json):
     app.azel.track_sun()
 
 @socket_io.on("pop target")
-def handle_track_sun(_json):
+def handle_pop_target(_json):
+    logger.debug("Handle pop target")
     app.azel.pop_target()
 
 
