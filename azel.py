@@ -255,6 +255,7 @@ class AzElControl:
 		self.target_stack.push(moon_target)
 
 	def pop_target(self):
+		self.logger.debug("Popping target stack")
 		self.target_stack.pop()
 
 	def track_sun(self, value=None):

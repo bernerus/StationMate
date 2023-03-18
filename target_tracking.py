@@ -54,18 +54,19 @@ class TargetStack:
 			return None
 		top = self._target_stack.pop()
 		if top:
-			self.logger.info("Popped target stack. New top=%s"% top.id)
+			self.logger.info("Popped target %s from stack." % top.id)
 		else:
-			self.logger.info("Popped target stack. Stack is now empty")
-		if top is None:
+			self.logger.info("Target stack was empty" % top.id)
+		if not self._target_stack:
 			if self.track_thread:
 				self.azel.track_thread_running = False
 				self.track_thread.join()
 				self.azel.logger.info("Tracking thread stopped, no more targets")
+			return
 
-		top.start()
+		self._target_stack[-1].start()
 		self.update_ui(force=True)
-		abortable_sleep.abort()
+		self.kick_thread()
 
 		return top
 
@@ -112,6 +113,7 @@ class TargetStack:
 			target.trigger_period() # Notify that we have started a new period
 			taz=target.az  # target.az is volatile, keep the value fetched once herein
 			if target.done() or (taz is None and target.active):
+				self.logger.debug("Popping myself away: Target=%s, done=%s, taz=%s, active=%s" % (target.id, target.done(), taz, target.active))
 				self.pop()
 				self.update_ui(force=True)
 				continue
@@ -130,12 +132,9 @@ class TargetStack:
 			self.logger.info("Cooked sleep: %d seconds" % sleep)
 			abortable_sleep(sleep)
 
-
-
-
 class Target:
 
-	def __init__(self, azel, target_id: str, az: int, el:int, update_in: int = 30, ttl:int =90):
+	def __init__(self, azel, target_id: str, az: int, el:int, update_in: int = 30, ttl:int = 90):
 		self.az = az  # Degrees
 		self.el = el # Degrees
 		self.id = target_id
@@ -155,8 +154,13 @@ class Target:
 
 	def done(self):
 		if self.start_time:
+			ret = time.time() > self.start_time + self.ttl
+			print("Target %s, done=%s, time=%s, start_time=%s, ttl=%s" %
+			                  (self.id, ret, time.time(), self.start_time, self.ttl))
 			return time.time() > self.start_time + self.ttl
 		else:
+			print("Target %s, done=false, time=%s, start_time=%s, ttl=%s" %
+			                  (self.id, time.time(), self.start_time, self.ttl))
 			return False
 
 	def set_led_classes(self, classes):
@@ -250,7 +254,7 @@ class ManualTarget(Target):
 	""" This target is pushed whenever tracking is to be stopped, such as when pushing the manual buttons on the controller box"""
 	def __init__(self, azel):
 		self.azel = azel
-		super().__init__(azel, "Manual", 0, 0, 90, 15*60)  # Manual targets updates every 90 seconds and lives for 15 minutes
+		super().__init__(azel, "Manual", 0, 0, update_in=90, ttl=15*60)  # Manual targets updates every 90 seconds and lives for 15 minutes
 		self.deactivate()
 		self.led_classes = "fas fa-hand"
 
@@ -259,7 +263,7 @@ class WindTarget(Target):
 	""" This target type points in the current wind direction which is taken from yr.no given current location."""
 	def __init__(self, azel):
 		self.azel = azel
-		super().__init__( azel, "YR_wind", self.trigger_period(), 0, 600, 365*86400)  # Wind track lives for a year, updates every 10 minutes
+		super().__init__( azel, "YR_wind", self.trigger_period(), 0, update_in=600, ttl=365*86400)  # Wind track lives for a year, updates every 10 minutes
 		self.led_classes = "fas fa-wind"
 
 	def trigger_period(self)  -> int:
@@ -323,7 +327,7 @@ class ScanTarget(Target):
 		self.sweeps_left = sweeps
 		az = azel.get_azel()[0]
 		el = azel.get_azel()[1]
-		super().__init__(azel, target_id, az, el, period, ttl)
+		super().__init__(azel, target_id, az, el, update_in=period, ttl=ttl)
 		self.az_ticks = azel.az2ticks(az)
 
 		if self.az_ticks > self.range_stop:
@@ -370,7 +374,7 @@ class MoonTarget(Target):
 		self.myqth.lon = my_lon * math.pi / 180.0
 		self.myqth.lat = my_lat * math.pi / 180.0
 
-		super().__init__(azel, "Moon", 0, 0, 241, 86400)  # Moon track lives for a day and is updated every 4.01 minutes
+		super().__init__(azel, "Moon", 0, 0, update_in=241, ttl=86400)  # Moon track lives for a day and is updated every 4.01 minutes
 		self.trigger_period()
 
 		self.led_classes = "fas fa-moon"
@@ -397,7 +401,7 @@ class SunTarget(Target):
 		self.myqth.lon = my_lon * math.pi / 180.0
 		self.myqth.lat = my_lat * math.pi / 180.0
 
-		super().__init__(azel, "Sun", 0, 0, 240, 86400)  # Sun track lives for a day and is updated every 4.08 minutes
+		super().__init__(azel, "Sun", 0, 0, update_in=240, ttl=86400)  # Sun track lives for a day and is updated every 4.08 minutes
 		self.trigger_period()
 
 		self.led_classes = "fas fa-sun"
@@ -414,7 +418,7 @@ class PlaneTarget(Target):
 	def __init__(self, azel, plane_id):
 		self.plane_id = plane_id
 		_mn, _ms, _mw, _me, self.my_lat, self.my_lon = mh.to_rect(azel.app.ham_op.my_qth())
-		super().__init__(azel, plane_id, 0, 0, 12, 20*60)  # Plane track lives for 20 min and is updated every 12 seconds
+		super().__init__(azel, plane_id, 0, 0, update_in=12, ttl=20*60)  # Plane track lives for 20 min and is updated every 12 seconds
 
 		self.led_classes = "fas fa-plane"
 
@@ -434,7 +438,7 @@ class PlaneTarget(Target):
 
 class AzTarget(Target):
 	def __init__(self, azel, az):
-		super().__init__(azel, "AZ: %d"%az, int(az), 5, 3600)
+		super().__init__(azel, "AZ: %d"%az, int(az), 5, ttl=3600)
 
 	def trigger_period(self) -> int:
 		return self.az
@@ -450,7 +454,7 @@ class MhTarget(Target):
 		except (TypeError, ValueError):
 			error=True
 			return
-		super().__init__(azel, what, round(az), 5, 3600)
+		super().__init__(azel, what, round(az), 5, ttl=3600)
 
 		self.led_classes = "fas fa-globe"
 
@@ -466,7 +470,7 @@ class StationTarget(Target):
 		if found_loc:
 			(az, _dist) = ham_op.distance_to(found_loc)
 			azel.logger.debug("Tracking Az %s to %s at %s" % (az, who, found_loc))
-			super().__init__(azel,who, round(az), 5, 3600)
+			super().__init__(azel,who, round(az), 5, ttl=3600)
 		self.led_classes = "fas fa-broadcast-tower"
 
 
