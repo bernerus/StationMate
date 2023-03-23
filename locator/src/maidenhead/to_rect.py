@@ -25,7 +25,7 @@ def to_rect(maiden: str) -> T.Tuple[float, float, float, float, float, float]:
 
     N = len(maiden)
     if not 12 >= N >= 2 and N % 2 == 0:
-        raise ValueError("Maidenhead locator requires 2-8 characters, even number of characters")
+        raise ValueError("Maidenhead locator requires 2-12 characters, even number of characters")
 
     south, west = to_location(maiden)
 

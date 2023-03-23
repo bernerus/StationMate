@@ -22,7 +22,7 @@ def to_location(maiden: str) -> T.Tuple[float, float]:
 
     N = len(maiden)
     if not 12 >= N >= 2 or N % 2 != 0:
-        raise ValueError("Maidenhead locator requires 2-10characters, even number of characters")
+        raise ValueError("Maidenhead locator requires 2-12 characters, even number of characters")
 
     Oa = ord("A")
     lon = -180.0
