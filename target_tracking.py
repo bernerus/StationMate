@@ -57,15 +57,17 @@ class TargetStack:
 			self.logger.info("Popped target %s from stack." % top.id)
 		else:
 			self.logger.info("Target stack was empty" % top.id)
+			return
+
+		self.update_ui(force=True)
 		if not self._target_stack:
 			if self.track_thread:
-				self.azel.track_thread_running = False
+				# self.azel.track_thread_running = False
+				self.azel.logger.info("Stopping track_thread, no more targets")
 				self.track_thread.join()
-				self.azel.logger.info("Tracking thread stopped, no more targets")
 			return
 
 		self._target_stack[-1].start()
-		self.update_ui(force=True)
 		self.kick_thread()
 
 		return top
@@ -462,10 +464,10 @@ class MhTarget(Target):
 		return self.az
 
 class StationTarget(Target):
-	def __init__(self, azel, who:str):
+	def __init__(self, azel, who:str, given_loc:str =None):
 		self._active=False
 		ham_op = azel.app.ham_op
-		found_loc = ham_op.lookup_locator(who)
+		found_loc = ham_op.lookup_locator(who, given_loc)
 		self._active = True
 		if found_loc:
 			(az, _dist) = ham_op.distance_to(found_loc)
