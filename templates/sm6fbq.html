@@ -860,13 +860,17 @@
 
         //console.log( "adding Station: direction:", direction,  "width:", antwidth, "mode:", mode)
 
-        fillcolor = '#e1266e';
+        fillcolor = '#e8578e';
         if (mode=='MSK144') {
              fillcolor = '#3c46b0';
         }
         if (mode=='JT65' || mode=='JT65B')
             {
              fillcolor = '#8d5008';
+        }
+        if (mode.startsWith('B/'))
+            {
+             fillcolor = '#50b7f5';
         }
 
 

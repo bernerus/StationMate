@@ -229,7 +229,7 @@ class HamOp:
         #bearing = sphere.bearing((mlon, mlat), (lon, lat))
         #distance = sphere.distance((mlon, mlat), (lon, lat)) / 1000.0 * 0.9989265959409077
 
-        bearing, distance = mh.distance_between(self.my_qth()[:6], other_loc)
+        bearing, distance = mh.distance_between(self.my_qth(), other_loc)
         points = math.ceil(distance)
 
         if qso_date and qso_time:
@@ -754,12 +754,21 @@ class HamOp:
         if lines:
             return lines[0]
 
-    def get_reachable_stations(self, max_age=1800, max_dist=40000, max_beamwidth=30):  # max_age in seconds, max_distance in km, max_beamwidth in degrees
+    def get_reachable_stations(self, max_age=1800, max_dist=40000, max_beamwidth=30, band="144"):  # max_age in seconds, max_distance in km, max_beamwidth in degrees
         # self.logger.debug("get_reachable_stations max_age=%d, max_dist=%d. max_beamwidth=%d" %(max_age, max_dist, max_beamwidth))
 
         dt = datetime.now()
         # getting the timestamp
         ts = datetime.timestamp(dt)
+        if band.startswith("144"):
+            minfq=144000000
+            maxfq=146000000
+        elif band.startswith("432"):
+            minfq=432000000
+            maxfq=438000000
+        else:
+            minfq=0
+            maxfq=360000000000
 
         q1 = """ select distinct on (r.rx_callsign, r.rx_loc) r.rx_callsign as callsign, 
                                     r.rx_loc as locator, r.rx_heading as az, r.my_rx_distance as dist, 
@@ -793,19 +802,33 @@ class HamOp:
                             and  %s - happened_at < %s
                         order by happened_at desc 
                     """
+        beacon_query = """ select b.dx_callsign as callsign, 
+                                                    b.dx_loc as locator, b.frequency as frequency, b.snr as snr, b.mode as mode, b.qtf as az
+                                from beacons b 
+                                where frequency >= %s and frequency <= %s
+                            """
+
         with self.db.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
             #cur.execute(q, (max_beamwidth, max_dist, max_age, max_beamwidth, max_dist, max_age))
             # self.logger.debug("executing %s with max_beamwidth=%d, max_dist=%d, max_age=%d" %(q, max_beamwidth, max_dist, max_age))
+
+            ret = {}
+
+            cur.execute(beacon_query, (minfq, maxfq))
+            rows = cur.fetchall()
+            for r in rows:
+                cs = r["callsign"]
+                if cs not in ret:
+                    ret[cs] = r
+
             cur.execute(q, (ts, max_beamwidth, max_dist, ts, max_age))
             rows = cur.fetchall()
-            # self.logger.debug("q returns %d rows" % len(rows))
-            ret = {}
             for r in rows:
                 cs = r["callsign"]
                 if cs not in ret or ret[cs]["happened_at"] < r["happened_at"]:
                     ret[cs] = r
                 dxcs = r["dx_callsign"]
-                if dxcs not in ret or ret[dxcs]["happened_at"] < r["happened_at"]:
+                if dxcs not in ret or ("happened_at" in ret[dxcs] and ret[dxcs]["happened_at"] < r["happened_at"]):
                     rp = r.copy()
                     rp["callsign"] = dxcs
                     rp["locator"] = r["dx_loc"]
@@ -819,6 +842,7 @@ class HamOp:
                     rp["my_tx_heading"] = r["my_az"]
                     ret[cs] = dict(r)
                     ret[dxcs] = dict(rp)
+
 
             return ret
 

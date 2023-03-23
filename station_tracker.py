@@ -82,10 +82,10 @@ class StationTracker:
 		# self.logger.info("Retrieving reports table")
 		self.pskreporter.retrieve()
 		# self.logger.info("Finding beaming stations")
-		stns1 = self.app.ham_op.get_reachable_stations()
+		stns1 = self.app.ham_op.get_reachable_stations(band=self.current_band)
 		# self.logger.info("%d stations possibly beaming me" % len(stns1))
 		# self.logger.info("Finding other stations")
-		stns2 = self.app.ham_op.get_reachable_stations(max_beamwidth=720)
+		stns2 = self.app.ham_op.get_reachable_stations(max_beamwidth=720, band=self.current_band)
 		# self.logger.info("%d stations active" % len(stns2))
 		return stns1, stns2
 

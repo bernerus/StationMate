@@ -458,13 +458,13 @@ class ClientMgr:
             callsign = station['callsign'].upper()
             if callsign in worked_callsigns:
                 continue
-            locator = station['locator'].upper()
-            antaz = station['az']
-            dist = station['dist']
-            age = float(station['age_minutes'])
-            myaz = station['my_az']
-            dx_callsign = station["dx_callsign"]
-            dx_loc=station["dx_loc"]
+            locator = station.get('locator','').upper()
+            antaz = station.get('az', 0)
+            dist = station.get('dist', 0)
+            age = float(station.get('age_minutes', 0))
+            myaz = station.get('my_az', 0)
+            dx_callsign = station.get("dx_callsign", '')
+            dx_loc=station.get("dx_loc", '')
             freq = station["frequency"]
             mode = station["mode"]
             antwidth=30
@@ -491,12 +491,12 @@ class ClientMgr:
             if callsign in json or callsign in worked_callsigns:
                 continue
             locator = station['locator'].upper()
-            antaz = station['az']
-            dist = station['dist']
-            age = float(station['age_minutes'])
-            myaz = station['my_az']
-            dx_callsign = station["dx_callsign"]
-            dx_loc=station["dx_loc"]
+            antaz = station.get('az', 0)
+            dist = station.get('dist', 0)
+            age = float(station.get('age_minutes',0))
+            myaz = station.get('my_az',0)
+            dx_callsign = station.get("dx_callsign",'')
+            dx_loc=station.get("dx_loc",'')
             freq = station["frequency"]
             mode = station["mode"]
             antwidth = 360
