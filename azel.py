@@ -256,7 +256,7 @@ class AzElControl:
 
 	def pop_target(self):
 		self.logger.debug("Popping target stack")
-		self.target_stack.pop()
+		return self.target_stack.pop()
 
 	def track_sun(self, value=None):
 		if value is None:
