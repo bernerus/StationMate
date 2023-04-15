@@ -613,7 +613,7 @@
     function send_track_az(az) {
         let track_az = $('input.trkaz').val()
         console.log("Tracking azimuth " + track_az);
-        socket.emit('track az', {'az': track_az});
+        socket.emit('track_az', {'az': track_az});
     }
 
     function add_az(diff) {
@@ -623,22 +623,22 @@
 
     function send_track_wind(az) {
         console.log("Tracking the wind ");
-        socket.emit('track wind', {});
+        socket.emit('track_wind', {});
     }
 
     function send_track_moon(az) {
         console.log("Tracking the Moon ");
-        socket.emit('track moon', {});
+        socket.emit('track_moon', {});
     }
 
     function send_track_sun(az) {
         console.log("Tracking the Sun ");
-        socket.emit('track sun', {});
+        socket.emit('track_sun', {});
     }
 
     function pop_target(az) {
         console.log("Popping top target ");
-        socket.emit('pop target', {});
+        socket.emit('pop_target', {});
     }
 
     function set_cw_speed(speed) {

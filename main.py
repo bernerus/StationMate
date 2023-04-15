@@ -56,7 +56,7 @@ except OSError:
 from flask import Flask, render_template, request
 import psycopg2
 from config import DevelopmentConfig
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, send
 from morsetx import *
 import threading
 import atexit
@@ -98,7 +98,7 @@ from clientmgr import ClientMgr
 app.client_mgr = ClientMgr(app, logger, socket_io)
 
 from azel import AzElControl
-app.azel = AzElControl(app, logger, socket_io, hysteresis=10)
+app.azel = AzElControl(app, logger, socket_io, hysteresis=14)
 
 from airtracker import AirTracker
 app.atrk = AirTracker(app, logger, socket_io, url="http://192.168.1.129:8754")
@@ -231,6 +231,10 @@ def connect():
 def connect():
     app.client_mgr.connect(namespace="/wsjtx")
 
+@socket_io.on('connect', namespace="/stats")
+def connect():
+    app.client_mgr.connect(namespace="/stats")
+
 @socket_io.event
 def calibrate(_json):
     app.azel.calibrate()
@@ -253,6 +257,17 @@ def set_az(json):
     print("Pointing at %d" % json["az"])
     app.azel.set_az(json["az"])
     app.client_mgr.send_azel(force=True)
+
+@socket_io.event
+def set_az(json):
+    print("Pointing at %d" % json["az"])
+    app.azel.set_az(json["az"])
+    app.client_mgr.send_azel(force=True)
+
+@socket_io.on("get_azel")
+def get_azel():
+    ret=app.azel.get_azel()
+    return ret
 
 @socket_io.event
 def add_az(json):
@@ -317,22 +332,22 @@ def handle_my_custom_event(json):
     app.station_tracker.refresh()
 
 
-@socket_io.on("track wind")
+@socket_io.on("track_wind")
 def handle_track_wind(_json):
     app.azel.track_wind()
 
-@socket_io.on("track moon")
+@socket_io.on("track_moon")
 def handle_track_moon(_json):
     app.azel.track_moon()
 
-@socket_io.on("track sun")
+@socket_io.on("track_sun")
 def handle_track_sun(_json):
     app.azel.track_sun()
 
-@socket_io.on("pop target")
+@socket_io.on("pop_target")
 def handle_pop_target(_json):
-    logger.debug("Handle pop target")
-    app.azel.pop_target()
+    logger.debug("Handle pop_target")
+    return app.azel.pop_target()
 
 
 @socket_io.on("toggle_qro")
@@ -361,10 +376,10 @@ def handle_toggle_rx70(_json):
 def handle_toggle_hide_logged(_json):
     app.client_mgr.toggle_hide_logged()
 
-@socket_io.on("track az")
-def handle_track_az(json):
-    # logger.debug('received track_az: ' + str(json))
-    app.ham_op.az_track(json["az"].upper())
+@socket_io.on("track_az")
+def handle_track_az(_json):
+    logger.debug('received track_az: ' + str(_json))
+    app.ham_op.az_track(_json["az"].upper())
 
 
 @socket_io.event()
