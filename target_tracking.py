@@ -57,14 +57,14 @@ class TargetStack:
 			self.logger.info("Popped target %s from stack." % top.id)
 		else:
 			self.logger.info("Target stack was empty" % top.id)
-			return
+			return None
 
 		self.update_ui(force=True)
 		if not self._target_stack:
-			if self.track_thread:
+			# if self.track_thread:
 				# self.azel.track_thread_running = False
-				self.azel.logger.info("Stopping track_thread, no more targets")
-				self.track_thread.join()
+				#self.azel.logger.info("Stopping track_thread, no more targets")
+				# self.track_thread.join()
 			return
 
 		self._target_stack[-1].start()
