@@ -9,7 +9,6 @@ from contest_log import *
 import psycopg2.extras
 from datetime import datetime
 import locator.src.maidenhead as mh
-from geo import sphere
 import math
 import adif_io
 
@@ -222,12 +221,6 @@ class HamOp:
         return rows
 
     def distance_to(self, other_loc, qso_date=None, qso_time=None):
-       # mn, ms, mw, me, mlat, mlon = mh.to_rect(self.my_qth()[:6])
-
-        #n, s, w, e, lat, lon = mh.to_rect(other_loc)
-
-        #bearing = sphere.bearing((mlon, mlat), (lon, lat))
-        #distance = sphere.distance((mlon, mlat), (lon, lat)) / 1000.0 * 0.9989265959409077
 
         bearing, distance = mh.distance_between(self.my_qth(), other_loc)
         points = math.ceil(distance)
