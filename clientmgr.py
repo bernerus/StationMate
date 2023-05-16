@@ -329,8 +329,9 @@ class ClientMgr:
             self.add_mhs_on_map(mhs)
             self.app.azel.update_target_list()
             self.status_update(force=True)
+
         else:
-            self.app.socket_io.emit('my_response', {'data': 'Connected', 'count': 0}, namespace="/wsjtx")
+            self.app.socket_io.emit('my_response', {'data': 'Connected', 'count': 0}, namespace=namespace)
 
         # self.update_planes()
         # stations =self.app.ham_op.get_reachable_stations()
@@ -533,10 +534,17 @@ class ClientMgr:
         emit("Auto track", self.auto_track)
         send_update_class("auto_track", "active", self.auto_track)
 
-    def set_dx_call(self, callsign):
-        emit("fill_dx_grid", callsign)
-        if self.auto_track:
-            self.app.azel.az_track_station(callsign)
+    def set_dx_call(self, callsign, locator):
+        knowns = self.app.ham_op.callsigns_in_locator(locator)
+        if callsign in knowns:
+            emit("fill_dx_grid", callsign)
+            if self.auto_track:
+                self.app.azel.az_track_station(callsign)
+        else:
+            emit("fill_dx_grid", locator)
+            if self.auto_track:
+                self.app.azel.az_track_loc(locator)
+
 
 
 def circle(size, user_location):
