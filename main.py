@@ -20,8 +20,8 @@ def kill_siblings():
             ppid = fields[2]
             if int(pid) == os.getpid(): # Avoid suicide
                 continue
-            if fields[-1].endswith("debugging"):
-                continue
+            # if fields[-1].endswith("debugging"):
+                # continue
 
             # terminating process
             while True:

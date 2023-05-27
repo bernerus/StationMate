@@ -301,7 +301,7 @@ class ClientMgr:
                 newmsqn = None
                 if row[6]:
                     mhsq = row[6][:4].upper()
-                    if mhsq not in mhsqs and self.current_band.split('-')[0] in row[13] :
+                    if mhsq not in mhsqs and row[13].startswith(self.current_band.split('-')[0]+".") :
                         newmsqn = len(mhsqs)+1
                         mhsqs.add(mhsq)
 
@@ -321,7 +321,7 @@ class ClientMgr:
                        "band": row[13],
                        }
                 qsos.append(qso)
-                if self.current_band.split('-')[0] in row[13] and (row[6] or row[14]):
+                if row[13].startswith(self.current_band.split('-')[0]+".") and (row[6] or row[14]):
                     mhs.append(row[14].upper() if row[14] and len(row[14]) > len(row[6]) else row[6].upper())
             if qsos:
                 emit("add_qsos", qsos)

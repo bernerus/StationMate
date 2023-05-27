@@ -24,11 +24,13 @@ class StationTracker:
 		self.socket_io = socket_io
 		self.beaming_stations = {}
 		self.other_stations = {}
-		self.pskreporter50 = Reporter(self.app, self.logger, min_freq=50000000, max_freq=5200000)
+		self.pskreporter50 = Reporter(self.app, self.logger, min_freq=50000000, max_freq=52000000, max_distance=10000)
+		self.pskreporter50_FT8 = Reporter(self.app, self.logger, min_freq=50300000, max_freq=50400000, max_distance=20000, mode="FT8")
 		self.pskreporter144 = Reporter(self.app, self.logger, min_freq=144000000, max_freq=144500000, max_distance=1800)
 		self.pskreporter144_FT8 = Reporter(self.app, self.logger, min_freq=144100000, max_freq=144200000, max_distance=1200, mode="FT8")
 		self.pskreporter144_MSK = Reporter(self.app, self.logger, min_freq=144310000, max_freq=144400000, max_distance=1800, mode="MSK144")
 		self.pskreporter432 = Reporter(self.app, self.logger ,min_freq=430000000, max_freq=432500000, max_distance=800)
+		self.pskreporter432_FT8 = Reporter(self.app, self.logger ,min_freq=430000000, max_freq=432500000, max_distance=1200, mode="FT8")
 		self.pskreporter1296 = Reporter(self.app, self.logger, min_freq=1296000000, max_freq=1296500000, max_distance=300)
 		self.pskreporter = self.pskreporter144
 		self.current_band="144"
@@ -49,6 +51,8 @@ class StationTracker:
 				self.pskreporter = self.pskreporter1296
 			elif band=="432":
 				self.pskreporter = self.pskreporter432
+			elif band=="432-FT8":
+				self.pskreporter = self.pskreporter432_FT8
 			elif band=="144":
 				self.pskreporter = self.pskreporter144
 			elif band=="144-FT8":
@@ -57,6 +61,8 @@ class StationTracker:
 				self.pskreporter = self.pskreporter144_MSK
 			elif band=="50":
 				self.pskreporter = self.pskreporter50
+			elif band=="50-FT8":
+				self.pskreporter = self.pskreporter50_FT8
 			else:
 				raise RuntimeError("Invalid band set to station_tracker: %s" % band)
 			self.current_band=band
