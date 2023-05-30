@@ -22,6 +22,8 @@ class Reporter:
 		self.last_sent_at = None
 		self.max_db_age = max_db_age
 		self.max_file_age = max_file_age
+		self.min_freq = min_freq
+		self.max_freq = max_freq
 
 		self.retrieve_uri="https://retrieve.pskreporter.info/query?flowStartSeconds=900&frange=%d-%d" % (min_freq, max_freq)
 		if mode:
@@ -129,20 +131,21 @@ class Reporter:
 									30
 						])
 
-				if kid.tag=="receptionReport":
+				if kid.tag=="receptionReport" and "frequency" in kid.attrib:
+					freq = int(kid.attrib["frequency"])
 					if "receiverCallsign" in kid.attrib and "receiverLocator" in kid.attrib \
 							and "senderCallsign" in kid.attrib and "senderLocator" in kid.attrib \
-							and "frequency" in kid.attrib and int(kid.attrib["frequency"]) > 144000000:
+							and "frequency" in kid.attrib and \
+							self.min_freq <= freq <= self.max_freq:
 
 						rx_cs = kid.attrib["receiverCallsign"].upper()
 						rx_loc = kid.attrib["receiverLocator"].upper()
 						tx_cs = kid.attrib["senderCallsign"].upper()
 						tx_loc = kid.attrib["senderLocator"].upper()
-						freq = int(kid.attrib["frequency"])
+
 						mode = kid.attrib["mode"]
 						snr = int(kid.attrib["sNR"])
 						happened_at = int(kid.attrib['flowStartSeconds'])
-
 
 						my_rx_distance = mh.distance_between(self.my_qth, rx_loc)
 						try:
@@ -151,8 +154,8 @@ class Reporter:
 						except ValueError:
 							my_tx_distance = (0,0)
 							distance_between = (0,0)
-						if freq > 144000000 and \
-								(my_rx_distance[1] < self.max_distance or
+
+						if (my_rx_distance[1] < self.max_distance or
 								 my_tx_distance[1] < self.max_distance):
 							# print(rx_cs, rx_loc, freq, my_rx_distance[1])
 							#self.logger.info("Inserting into reports")
@@ -160,8 +163,7 @@ class Reporter:
 							args = [my_rx_distance[1],
 									distance_between[0],
 									happened_at,
-									tx_cs,
-									tx_loc, rx_cs, rx_loc,
+									tx_cs, tx_loc, rx_cs, rx_loc,
 									distance_between[0]+180 if distance_between[0] < 180 else distance_between[0]-180,
 									freq, my_tx_distance[1], snr, distance_between[1], my_rx_distance[0], my_tx_distance[0], mode,
 									happened_at, snr, mode]

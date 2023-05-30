@@ -753,7 +753,10 @@ class HamOp:
         dt = datetime.now()
         # getting the timestamp
         ts = datetime.timestamp(dt)
-        if band.startswith("144"):
+        if band.startswith("50"):
+            minfq=50000000
+            maxfq=54000000
+        elif band.startswith("144"):
             minfq=144000000
             maxfq=146000000
         elif band.startswith("432"):
@@ -909,7 +912,7 @@ class HamOp:
             for k,v in odxs.items():
                 ret += "%s: %s %5.0f km<br/>" % (k, v[0],v[1])
             ret += "MH fields: <br/>"
-            for band in ["144","432","1296"]:
+            for band in ["50","144","432","1296"]:
                 nf=0
                 for k,v in mhfields.items():
                     if k.endswith(band):
