@@ -65,12 +65,17 @@ class TargetStack:
 				# self.azel.track_thread_running = False
 				#self.azel.logger.info("Stopping track_thread, no more targets")
 				# self.track_thread.join()
-			return
+			return None  # The stack is empty
 
-		self._target_stack[-1].start()
+		while self._target_stack[-1].seconds_left() <= 0:  # Top element is expired
+			self._target_stack.pop()  # Pop away top element
+			if not self._target_stack: # Return if stack is empty
+				return None
+
+		self._target_stack[-1].restart() # We ahe s valid top element, restart i.
 		self.kick_thread()
 
-		return top
+		return top  # Returns the top element that we wished to pop away.
 
 	def push(self, tracking_object):
 		if not tracking_object:
@@ -98,7 +103,7 @@ class TargetStack:
 		current_tracking_led_classes = None
 		if self.get_top():
 				current_tracking_led_classes = self.get_top().led_classes
-		self.logger.debug("Pushing class %s to track_led" % (current_tracking_led_classes))
+		# self.logger.debug("Pushing class %s to track_led" % (current_tracking_led_classes))
 		self.azel.app.client_mgr.push_track_led(current_tracking_led_classes)
 
 	def track_thread_function(self):
@@ -115,7 +120,7 @@ class TargetStack:
 			target.trigger_period() # Notify that we have started a new period
 			taz=target.az  # target.az is volatile, keep the value fetched once herein
 			if target.done() or (taz is None and target.active):
-				self.logger.debug("Popping myself away: Target=%s, done=%s, taz=%s, active=%s" % (target.id, target.done(), taz, target.active))
+				# self.logger.debug("Popping myself away: Target=%s, done=%s, taz=%s, active=%s" % (target.id, target.done(), taz, target.active))
 				self.pop()
 				self.update_ui(force=True)
 				continue
@@ -149,6 +154,9 @@ class Target:
 
 	def start(self):
 		self.start_time = time.time()
+		abortable_sleep.abort()
+
+	def restart(self):
 		abortable_sleep.abort()
 
 	def seconds_left(self):
