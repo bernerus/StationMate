@@ -112,8 +112,8 @@ app.client_mgr = ClientMgr(app, logger, socket_io)
 from azel import AzElControl
 app.azel = AzElControl(app, logger, socket_io, hysteresis=14)
 
-from airtracker import AirTracker
-app.atrk = AirTracker(app, logger, socket_io, url="http://192.168.1.129:8754")
+from aircraft_tracker import AircraftTracker
+app.aircraft_tracker = AircraftTracker(app, logger, socket_io, url="http://192.168.1.129:8754")
 
 from station_tracker import StationTracker
 app.station_tracker = StationTracker(app, logger, socket_io)
@@ -455,10 +455,21 @@ def handle_toggle_auto_track(_json):
 def handle_toggle_rx70(_json):
     app.ham_op.toggle_rx70()
 
-@socket_io.on("toggle_hide_logged")
-def handle_toggle_hide_logged(_json):
-    app.client_mgr.toggle_hide_logged()
+@socket_io.on("toggle_hide_logged_stations")
+def handle_toggle_hide_logged_stations(_json):
+    app.client_mgr.toggle_hide_logged_stations()
 
+@socket_io.on("toggle_aircraft_layer")
+def handle_toggle_aircraft_layer(_json):
+    app.client_mgr.toggle_aircraft_layer()
+
+@socket_io.on("toggle_station_layer")
+def handle_toggle_station_layer(_json):
+    app.client_mgr.toggle_station_layer()
+
+@socket_io.on("toggle_beacon_layer")
+def handle_toggle_beacon_layer(_json):
+    app.client_mgr.toggle_beacon_layer()
 @socket_io.on("track_az")
 def handle_track_az(_json):
     logger.debug('received track_az: ' + str(_json))
@@ -492,7 +503,7 @@ def az_scan_go(json):
 @socket_io.event()
 def plane_click(plane_id):
     logger.info("Plane click on %s" % plane_id)
-    return app.atrk.track_plane(app.azel, plane_id)
+    return app.aircraft_tracker.track_plane(app.azel, plane_id)
 
 @socket_io.event()
 def station_click(callsign):
@@ -512,7 +523,9 @@ def goodbye():
 
 
 app.azel.startup()
-app.atrk.startup()
+logger.info("Starting aircraft tracker")
+app.aircraft_tracker.startup()
+logger.info("Starting stations tracker")
 app.station_tracker.startup()
 
 if __name__ == '__main__':
