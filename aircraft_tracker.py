@@ -8,12 +8,30 @@ aircraft_thread = None
 aircraft_thread_lock = Lock()
 
 
-from target_tracking import abortable_sleep, PlaneTarget
+from target_tracking import PlaneTarget
 
 
+class AbortableSleep:
+	def __init__(self):
+		import threading
+		self._condition = threading.Condition()
+		self._aborted = None
+
+	def __call__(self, secs):
+		with self._condition:
+			self._aborted = False
+			self._condition.wait(timeout=secs)
+			return not self._aborted
+
+	def abort(self):
+		with self._condition:
+			self._condition.notify()
+			self._aborted = True
 
 
-class AirTracker:
+abortable_sleep = AbortableSleep()
+
+class AircraftTracker:
 
 	def __init__(self, app, logger, socket_io, url: str):
 		self.logger = logger
@@ -25,13 +43,18 @@ class AirTracker:
 		self.socket_io = socket_io
 		self.url = url
 		self.current_planes = {}
+		self.thread_loop = True
+		self.sleeper = None
 
 	def planes_update_thread(self):
 		"""Check aircraft and update"""
 		self.app.client_mgr.logger.info("Starting planes thread")
-		while True:
-			self.current_planes = self.get_planes()
-			self.app.client_mgr.update_planes(self.current_planes)
+		while self.thread_loop:
+			try:
+				self.current_planes = self.get_planes()
+				self.app.client_mgr.update_planes(self.current_planes)
+			except Exception as e:
+				self.logger.error("Airctaft update failed, exception=%s" % e)
 			abortable_sleep(12)
 
 	def has_plane(self, plane_id):
@@ -39,9 +62,20 @@ class AirTracker:
 
 	def startup(self):
 		with aircraft_thread_lock:
+			self.thread_loop = True
 			if self.aircraft_thread is None:
 				self.aircraft_thread = threading.Thread(target=self.planes_update_thread, args=(), daemon=True)
 				self.aircraft_thread.start()
+
+	def shutdown(self):
+		if not self.aircraft_thread:
+			return
+		self.thread_loop=False
+		abortable_sleep.abort()
+		self.aircraft_thread.join()
+		self.aircraft_thread=None
+		self.current_planes={}
+		self.app.client_mgr.update_planes(self.current_planes)
 
 	def get_planes(self):
 		ret = requests.get(url=self.url+"/flights.json")
