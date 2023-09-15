@@ -562,7 +562,7 @@ class HamOp:
             lines = cur.fetchall()
             self.logger.error("Missing QSO: %s" % qso)
             if lines:
-                self.logger.debug("Found:", lines)
+                self.logger.debug("Found: %s" % lines)
             else:
                 bearing = None
                 distance = None

@@ -346,7 +346,7 @@ class ClientMgr:
                         mhs.append(row[14].upper() if row[14] and row[6] and len(row[14]) > len(row[6]) else row[6].upper())
             if qsos:
                 emit("add_qsos", qsos)
-                self.logger.debug("Adding qso:s from %s to %s" % (qsos[0]["callsign"], qsos[-1]["callsign"]))
+                self.logger.debug("Adding %d qso:s from %s to %s" % (len(qsos), qsos[0]["callsign"], qsos[-1]["callsign"]))
             self.add_mhs_on_map(mhs)
             self.app.azel.update_target_list()
             self.status_update(force=True)
@@ -424,6 +424,7 @@ class ClientMgr:
         emit("log_data", json)
 
     def add_qso(self, qso):
+        self.logger.info("Adding QSO with %s" % qso["callsign"])
         emit("add_qso", qso)
         # emit("qso_committed", qso)
 
