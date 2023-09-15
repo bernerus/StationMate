@@ -86,8 +86,6 @@ class ClientMgr:
 
         self.auto_track = False
 
-        pass
-
     def disable_core_controls(self):
         send_update_state("pa_ready_led", "disabled", True)
         send_update_state("pa_active_led", "disabled", True)
@@ -196,47 +194,57 @@ class ClientMgr:
         #     self.disable_core_controls()
         # else:
         #     self.enable_core_controls()
-
-        if current and ((current != self.last_pushed_status)  or self.last_pushed_status is None or force):
-            if current & P26_PA_READY:
-                send_update_class("pa_ready_led", "active", True)
-                send_update_class("pa_ready_led", "warming", False)
-            else:
-                if current & P26_PA_PWR_ON_L:
+        if current is None:
+            send_update_state("pa_ready_led", "disabled", True)
+            send_update_state("trx_rx_led", "disabled", True)
+            send_update_state("trx_tx_led", "disabled", True)
+            send_update_state("rx70_led", "disabled", True)
+            send_update_state("tx70_led", "disabled", True)
+        else:
+            send_update_state("trx_rx_led", "disabled", False)
+            send_update_state("trx_tx_led", "disabled", False)
+            send_update_state("rx70_led", "disabled", False)
+            send_update_state("tx70_led", "disabled", False)
+            if current and ((current != self.last_pushed_status)  or self.last_pushed_status is None or force):
+                if current & P26_PA_READY:
+                    send_update_class("pa_ready_led", "active", True)
                     send_update_class("pa_ready_led", "warming", False)
-                    send_update_class("pa_ready_led", "active", False)
                 else:
-                    send_update_class("pa_ready_led", "warming", True)
-                    send_update_class("pa_ready_led", "active", False)
+                    if current & P26_PA_PWR_ON_L:
+                        send_update_class("pa_ready_led", "warming", False)
+                        send_update_class("pa_ready_led", "active", False)
+                    else:
+                        send_update_class("pa_ready_led", "warming", True)
+                        send_update_class("pa_ready_led", "active", False)
 
-            # self.send_update_class("pa_ready_led", "led-gray", not (current & 0x02))
+                # self.send_update_class("pa_ready_led", "led-gray", not (current & 0x02))
 
-            send_update_class("pa_active_led", "active", not (current & P26_PA_QRO_ACTIVE))
+                send_update_class("pa_active_led", "active", not (current & P26_PA_QRO_ACTIVE))
 
-            send_update_class("trx_rx_led", "active", not (current & P26_TRX_RX_ACTIVE_L))
-            send_update_class("trx_tx_led", "active", not (current & P26_TRX_TX_ACTIVE_L))
+                send_update_class("trx_rx_led", "active", not (current & P26_TRX_RX_ACTIVE_L))
+                send_update_class("trx_tx_led", "active", not (current & P26_TRX_TX_ACTIVE_L))
 
-            send_update_class("rx70_led", "active", not (current & P26_RX_432_L))
-            send_update_class("tx70_led", "active", not (current & P26_TX_432_L))
+                send_update_class("rx70_led", "active", not (current & P26_RX_432_L))
+                send_update_class("tx70_led", "active", not (current & P26_TX_432_L))
 
-            if not (current & P26_TRX_RX_ACTIVE_L) or not (current & P26_TRX_TX_ACTIVE_L):
-                send_update_state("pa_ready_led", "disabled", False)
-            else:
-                if not current & P26_PA_READY:
-                    send_update_state("pa_ready_led", "disabled", True)
-            self.last_pushed_status = current
+                if not (current & P26_TRX_RX_ACTIVE_L) or not (current & P26_TRX_TX_ACTIVE_L):
+                    send_update_state("pa_ready_led", "disabled", False)
+                    #if not current & P26_PA_READY:
+                        #send_update_state("pa_ready_led", "disabled", True)
+                self.last_pushed_status = current
 
-        if self.current_log_scope != self.last_pushed_log_scope or force:
-            send_update_class("log_scope_forever", "active", self.current_log_scope == "Forever")
-            send_update_class("log_scope_today", "active", self.current_log_scope == "Today")
-            send_update_class("log_scope_contest", "active", self.current_log_scope == "Contest")
-            self.last_pushed_log_scope = self.current_log_scope
+            if self.current_log_scope != self.last_pushed_log_scope or force:
+                send_update_class("log_scope_forever", "active", self.current_log_scope == "Forever")
+                send_update_class("log_scope_today", "active", self.current_log_scope == "Today")
+                send_update_class("log_scope_contest", "active", self.current_log_scope == "Contest")
+                self.last_pushed_log_scope = self.current_log_scope
 
-        if self.map_mh_length != self.last_pushed_map_mh_length or force:
-            send_update_class("loc_fields", "active", self.map_mh_length == 2)
-            send_update_class("loc_squares", "active", self.map_mh_length == 4)
-            send_update_class("loc_locators", "active", self.map_mh_length >= 6)
-            self.last_pushed_map_mh_length = self.map_mh_length
+            if self.map_mh_length != self.last_pushed_map_mh_length or force:
+                send_update_class("loc_fields", "active", self.map_mh_length == 2)
+                send_update_class("loc_squares", "active", self.map_mh_length == 4)
+                send_update_class("loc_locators", "active", self.map_mh_length >= 6)
+                self.last_pushed_map_mh_length = self.map_mh_length
+
 
         self.app.azel.status_update()
 
@@ -246,6 +254,11 @@ class ClientMgr:
     def status_update(self, force=False):
         current_p2_sense = self.app.ham_op.get_status()
         self.status_push(current_p2_sense, force=force)
+        send_update_class("auto_track", "active", self.auto_track)
+        send_update_class("show_hide_stations", "active", not self.station_layer)
+        send_update_class("show_hide_logged_stations", "active", self.hiding_logged_stations)
+        # emit("hiding_logged_stations", self.hiding_logged_stations)
+        send_update_class("show_hide_aircraft", "active", not self.aircraft_layer)
 
     def send_my_data(self):
         rows = self.app.ham_op.fetch_my_current_data(self.current_band)
@@ -561,6 +574,7 @@ class ClientMgr:
         self.auto_track = not self.auto_track
         emit("Auto track", self.auto_track)
         send_update_class("auto_track", "active", self.auto_track)
+        self.status_update(force=True)
 
     def set_dx_call(self, callsign, locator):
         knowns = self.app.ham_op.callsigns_in_locator(locator)
