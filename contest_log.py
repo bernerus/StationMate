@@ -16,6 +16,16 @@ def get_nth_tuesday(n, today=date.today()):
 
     return d + timedelta(offset)
 
+def get_nth_thursday(n, today=date.today()):
+
+    d = today.replace(day=3)
+    offset = 3 - d.weekday()
+    if offset < 0:
+        offset += 7
+    offset += 7 * n
+
+    return d + timedelta(offset)
+
 
 def is_dst(dt=None, timezone="UTC"):
     if dt is None:
@@ -27,9 +37,12 @@ def is_dst(dt=None, timezone="UTC"):
     return timezone_aware_date.tzinfo._dst.seconds != 0
 
 
-def get_test_data(tuesday_number, today):
+def get_test_data(tuesday_number, today, thursday_number = None):
 
-    test_date = get_nth_tuesday(tuesday_number, today)
+    if thursday_number is not None:
+        test_date = get_nth_thursday(thursday_number, today)
+    else:
+        test_date = get_nth_tuesday(tuesday_number, today)
     dst = is_dst(test_date, timezone="CET")
     utcstart = "18:00:00" if not dst else "17:00:00"
     utcend = "22:00:00" if not dst else "21:00:00"
@@ -42,9 +55,12 @@ def get_test_data(tuesday_number, today):
 def get_contest_times(band_and_mode, tuesday_number=None, today=datetime.now()):
 
     if tuesday_number is None:
-        tuesday_number = band_on_tuesday_number[band_and_mode]
-
-    test_date, t_date_start, t_date_stop = get_test_data(tuesday_number, today)
+        try:
+            tuesday_number = band_on_tuesday_number[band_and_mode]
+            test_date, t_date_start, t_date_stop = get_test_data(tuesday_number, today)
+        except KeyError:
+            thursday_number = band_on_thursday_number[band_and_mode]
+            test_date, t_date_start, t_date_stop = get_test_data(thursday_number, today, thursday_number=thursday_number)
 
     today_str = today.strftime("%Y-%m-%d %H:%M:%S")
     if t_date_start > today_str:
@@ -60,7 +76,17 @@ band_on_tuesday_number = {
         "432": 1,
         "432-FT8": 1,
         "1296": 2,
+        "1296-FT8": 2,
     }
+
+band_on_thursday_number = {
+        "50": 1,
+        "50-FT8": 1,
+        "28": 0,
+        "28-FT8": 0
+    }
+
+
 
 class StringWrapper:
     def __init__(self):
@@ -86,10 +112,22 @@ def produce_contest_log(band_and_mode, logger, tuesday_number=None, log_remarks=
     prefixes = {
         "LA": "NO",
         "LB": "NO",
-
-
-
+        "LC": "NO",
+        "LD": "NO",
+        "LE": "NO",
+        "LF": "NO",
         "LG": "NO",
+        "LH": "NO",
+        "LI": "NO",
+        "LJ": "NO",
+        "LK": "NO",
+        "LL": "NO",
+        "LM": "NO",
+        "LN": "NO",
+        "LY": "LT",
+        "3Y": "3Y",
+        "JW": "JW",
+        "JX": "JX",
         "SA": "SE",
         "SB": "SE",
         "SC": "SE",
@@ -105,21 +143,63 @@ def produce_contest_log(band_and_mode, logger, tuesday_number=None, log_remarks=
         "SM": "SE",
         "8S": "SE",
         "7S": "SE",
-        "OZ": "DK",
-        "OV": "DK",
-        "DL": "DE",
+        "OU": "OZ",
+        "OW": "OZ",
+        "XP": "OZ",
+        "OZ": "OZ",
+        "OV": "OZ",
+        "OY": "OY",
+        "OX": "OX",
+        "DA": "DE",
+        "DB": "DE",
+        "DC": "DE",
+        "DD": "DE",
+        "DE": "DE",
+        "DF": "DE",
+        "DG": "DE",
+        "DH": "DE",
+        "DI": "DE",
         "DJ": "DE",
         "DK": "DE",
-        "DG": "DE",
-        "DF": "DE",
+        "DL": "DE",
+        "DM": "DE",
+        "DN": "DE",
+        "DO": "DE",
+        "DP": "DE",
+        "DQ": "DE",
+        "DR": "DE",
         "OH": "OH",
+        "OH0": "OH0",
+        "OJ0": "OJ0",
         "YL": "YL",
         "ES": "ES",
         "PA":"PA",
+        "PB":"PA",
+        "PC":"PA",
+        "PD":"PA",
         "PE":"PA",
+        "PF":"PA",
+        "PG":"PA",
+        "PH":"PA",
+        "PI":"PA",
+        "PJ":"PA",
         "SP":"SP",
         "SO":"SP",
-        "SN":"SP"
+        "SN":"SP",
+        "SQ":"SP",
+        "SR":"SP",
+        "HF":"SP",
+        "3Z":"SP",
+        "Y2": "DL",
+        "Y3": "DL",
+        "Y4": "DL",
+        "Y5": "DL",
+        "Y6": "DL",
+        "Y7": "DL",
+        "Y8": "DL",
+        "Y9": "DL",
+        "5P": "DK",
+        "5Q": "DK",
     }
 
     contest_log_header = {
