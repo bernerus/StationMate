@@ -250,10 +250,31 @@ class HamOp:
         self.db.commit()
         self.app.client_mgr.send_reload()
 
+    def find_augmented_locator(self, callsign:str, given_locator:str) ->str:
+        if not callsign:
+            return None
+        cur = self.db.cursor()
+
+        if not given_locator:
+            cur.execute("""SELECT upper(locator) FROM callbook WHERE callsign=%s order by char_length(locator) DESC""",
+                        (callsign.upper(),))
+        else:
+            short_given_loc=given_locator[0:4]
+            cur.execute("""SELECT upper(locator) FROM callbook WHERE callsign=%s and substr(locator,1,4) = %s order by last_change DESC""",
+                    (callsign.upper(), short_given_loc.upper()))
+        rows = cur.fetchall()
+        if not rows:
+            return None
+        return rows[0][0]
+
+
     def do_commit_qso(self, qso):
         cur = self.db.cursor()
         if "square" not in qso or not qso["square"]:
             qso["square"] = None
+        if "locator" not in qso or not qso["locator"]:
+            if len(qso["locator"]) < 6:
+                qso["augmented_locator"] = self.find_augmented_locator(qso["callsign"], qso["locator"])
         if "band" not in qso or not qso["band"]:
             qso["band"] = self.app.client_mgr.current_band
         if "txmode" in qso and qso["txmode"]:
@@ -306,11 +327,13 @@ class HamOp:
                       values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s, %s) RETURNING qsoid""",
                     (qso["date"], qso["time"], qso["callsign"], qso["tx"], qso["rx"], qso["locator"],
                      qso["distance"], qso["square"], qso["points"], qso["complete"], band_or_fq, accumulated_square,
-                     transmit_mode, propagation_mode, qso["augmented_locator"]))
+                     txmode, propmode, qso["augmented_locator"]))
         new_qso_id = cur.fetchone()[0]
         self.db.commit()
         cur.close()
-        self.app.client_mgr.add_mh_on_map(qso["augmented_locator"])
+
+        if "augmented_locator" in qso and qso["augmented_locator"]:
+            self.app.client_mgr.add_mh_on_map(qso["augmented_locator"])
         self.app.client_mgr.add_qso(qso)
         return new_qso_id
 
@@ -410,7 +433,10 @@ class HamOp:
         if propmode == "TR":
             propmode = "T"
         callsign = qso["CALL"].upper()
-        locator = qso["GRIDSQUARE"].upper()
+        if "GRIDSQUARE" in qso:
+            locator = qso["GRIDSQUARE"].upper()
+        else:
+            locator = None
         trprt = qso["RST_SENT"]
         rrprt = qso["RST_RCVD"]
 
@@ -527,7 +553,24 @@ class HamOp:
             qso_date = qso[1]
             qso_time = qso[2]
             adjustments = 0
-            if locator and locator not in qso[5]:
+            if locator:
+                if augmented_locator and (qso[8] is None or augmented_locator not in qso[8]) and augmented_locator.startswith(locator):
+                    self.logger.warning("Adding or updating augmented locator %s" % augmented_locator)
+                    bearing, distance, points, square_no = self.distance_to(augmented_locator, qso_date, qso_time)
+                    cur.execute(
+                        "UPDATE nac_log_new set augmented_locator = %s, distance = %s, square = %s, points = %s where qsoid=%s",
+                        (augmented_locator, str(int(distance * 100) / 100.0), square_no, points, qso[0]))
+                    adjustments += 1
+            else:
+                if augmented_locator and (qso[8] is None or augmented_locator not in qso[8]):
+                    self.logger.warning("Adding augmented locator %s from plain lookup" % augmented_locator)
+                    bearing, distance, points, square_no = self.distance_to(augmented_locator, qso_date, qso_time)
+                    cur.execute(
+                        "UPDATE nac_log_new set augmented_locator = %s, distance = %s, square = %s, points = %s where qsoid=%s",
+                        (augmented_locator, str(int(distance * 100) / 100.0), square_no, points, qso[0]))
+                    adjustments += 1
+
+            if locator and (qso[5] is None or locator not in qso[5]):
                 self.logger.error("Bad locator %s, should be %s" % (qso[5], locator))
                 bearing, distance, points, square_no = self.distance_to(locator, qso_date, qso_time)
                 cur.execute(
