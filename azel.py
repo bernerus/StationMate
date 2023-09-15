@@ -388,7 +388,7 @@ class AzElControl:
 
 		diff = self.az - self.rotate_start_az
 		if (diff > 0  and self.rotating_ccw) or (diff < 0 and self.rotating_cw):
-			self.logger.error("Azimuth rotation error")
+			self.logger.debug("Azimuth rotation error, diff=%d, ccw=%d, cw=%d" % (diff, self.rotating_ccw, self.rotating_cw))
 			self.azrot_err_count += 1
 			if self.azrot_err_count > 20:
 				self.logger.error("Azimuth going wrong way, stopping.")
@@ -533,7 +533,7 @@ class AzElControl:
 		self.rotate_start_az = self.az
 		self.rotating_cw = True
 		self.rotating_ccw = False
-		nudge_time = float((abs(diff)/3) * self.seconds_per_tick_cw + 0.25)
+		nudge_time = float((abs(diff)/3) * self.seconds_per_tick_cw + 0.2)
 		self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, 0)
 		time.sleep(nudge_time)
 		self.p20.byte_write(P20_STOP_AZ | P20_ROTATE_CW, P20_ROTATE_CW)  # Stop
