@@ -3,6 +3,7 @@ import os, signal
 import sys
 import time
 import datetime
+import argparse
 
 
 def kill_siblings():
@@ -38,9 +39,17 @@ def kill_siblings():
         print("Error Encountered while running script")
 
 
+parser = argparse.ArgumentParser(
+                    prog='StnMate2',
+                    description='This program helps me remote controlling my ham station and aid in the finding VHF/UHF Dx and logging QSOs',
+                    epilog='SM6FBQ 2021-2023')
+parser.add_argument("--debugging", action="store_true",
+                    help="Run a debugging session, kills any simultaneously running sibling instances")
 
+parsed_args=parser.parse_args()
 
-kill_siblings()
+if parsed_args.debugging:
+    kill_siblings()
 
 import socket
 
@@ -63,7 +72,10 @@ import atexit
 import logging
 
 logger=logging.getLogger(__name__)
-logger.setLevel("DEBUG")
+if parsed_args.debugging:
+    logger.setLevel("DEBUG")
+else:
+    logger.setLevel("INFO")
 hdlr = logging.StreamHandler()
 hdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)8s %(filename)20s:%(lineno)-5s %(message)s'))
 logger.addHandler(hdlr)
