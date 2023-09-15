@@ -19,10 +19,10 @@ def produce_adif_log(band_and_mode, logger):
     db = psycopg2.connect(dbname='ham_station')
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-    cur.execute("""SELECT callsign as CALL, date as QSO_DATE, time as TIME_ON, band as FREQ, band as BAND, mode as PROP_MODE,
+    cur.execute("""SELECT callsign as CALL, date as QSO_DATE, time as TIME_ON, band as FREQ, band as BAND, propmode as PROP_MODE,
                         tx as RST_SENT, rx as RST_RCVD,
                         locator as GRIDSQUARE,
-                        transmit_mode as MODE
+                        txmode as MODE
                         FROM nac_log_new WHERE complete=True
                         ORDER BY date,time""")
 

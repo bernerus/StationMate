@@ -213,8 +213,8 @@ class HamOp:
             t_date_start[:10], t_date_stop[:10], t_date_start[11:16].replace(":", ""), t_date_stop[11:16].replace(":", ""))
         # self.logger.info("Args =  %s" % str(args))
         cur = self.db.cursor()
-        q = """SELECT qsoid, date, time, callsign, tx, rx, locator, distance, square, points, complete, mode, accumulated_sqn, band, augmented_locator
-               FROM nac_log_new WHERE date >= %s and date <= %s and ((time >= %s and time <= %s) or time is null) ORDER BY date, time"""
+        q = """SELECT qsoid, date, time, callsign, tx, rx, locator, distance, square, points, complete, propmode, accumulated_sqn, band, augmented_locator
+               FROM nac_log_new WHERE date >= %s and date <= %s and ((time >= %s and time <= %s) or time is null) ORDER BY qsoid, date, time"""
         cur.execute(q , args)
 
         rows = cur.fetchall()
@@ -256,29 +256,29 @@ class HamOp:
             qso["square"] = None
         if "band" not in qso or not qso["band"]:
             qso["band"] = self.app.client_mgr.current_band
-        if "transmit_mode" in qso and qso["transmit_mode"]:
-            transmit_mode = qso["transmit_mode"]
+        if "txmode" in qso and qso["txmode"]:
+            txmode = qso["txmode"]
         else:
             if len(qso["tx"]) == 3:
-                transmit_mode = "CW"
+                txmode = "CW"
             else:
                 if "-" in qso["band"]:
-                    transmit_mode = qso["band"].split('-')[1]
+                    txmode = qso["band"].split('-')[1]
                 else:
-                    transmit_mode = "SSB"
-        if "mode" in qso and qso["mode"]:
-            propagation_mode = qso["mode"]
+                    txmode = "SSB"
+        if "propmode" in qso and qso["propmode"]:
+            propmode = qso["propmode"]
         else:
-            propagation_mode = "T"
+            propmode = "TR"
 
             if qso["tx"].upper().endswith('A') or qso["rx"].upper().endswith('A'):
-                propagation_mode = "A"
+                propmode = "AU"
 
-            if "MS" in transmit_mode.upper() and float(qso["distance"]) > 500.0:
-                propagation_mode = "MS"
+            if "MS" in txmode.upper() and float(qso["distance"]) > 500.0:
+                propmode = "MS"
 
             if float(qso["distance"]) > 3000:
-                propagation_mode = "EME"
+                propmode = "EME"
         accumulated_square = None
         if "locator" in qso and qso["locator"]:
             cur.execute(
@@ -302,7 +302,7 @@ class HamOp:
         if "augmented_locator" not in qso or not qso["augmented_locator"] and "locator" in qso and qso["locator"]:
             qso["augmented_locator"] = qso["locator"]
 
-        cur.execute("""INSERT INTO nac_log_new (date, time, callsign, tx , rx , locator, distance, square, points, complete, band, accumulated_sqn, transmit_mode, mode, augmented_locator) 
+        cur.execute("""INSERT INTO nac_log_new (date, time, callsign, tx , rx , locator, distance, square, points, complete, band, accumulated_sqn, txmode, propmode, augmented_locator) 
                       values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s, %s) RETURNING qsoid""",
                     (qso["date"], qso["time"], qso["callsign"], qso["tx"], qso["rx"], qso["locator"],
                      qso["distance"], qso["square"], qso["points"], qso["complete"], band_or_fq, accumulated_square,
@@ -401,20 +401,20 @@ class HamOp:
         #_endtime = endtime.replace(':', '')[:4]
         _endtime =  qso["TIME_OFF"][:4]
         if "PROP_MODE" in qso:
-            propagation=qso["PROP_MODE"]
+            propmode=qso["PROP_MODE"]
         else:
-            propagation="TR"
+            propmode="TR"
 
-        transmit_mode = qso["MODE"]
+        txmode = qso["MODE"]
         frequency = qso["FREQ"]
-        if propagation == "TR":
-            propagation = "T"
+        if propmode == "TR":
+            propmode = "T"
         callsign = qso["CALL"].upper()
         locator = qso["GRIDSQUARE"].upper()
         trprt = qso["RST_SENT"]
         rrprt = qso["RST_RCVD"]
 
-        q = """SELECT id, qso_date, time_on, rst_sent, rst_rcvd, gridsquare, prop_mode, mode from adif_log where qso_date=%s and
+        q = """SELECT id, qso_date, time_on, rst_sent, rst_rcvd, gridsquare, propmode, txmode from adif_log where qso_date=%s and
                                  abs(date_part('hour',time_on::time-%s::time)*60+date_part('minute',time_on::time-%s::time)) < 10
                                  and call = %s"""
         cur.execute(q, (startdate, starttime, starttime, callsign))
@@ -432,13 +432,13 @@ class HamOp:
                     "UPDATE adif_log set gridsquare = %s, distance = %s, stnmate_square_no = %s, stnmate_points = %s where id=%s",
                     (locator, str(int(distance * 100) / 100.0), square_no, points, qso[0]))
                 adjustments += 1
-            if qso[6] != propagation and propagation:
-                self.logger.error("Bad propagation mode %s, should be %s" % (qso[6], propagation))
-                cur.execute("UPDATE adif_log set prop_mode = %s where id=%s", (propagation, qso[0]))
+            if qso[6] != propmode and propmode:
+                self.logger.error("Bad propagation mode %s, should be %s" % (qso[6], propmode))
+                cur.execute("UPDATE adif_log set propmode = %s where id=%s", (propmode, qso[0]))
                 adjustments += 1
-            if qso[7] != transmit_mode:
-                self.logger.error("Bad transmit mode %s, should be %s" % (qso[7], transmit_mode))
-                cur.execute("UPDATE adif_log set mode = %s where id=%s", (transmit_mode, qso[0]))
+            if qso[7] != txmode:
+                self.logger.error("Bad transmit mode %s, should be %s" % (qso[7], txmode))
+                cur.execute("UPDATE adif_log set mode = %s where id=%s", (txmode, qso[0]))
                 adjustments += 1
             if qso[3] != trprt:
                 self.logger.error("Bad sent report %s, should be %s" % (qso[3], trprt))
@@ -474,9 +474,9 @@ class HamOp:
                     "square": square_no,
                     "points": points,
                     "complete": True,
-                    "band": "%d-%s" % (int(float(frequency)), transmit_mode),
-                    "mode": propagation,
-                    "transmit_mode": transmit_mode,
+                    "band": "%d-%s" % (int(float(frequency)), txmode),
+                    "propmode": propmode,
+                    "txmode": txmode,
                     "frequency": frequency,
                 }
                 # self.do_commit_qso(qso)
@@ -507,14 +507,16 @@ class HamOp:
         return "QSQ:s added: %d, adjusted: %s" % (ret["added"], ret["adjusted"])
 
     def merge_into_old_log_db(self, cur, qso, ret):
-        startdate, starttime, enddate, endtime, callsign, locator, frequency, transmit_mode, trprt, rrprt, power, comment, dxname, propagation = qso
+        startdate, starttime, enddate, endtime, callsign, locator, frequency, txmode, trprt, rrprt, power, comment, dxname, propmode = qso
         starttime = starttime.replace(':', '')[:4]
         _endtime = endtime.replace(':', '')[:4]
-        if propagation == "TR":
-            propagation = "T"
+        if propmode == "T":
+            propmode = "TR"
         callsign = callsign.upper()
         locator = locator.upper()
-        q = """SELECT qsoid, date, time, tx, rx, locator, mode, transmit_mode from nac_log_new where date=%s and
+        augmented_locator = self.find_augmented_locator(callsign, locator)
+
+        q = """SELECT qsoid, date, time, tx, rx, locator, propmode, txmode, augmented_locator from nac_log_new where date=%s and
                          abs(date_part('hour',time::time-%s::time)*60+date_part('minute',time::time-%s::time)) < 10
                          and callsign = %s"""
         cur.execute(q, (startdate, starttime, starttime, callsign))
@@ -532,13 +534,13 @@ class HamOp:
                     "UPDATE nac_log_new set locator = %s, distance = %s, square = %s, points = %s where qsoid=%s",
                     (locator, str(int(distance * 100) / 100.0), square_no, points, qso[0]))
                 adjustments += 1
-            if qso[6] != propagation and propagation:
-                self.logger.error("Bad propagation mode %s, should be %s" % (qso[6], propagation))
-                cur.execute("UPDATE nac_log_new set mode = %s where qsoid=%s", (propagation, qso[0]))
+            if qso[6] != propmode and propmode:
+                self.logger.error("Bad propagation mode %s, should be %s" % (qso[6], propmode))
+                cur.execute("UPDATE nac_log_new set propmode = %s where qsoid=%s", (propmode, qso[0]))
                 adjustments += 1
-            if qso[7] != transmit_mode:
-                self.logger.error("Bad transmit mode %s, should be %s" % (qso[7], transmit_mode))
-                cur.execute("UPDATE nac_log_new set transmit_mode = %s where qsoid=%s", (transmit_mode, qso[0]))
+            if qso[7] != txmode:
+                self.logger.error("Bad transmit mode %s, should be %s" % (qso[7], txmode))
+                cur.execute("UPDATE nac_log_new set txmode = %s where qsoid=%s", (txmode, qso[0]))
                 adjustments += 1
             if qso[3] != trprt:
                 self.logger.error("Bad sent report %s, should be %s" % (qso[3], trprt))
@@ -579,9 +581,9 @@ class HamOp:
                     "square": square_no,
                     "points": points,
                     "complete": True,
-                    "band": "%d-%s" % (int(float(frequency)), transmit_mode),
-                    "mode": propagation,
-                    "transmit_mode": transmit_mode,
+                    "band": "%d-%s" % (int(float(frequency)), txmode),
+                    "propmode": propmode,
+                    "txmode": txmode,
                     "frequency": frequency,
                     "bearing": bearing
                 }
@@ -769,28 +771,28 @@ class HamOp:
         q1 = """ select distinct on (r.rx_callsign, r.rx_loc) r.rx_callsign as callsign, 
                                     r.rx_loc as locator, r.rx_heading as az, r.my_rx_distance as dist, 
                                     (extract(epoch from statement_timestamp()) - r.happened_at)/60 as age_minutes, 
-                                    r.my_rx_heading as my_az, r.mode as mode, r.happened_at as happened_at, r.dx_callsign as dx_callsign, r.dx_loc as dx_loc
+                                    r.my_rx_heading as my_az, r.mode as txmode, r.happened_at as happened_at, r.dx_callsign as dx_callsign, r.dx_loc as dx_loc
                 from reports as r
                 where ABS(MOD(r.rx_heading - 180, 360) - r.my_rx_heading) < %s/2
                     and r.my_rx_distance < %s 
                     and  extract(epoch from statement_timestamp()) - happened_at < %s
-                group by callsign, locator, az, dist, age_minutes, my_az, mode, happened_at, dx_callsign, dx_loc
+                group by callsign, locator, az, dist, age_minutes, my_az, txmode, happened_at, dx_callsign, dx_loc
                 union
                 select distinct on (t.dx_callsign, t.dx_loc) t.dx_callsign as callsign , 
                                     t.dx_loc as locator, t.tx_heading as az, t.my_tx_distance as dist, 
                                     (extract(epoch from statement_timestamp()) - t.happened_at)/60 as age_minutes, 
-                                    t.my_tx_heading as my_az, t.mode as mode, t.happened_at as happened_at, t.rx_callsign as dx_callsign, t.rx_loc as dx_loc
+                                    t.my_tx_heading as my_az, t.mode as txmode, t.happened_at as happened_at, t.rx_callsign as dx_callsign, t.rx_loc as dx_loc
                 from reports as t
                 where ABS(MOD(t.tx_heading - 180, 360) - t.my_tx_heading) < %s/2
                     and t.my_tx_distance < %s 
                     and  extract(epoch from statement_timestamp()) - t.happened_at < %s
-                group by callsign, locator, az, dist, age_minutes, my_az, mode, happened_at, dx_callsign, dx_loc
+                group by callsign, locator, az, dist, age_minutes, my_az, txmode, happened_at, dx_callsign, dx_loc
                 order by age_minutes;
             """
         q = """ select r.rx_callsign as callsign, 
                                             r.rx_loc as locator, r.rx_heading as az, r.my_rx_distance as dist, 
                                             (%s - r.happened_at)/60 as age_minutes, 
-                                            r.my_rx_heading as my_az, r.mode as mode, r.happened_at as happened_at, r.dx_callsign as dx_callsign, 
+                                            r.my_rx_heading as my_az, r.mode as txmode, r.happened_at as happened_at, r.dx_callsign as dx_callsign, 
                                             r.dx_loc as dx_loc, r.my_tx_heading, r.tx_heading, r.my_tx_distance, r.frequency, r.snr
                         from reports as r
                         where ABS(MOD(r.rx_heading - 180, 360) - r.my_rx_heading) < %s/2
@@ -799,7 +801,7 @@ class HamOp:
                         order by happened_at desc 
                     """
         beacon_query = """ select b.dx_callsign as callsign, 
-                                                    b.dx_loc as locator, b.frequency as frequency, b.snr as snr, b.mode as mode, b.qtf as az
+                                                    b.dx_loc as locator, b.frequency as frequency, b.snr as snr, b.mode as txmode, b.qtf as az
                                 from beacons b 
                                 where frequency >= %s and frequency <= %s
                             """
@@ -868,14 +870,14 @@ class HamOp:
 
     def recompute_distances(self):
         from collections import defaultdict
-        q =  "SELECT qsoid,callsign,locator,my_locator, distance, mode, band from nac_log_new"
+        q =  "SELECT qsoid,callsign,locator,my_locator, distance, propmode, band from nac_log_new"
 
         with self.db.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
             cur.execute(q)
             rows = cur.fetchall()
             ret = ""
             n=0
-            odxs = {}  # {mode/band: (callsign, distance)
+            odxs = {}  # {propmode/band: (callsign, distance)
             mhfields = {}  # {field/band: count}
             for r in rows:
                 band = r["band"].split('.')[0]
@@ -886,7 +888,7 @@ class HamOp:
                     dx_loc = dx_loc.upper()
                     my_loc = my_loc.upper()
                     bearing, distance = mh.distance_between(my_loc, dx_loc)
-                    odx_key = r["mode"]+"/"+band
+                    odx_key = r["propmode"]+"/"+band
                     if odx_key not in odxs:
                         odxs[odx_key] = "",0.0;
                     if distance > odxs[odx_key][1]:

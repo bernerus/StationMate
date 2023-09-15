@@ -320,7 +320,7 @@ class ClientMgr:
                        "square": row[8],
                        "points": row[9],
                        "complete": row[10],
-                       "mode": row[11],
+                       "propmode": row[11],
                        "acc_sqn": newmsqn,
                        "band": row[13],
                        }
@@ -471,7 +471,7 @@ class ClientMgr:
             dx_callsign = station.get("dx_callsign", '')
             dx_loc=station.get("dx_loc", '')
             freq = station["frequency"]
-            mode = station["mode"]
+            txmode = station["txmode"]
             antwidth=30
 
             info = f"""<span style=\"font-size:12pt\"> 
@@ -480,16 +480,16 @@ class ClientMgr:
                         QTF:{antaz}<br/>
                         Last report {age:2.1f} min ago with {dx_callsign}@{dx_loc}<br/>
                         Distance:{dist} km<br/>
-                        QRG: {freq}, "mode: {mode}</span>
+                        QRG: {freq}, "txmode: {txmode}</span>
                     """
             try:
-                mode = station['mode']
+                txmode = station['txmode']
             except IndexError:
-                mode = "FT8"
+                txmode = "FT8"
             #antwidth = station["antwidth"] if "antwidth" in station else 30
             _n, _s, _w, _e, latitude, longitude = mh.to_rect(locator)
             if dist > 10:
-                json[callsign] = {"callsign":callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az":myaz, "mode": mode, "age": age, "distance": dist, "info":info}
+                json[callsign] = {"callsign":callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az":myaz, "txmode": txmode, "age": age, "distance": dist, "info":info}
         for s in other:
             station = other[s]
             callsign = station['callsign'].upper()
@@ -503,7 +503,7 @@ class ClientMgr:
             dx_callsign = station.get("dx_callsign",'')
             dx_loc=station.get("dx_loc",'')
             freq = station["frequency"]
-            mode = station["mode"]
+            txmode = station["txmode"]
             antwidth = 360
             info = f"""<span style=\"font-size:12pt\"> 
                                     <b>{callsign}:</b><br/>
@@ -511,14 +511,14 @@ class ClientMgr:
                                     QTF:{antaz}<br/>
                                     Last report {age:2.1f} min ago with {dx_callsign}@{dx_loc}<br/>
                                     Distance:{dist} km<br/>
-                                    QRG: {freq}, "mode: {mode}</span>
+                                    QRG: {freq}, "txmode: {txmode}</span>
                                 """
             try:
-                mode = station['mode']
+                txmode = station['txmode']
             except IndexError:
-                mode = "FT8"
+                txmode = "FT8"
             _n, _s, _w, _e, latitude, longitude = mh.to_rect(locator)
-            json[callsign] = {"callsign": callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az": myaz, "mode": mode,"age": age,"distance":dist, "info": info}
+            json[callsign] = {"callsign": callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az": myaz, "txmode": txmode,"age": age,"distance":dist, "info": info}
         #import pprint
         #pprint.pprint(json)
         # self.logger.info("Pushing %d stations to client" % (len(json)))

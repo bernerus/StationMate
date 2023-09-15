@@ -159,7 +159,7 @@ class WsjtxNamespace(Namespace):
         qso = {
             "callsign": json["dx_call"],
             "band": "%f" % (fq / 1000000),
-            "transmit_mode": json["mode"],
+            "txmode": json["txmode"],
             "tx": json["report_sent"],
             "rx": json["report_received"],
             "locator": json["dx_grid"],
@@ -167,7 +167,7 @@ class WsjtxNamespace(Namespace):
             "date": dt[:10],
             "time": dt[11:13] + dt[14:16],
             "complete": True,
-            "mode": json["prop_mode"]
+            "propmode": json["propmode"]
         }
 
         # If given only the square, look up any known full locator if previously known
@@ -192,7 +192,7 @@ class WsjtxNamespace(Namespace):
         # "my_grid": p.my_grid,
         # "name": p.name,
         # "op_name": p.op_name,
-        # "prop_mode": p.prop_mode,
+        # "propmode": p.propmode,
         # "report_received": p.report_received,
         # "report_sent": p.report_send,
         # "tx_power": p.tx_power

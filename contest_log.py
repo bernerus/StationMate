@@ -386,8 +386,8 @@ def produce_contest_log(band_and_mode, logger, tuesday_number=None, log_remarks=
         }
 
         mode_code = "0"  # Don't know
-        if (row["transmit_mode"], len(row["rx"])) in mode_codes:
-            mode_code = mode_codes[(row["transmit_mode"], len(row["rx"]))]
+        if (row["txmode"], len(row["rx"])) in mode_codes:
+            mode_code = mode_codes[(row["txmode"], len(row["rx"]))]
 
         tx = row["tx"].upper()
         tx_qson = ""

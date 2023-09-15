@@ -283,7 +283,7 @@
                             <label>Höjd över havet:</label> <span id="my_ant_asl"></span> m ASL<br/>
                             <label>Tx:</label> <span id="my_tx"></span> <span id="my_pwr"></span> W<br/>
                             <label>Rx:</label> <span id="my_rx"></span><br/>
-                            <label for="band_select"> Frekvensband-Mode:</label>
+                            <label for="band_select"> Frekvensband-TxMode:</label>
                             <select id="band_select" onchange="send_band()">
                                 <option value="50">50</option>
                                 <option value="50-FT8">50-FT8</option>
@@ -868,9 +868,9 @@
         planesDict[key] = aPlane
     }
 
-    function addStation(key, callsign, position, direction, antwidth, mode, age, info) {
+    function addStation(key, callsign, position, direction, antwidth, txmode, age, info) {
         if (age > 3600) {return}
-        // console.log("Adding station ", callsign, " at ", position, " width", antwidth, mode)
+        // console.log("Adding station ", callsign, " at ", position, " width", antwidth, txmode)
 
         r = 50
         let v1x = r*Math.cos((antwidth/2+90)*Math.PI/180)
@@ -881,17 +881,17 @@
 
 
 
-        //console.log( "adding Station: direction:", direction,  "width:", antwidth, "mode:", mode)
+        //console.log( "adding Station: direction:", direction,  "width:", antwidth, "txmode:", txmode)
 
         fillcolor = '#e8578e';
-        if (mode=='MSK144') {
+        if (txmode=='MSK144') {
              fillcolor = '#3c46b0';
         }
-        if (mode=='JT65' || mode=='JT65B')
+        if (txmode=='JT65' || txmode=='JT65B')
             {
              fillcolor = '#8d5008';
         }
-        if (mode.startsWith('B/'))
+        if (txmode.startsWith('B/'))
             {
              fillcolor = '#50b7f5';
         }
@@ -1008,7 +1008,7 @@
                 if (key in stationsDict) {
                     removeStation(key)
                 }
-                addStation(key, stn.callsign, stn.position, stn.antenna_azimuth, stn.antenna_width, stn.mode, stn.age, stn.info)
+                addStation(key, stn.callsign, stn.position, stn.antenna_azimuth, stn.antenna_width, stn.txmode, stn.age, stn.info)
 
          }
          for (key in stationsDict ){
