@@ -21,6 +21,7 @@ class StationTracker:
 		self.target_stack = self.azel.target_stack
 		self.station_queue = queue.Queue()
 		self.station_thread = None
+		self.thread_loop = True
 		self.socket_io = socket_io
 		self.beaming_stations = {}
 		self.other_stations = {}
@@ -38,9 +39,16 @@ class StationTracker:
 	def stations_update_thread(self) -> None:
 		"""Check available stations and update"""
 		self.app.client_mgr.logger.info("Starting stations thread")
-		while True:
-			self.beaming_stations, self.other_stations = self.get_stations()
-			self.app.client_mgr.update_reachable_stations(self.beaming_stations, self.other_stations)
+		while self.thread_loop:
+			try:
+				self.beaming_stations, self.other_stations = self.get_stations()
+			except Exception as e:
+				self.logger.error("Stations update failed while getting stations, exception=%s"% e)
+
+			#try:
+			self.app.client_mgr.update_reachable_stations(self.beaming_stations, self.other_stations )  # self.other_stations)
+			#except Exception as e:
+				#self.logger.error("Stations update failed while updating, exception=%s"% e)
 			st_abortable_sleep(300)
 			# print("StationThread is awake")
 
@@ -76,18 +84,30 @@ class StationTracker:
 		# self.logger.info("Aborting station tracker sleep")
 		st_abortable_sleep.abort()
 
+	def shutdown(self):
+		if not self.station_thread:
+			return
+		self.thread_loop=False
+		st_abortable_sleep.abort()
+		self.station_thread.join()
+		self.station_thread=None
+		self.beaming_stations=[]
+		self.other_stations=[]
+		self.app.client_mgr.update_reachable_stations(self.beaming_stations, self.other_stations)
+
 	def startup(self) -> None:
 		with station_thread_lock:
+			self.thread_loop = True
 			if self.station_thread is None:
 				self.station_thread = threading.Thread(target=self.stations_update_thread, args=(), daemon=True)
 				self.station_thread.start()
 
 	def get_stations(self):
-		# self.logger.info("Truncating reports table")
+		self.logger.debug("Truncating reports table")
 		self.pskreporter.truncate()
-		# self.logger.info("Retrieving reports table")
+		self.logger.debug("Retrieving reports table")
 		self.pskreporter.retrieve()
-		# self.logger.info("Finding beaming stations")
+		self.logger.debug("Finding beaming stations")
 		stns1 = self.app.ham_op.get_reachable_stations(band=self.current_band)
 		# self.logger.info("%d stations possibly beaming me" % len(stns1))
 		# self.logger.info("Finding other stations")
