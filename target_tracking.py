@@ -434,7 +434,7 @@ class PlaneTarget(Target):
 
 	def trigger_period(self) -> int:
 
-		(self.lng, self.lat)  = self.azel.app.atrk.get_position(self.plane_id)
+		(self.lng, self.lat)  = self.azel.app.aircraft_tracker.get_position(self.plane_id)
 		if self.lng is None or self.lat is None:
 			return None
 		mn, ms, mw, me, mlat, mlon = mh.to_rect(self.azel.app.ham_op.my_qth())
@@ -444,7 +444,7 @@ class PlaneTarget(Target):
 
 
 	def done(self):
-		return not self.azel.app.atrk.has_plane(self.plane_id) or super().done()
+		return not self.azel.app.aircraft_tracker.has_plane(self.plane_id) or super().done()
 
 class AzTarget(Target):
 	def __init__(self, azel, az):
