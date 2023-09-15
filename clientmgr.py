@@ -57,6 +57,8 @@ def emit(what, data):
 class ClientMgr:
     def __init__(self, app, logger, socket_io):
 
+        self.station_layer = True
+        self.aircraft_layer = True
         self.app=app
         self.logger=logger
         self.socket_io = socket_io
@@ -65,6 +67,7 @@ class ClientMgr:
         self.last_p2_sense = None
         self.last_pushed_status = None
         self.last_pushed_azel = (None, None)
+        self.previous_pushed_azel = (None, None)
         self.last_pushed_log_scope = None
         self.last_pushed_map_mh_length = None
 
@@ -78,7 +81,7 @@ class ClientMgr:
         self.show_log_since = None
         self.show_log_until = None
         self.current_log_scope = "Forever"
-        self.hiding_logged = False
+        self.hiding_logged_stations = False
 
         self.auto_track = False
 
@@ -259,8 +262,9 @@ class ClientMgr:
         if azel is None:
             azel = self.app.azel.get_azel()
 
-        if azel != self.last_pushed_azel or force:
+        if azel != self.last_pushed_azel and azel != self.previous_pushed_azel or force:
             msg_q.put(("set_azel", {"az": azel[0], "el": azel[1]}))
+        self.previous_pushed_azel = self.last_pushed_azel # Eliminate flapping
         self.last_pushed_azel = azel
 
 
@@ -287,7 +291,7 @@ class ClientMgr:
                 if self.status_thread is None:
                     self.status_thread = self.socket_io.start_background_task(status_update_thread, current_app._get_current_object())
 
-            self.app.atrk.startup()
+            self.app.aircraft_tracker.startup()
 
             emit('my_response', {'data': 'Connected', 'count': 0})
 
@@ -448,7 +452,7 @@ class ClientMgr:
         json={}
 
         worked_callsigns = set()
-        if self.hiding_logged:
+        if self.hiding_logged_stations:
             rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
             for row in rows:
                 cs = row[3].upper()
@@ -524,10 +528,30 @@ class ClientMgr:
         self.logger.debug("Map settings received: %s", json)
         self.app.ham_op.store_map_setting(json, self.current_band, self.map_mh_length, self.current_log_scope)
 
-    def toggle_hide_logged(self):
-        self.hiding_logged = not self.hiding_logged
-        emit("hiding_logged_stations", self.hiding_logged)
+    def toggle_hide_logged_stations(self):
+        self.hiding_logged_stations = not self.hiding_logged_stations
+        # emit("hiding_logged_stations", self.hiding_logged_stations)
         self.app.station_tracker.refresh()
+        self.status_update(force=True)
+
+    def toggle_aircraft_layer(self):
+        self.aircraft_layer = not self.aircraft_layer
+        emit("aircraft_layer", self.aircraft_layer)
+        if self.aircraft_layer:
+            self.app.aircraft_tracker.startup()
+        else:
+            self.app.aircraft_tracker.shutdown()
+        self.status_update(force=True)
+
+    def toggle_station_layer(self):
+        self.station_layer = not self.station_layer
+        emit("station_layer", self.station_layer)
+        if self.station_layer:
+            self.app.station_tracker.startup()
+        else:
+            self.app.station_tracker.shutdown()
+
+        self.status_update(force=True)
 
     def toggle_auto_track(self):
         self.auto_track = not self.auto_track
