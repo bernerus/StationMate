@@ -430,7 +430,7 @@ def handle_track_sun(_json):
 
 @socket_io.on("pop_target")
 def handle_pop_target(_json):
-    logger.debug("Handle pop_target")
+    #logger.debug("Handle pop_target")
     return app.azel.pop_target()
 
 
@@ -522,6 +522,7 @@ def goodbye():
     app.azel.GPIO_cleanup()  # clean up GPIO on exit
 
 
+logger.info("Starting antenna tracker")
 app.azel.startup()
 logger.info("Starting aircraft tracker")
 app.aircraft_tracker.startup()
