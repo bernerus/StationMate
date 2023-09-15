@@ -75,7 +75,7 @@
             })
 
             socket.on("update_class", function (msg) {
-                console.log("Got update_class " + msg);
+                //console.log("Got update_class " + msg);
                 $('#log').append('<br>' + $('<div/>').text('Received update_class#' + msg).html());
                 updateClass(msg)
             })
@@ -258,13 +258,17 @@
                     <button id="loc_8char" onclick="send_set_map_mh_length(8)">8ch</button>
                     <button id="loc_10char" onclick="send_set_map_mh_length(10)">10ch</button>
                     <button id="loc_12char" onclick="send_set_map_mh_length(12)">12ch</button>
-                    <button id="show_hide_logged" style="float: right;" onclick="send_toggle_hide_logged()">Göm loggade</button>
                 </div>
+
+                <button id="show_hide_aircraft" style="float: right;" onclick="send_toggle_aircraft_layer()">Göm flygplan</button>
+                <button id="show_hide_logged_stations" style="float: right;" onclick="send_toggle_hide_logged_stations()">Göm loggade</button>
+                <button id="show_hide_stations" style="float: right;" onclick="send_toggle_station_layer()">Göm stationer</button>
+
                 <button id="store_map_settings"
                         style="align-content: end;"
                         onclick="send_map_status()">Spara kartinställning
                 </button>
-                <div style="float: top" id="map" class="map"></div>
+                <div id="map" class="map"></div>
             </fieldset>
         </td>
         <td>
@@ -349,6 +353,7 @@
                             <th>Rx</th>
                             <th>Lok</th>
                             <th style="width:4em;">Avstånd</th>
+                            <th style="width:4em;">Våg</th>
                             <th style="width:3em;text-align:center;">Poäng</th>
                             <th style="width:3em;text-align:center;">Ruta</th>
                             <th style="width:3em;text-align:center;">C/_</th>
@@ -373,6 +378,9 @@
                                 <input style="text-transform: uppercase;width:6em;" id="new_locator" type="text"
                                        placeholder="Lokator" onchange="added_locator()"/></td>
                             <td id="new_qso_distance" style="text-align: right"></td>
+                            <td><!--suppress HtmlFormInputWithoutLabel -->
+                                <input style="text-transform: uppercase;width:6em;" id="new_propmode" type="text"
+                                       placeholder="Vågutbr" onchange="added_propmode()"/></td>
                             <td id="new_qso_points" style="text-align: right"></td>
                             <td id="new_qso_square" style="text-align: right"></td>
                             <td/>
@@ -668,10 +676,22 @@
         socket.emit("map_settings", {"lat": pos.lat(), "lon": pos.lng(), "zoom": zoom});
     }
 
-    function send_toggle_hide_logged()
+    function send_toggle_hide_logged_stations()
     {
-        console.log("Toggling hide logged")
-        socket.emit("toggle_hide_logged",{})
+        console.log("Toggling hide logged stations")
+        socket.emit("toggle_hide_logged_stations",{})
+    }
+
+    function send_toggle_aircraft_layer()
+    {
+        console.log("Toggling aircraft layers")
+        socket.emit("toggle_aircraft_layer",{})
+    }
+
+     function send_toggle_station_layer()
+    {
+        console.log("Toggling station layers")
+        socket.emit("toggle_station_layer",{})
     }
 
     function az_scan() {
@@ -1001,9 +1021,9 @@
     function hidingLoggedStations(hiding)
     {
         if (hiding)
-            document.getElementById("show_hide_logged").innerHTML = "Visa loggade"
+            document.getElementById("show_hide_logged_stations").innerHTML = "Visa loggade"
         else
-            document.getElementById("show_hide_logged").innerHTML = "Göm loggade"
+            document.getElementById("show_hide_logged_stations").innerHTML = "Göm loggade"
     }
 
 
@@ -1212,6 +1232,10 @@
         });
     }
 
+    function added_propmode() {
+        new_qso['propmode'] = document.getElementById('new_propmode').value;
+    }
+
     function fill_dx_grid(msg) {
         var trackTo = document.getElementById("track_input");
         trackTo.value = msg;
@@ -1247,6 +1271,7 @@
         var loc = row.insertCell(col++);
         var distance = row.insertCell(col++);
         distance.style = "text-align:right";
+        var propmode = row.insertCell(col++);
         var points = row.insertCell(col++);
         points.style = "text-align:right";
         var acc_sqn = row.insertCell(col++);
@@ -1265,6 +1290,7 @@
             loc.innerHTML = qso["locator"].toUpperCase()
         }
         distance.innerHTML = qso["distance"]
+        propmode.innerHTML = qso["propmode"]
         // square.innerHTML = qso["square"]
         acc_sqn.innerHTML = qso["acc_sqn"]
         if (qso["complete"]) {
@@ -1363,7 +1389,7 @@
         if (rowcount <= 3)
             return
         for (i = 0; i < rowcount - 3; i++)
-            table.deleteRow(2)
+            table.deleteRow(3)
     }
 
     function delete_qso(id) {
