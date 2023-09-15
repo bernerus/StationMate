@@ -113,13 +113,13 @@
 
             socket.on('add_rect', function (msg) {
                 // console.log("Got rect " + msg.id)
-                addRect(msg.id, msg.n, msg.s, msg.w, msg.e, msg.info);
+                addRect(msg.id, msg.n, msg.s, msg.w, msg.e, msg.info, msg.hoverinfo);
             })
 
             socket.on('add_rects', function (rects) {
                 // console.log("Got rects " + rects)
                 for (const rect of rects) {
-                    addRect(rect.id, rect.n, rect.s, rect.w, rect.e, rect.info);
+                    addRect(rect.id, rect.n, rect.s, rect.w, rect.e, rect.info, rect.hoverinfo);
                 }
             })
 
@@ -1112,6 +1112,19 @@
     function createClickablePoly(poly, html, map, infowinpos) {
         var contentString = html;
         var infoWindow = new google.maps.InfoWindow();
+        google.maps.event.addListener(poly, 'click', function (event) {
+            infoWindow.setContent(contentString);
+            infoWindow.setPosition(event.latLng);
+            infoWindow.open(map);
+        });
+        google.maps.event.addListener(poly, 'mouseout', function (event) {
+            infoWindow.close(map);
+        });
+    }
+
+    function createHoverPoly(poly, html, map, infowinpos) {
+        var contentString = html;
+        var infoWindow = new google.maps.InfoWindow();
         google.maps.event.addListener(poly, 'mouseover', function (event) {
             infoWindow.setContent(contentString);
             infoWindow.setPosition(event.latLng);
@@ -1122,7 +1135,7 @@
         });
     }
 
-    function addRect(id, n, s, w, e, infocontent) {
+    function addRect(id, n, s, w, e, infocontent, hoverinfo) {
 
 
         var my_rect = new google.maps.Rectangle();
@@ -1138,10 +1151,14 @@
             bounds: {"north": n, "south": s, "west": w, "east": e}
         })
 
-        infowinpos = new google.maps.LatLng(n, w + (e-w)/2)
+        infowinpos = new google.maps.LatLng(n, w + (e - w) / 2)
 
+        if (hoverinfo) {
+            createHoverPoly(my_rect, infocontent, map, infowinpos);
+        } else{
+            createClickablePoly(my_rect, infocontent, map, infowinpos);
+        }
 
-        createClickablePoly(my_rect, infocontent, map, infowinpos);
 
         // console.log("Added rect with id=", id)
 

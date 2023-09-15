@@ -154,7 +154,9 @@ class ClientMgr:
 
             callsigns = self.app.ham_op.callsigns_in_locator(loc)
             title = "Lokator"
+            hoverinfo=True
             if len(loc) < 6:
+                hoverinfo=False
                 title="Ruta"
             if len(loc) < 4:
                 title = "Fält"
@@ -180,7 +182,7 @@ class ClientMgr:
                 info += "</tr>"
 
             info += "</table>"
-            to_send.append({"id": loc, "n": n, "s": s, "w": w, "e": e, 'info':info})
+            to_send.append({"id": loc, "n": n, "s": s, "w": w, "e": e, 'info':info, 'hoverinfo': hoverinfo})
 
         msg_q.put(("add_rects", to_send))
 
