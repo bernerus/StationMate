@@ -92,16 +92,16 @@ class HamOp:
         try:
             return self.p26.byte_read(xx)
         except IOError:
-            self.p26 = None
-            self.try_init_p26()
+            #self.p26 = None
+            #self.try_init_p26()
             return self.p26.byte_read(xx)
 
     def p27_byte_read(self, xx):
         try:
             return self.p27.byte_read(xx)
         except IOError:
-            self.p27 = None
-            self.p27 = self.try_init_p27()
+            #self.p27 = None
+           # self.p27 = self.try_init_p27()
             if not self.p27:
                 return
             return self.p27.byte_read(xx)
@@ -110,22 +110,22 @@ class HamOp:
         try:
             return self.p26.bit_read(xx)
         except IOError:
-            self.p26 = None
-            self.p26 = self.try_init_p26()
+            #self.p26 = None
+            #self.p26 = self.try_init_p26()
             return self.p26.bit_read(xx)
 
     def p27_bit_read(self, xx):
         try:
             return self.p27.bit_read(xx)
         except IOError:
-            self.p27 = None
-            self.try_init_p27()
+            #self.p27 = None
+            #self.try_init_p27()
             if not self.p27:
                 return
             return self.p27.bit_read(xx)
 
     def status_sense(self):
-        self.try_init_p26()
+        #self.try_init_p26()
         if not self.p26:
             return
         current_p26_sense = self.p26_byte_read(0xff)
@@ -151,16 +151,16 @@ class HamOp:
         return msg
 
     def get_status(self):
-        self.try_init_p26()
-        self.try_init_p27()
+        #self.try_init_p26()
+        #self.try_init_p27()
         if not self.p26:
             return
         current_p26_sense = self.p26_byte_read(0xff)
         return current_p26_sense
 
     def my_status(self):
-        self.try_init_p26()
-        self.try_init_p27()
+        #self.try_init_p26()
+        #self.try_init_p27()
         if self.p27 and self.p26:
             pa_rdy = self.p26_bit_read(P26_PA_READY)
             pa_pwr_on = not self.p26_bit_read(P26_PA_PWR_ON_L)
