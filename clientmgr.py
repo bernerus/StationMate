@@ -399,6 +399,10 @@ class ClientMgr:
         msg_q.put(("set_mydata", msg))
 
     def lookup_locator(self, qso):
+        emit("locator_data", self.do_lookup_locator(qso))
+        other_loc = qso["locator"]
+
+    def do_lookup_locator(self, qso):
         other_loc = qso["locator"]
         qso_date = qso.get("date", date.today().isoformat())
         qso_time = qso.get("time")
@@ -410,7 +414,9 @@ class ClientMgr:
 
         qso["square"] = str(square_no)
         qso["points"] = str(points)
-        emit("locator_data", qso)
+
+        return qso
+
 
     def band_select(self, json):
 

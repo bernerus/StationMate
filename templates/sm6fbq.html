@@ -81,7 +81,7 @@
             })
 
             socket.on("update_classes", function (msg) {
-                console.log("Got update_classes " + msg);
+                //console.log("Got update_classes " + msg);
                 $('#log').append('<br>' + $('<div/>').text('Received update_class#' + msg).html());
                 updateClasses(msg)
             })
@@ -360,7 +360,7 @@
                             <th></th>
                         </tr>
                         <tr>
-                            <td id="qso_id"></td>
+                            <td id="qso_id"> </td>
                             <td><input style="width: 8em;" id="new_qso_date"></td>
                             <td><input style="width: 8em;" id="new_qso_time"></td>
                             <td><input style="width: 8em;" id="new_qso_band"></td>
@@ -440,8 +440,8 @@
                         <label for="cwSpeedSlider">Takt: <span id="cwSpeedValue"></span></label><br/>
                         <input type="range" min="60" max="150" value="90" class="slider" id="cwSpeedSlider">
                         <script>
-                            var slider = document.getElementById("cwSpeedSlider");
-                            var output = document.getElementById("cwSpeedValue");
+                            let slider = document.getElementById("cwSpeedSlider");
+                            let output = document.getElementById("cwSpeedValue");
                             output.innerHTML = slider.value;
 
                             slider.oninput = function () {
@@ -1050,7 +1050,7 @@
     function setOrigo(lat, lon, zoom) {
         map.setCenter({"lat": lat, "lng": lon});
         map.setZoom(zoom);
-        console.log("Moved map center to " + lat + " " + lon, "zoom=" + zoom);
+        //console.log("Moved map center to " + lat + " " + lon, "zoom=" + zoom);
     }
 
     function setQth(lat, lon, qth, n, s, w, e) {
@@ -1069,7 +1069,7 @@
 
 
     function updateClass(msg) {
-        console.log(msg)
+        //console.log(msg)
         //console.log("ForID=", msg.forId)
         element = document.getElementById(msg.forId)
         //console.log("Element==", element)
@@ -1081,7 +1081,7 @@
     }
 
     function updateClasses(msg) {
-        console.log(msg)
+        //console.log(msg)
         //console.log("ForID=", msg.forId)
         element = document.getElementById(msg.forId)
         //console.log("Element==", element)
@@ -1089,11 +1089,11 @@
     }
 
     function updateState(msg) {
-        console.log(msg)
-        console.log("ForID=", msg.forId)
+        //console.log(msg)
+        //console.log("ForID=", msg.forId)
         element = document.getElementById(msg.forId)
 
-        console.log("Element=", element)
+        //console.log("Element=", element)
         if (msg.state == 'disabled')
             element.disabled=msg.value
     }
@@ -1238,14 +1238,21 @@
     function added_locator() {
         new_qso['locator'] = document.getElementById('new_locator').value;
         socket.emit("lookup_locator", new_qso);
+        json = lookup_locator_data();
+        console.log("Locator lookup result", json);
+        document.getElementById("new_qso_distance").innerText = json["distance"]
+        document.getElementById("new_qso_square").innerText = json["square"]
+        document.getElementById("new_qso_points").innerText = json["points"]
+
+    }
+
+    function lookup_locator_data() {
         socket.once("locator_data", function (json) {
             console.log("Locator lookup result", json);
-            document.getElementById("new_qso_distance").innerText = json["distance"]
-            document.getElementById("new_qso_square").innerText = json["square"]
-            document.getElementById("new_qso_points").innerText = json["points"]
             new_qso['distance'] = json["distance"]
             new_qso['square'] = json['square']
             new_qso['points'] = json['points']
+            return json
         });
     }
 
@@ -1268,6 +1275,26 @@
         document.getElementById("note_callsign").value = json["callsign"]
         document.getElementById("note_locator").value = json["locator"]
         document.getElementById("note_frequency").value = json["frequency"]
+    }
+
+    function update_qso_in_table(qso, row) {
+        var rowcells = document.getElementById("logtable").rows[row].cells;
+        col = 0;
+        console.log("Updating log table row ", row, "with qso=", qso);
+
+        rowcells[col++].value=qso["id"];
+        rowcells[col++].innerText=qso["date"];
+        rowcells[col++].innerText=qso["time"];
+        rowcells[col++].innerText=qso["band"];
+        rowcells[col++].innerText=qso["callsign"];
+        rowcells[col++].innerText=qso["tx"];
+        rowcells[col++].innerText=qso["rx"];
+        rowcells[col++].innerText=qso["locator"];
+        rowcells[col++].innerText=qso["distance"];
+        rowcells[col++].innerText=qso["propmode"];
+        rowcells[col++].innerText=qso["points"];
+        rowcells[col++].innerText=qso["square"];
+        rowcells[col++].innerText=qso["complete"]?"C":"-";
     }
 
 
@@ -1296,7 +1323,9 @@
         var completeness = row.insertCell(col++);
         var action = row.insertCell(col++);
 
-        qso_id.innerHTML = qso["id"];
+        let qsoid = qso["id"]
+
+        qso_id.innerHTML = '<button onClick="edit_qso(' + qsoid + ')">' + qsoid + '</button>';
         date.innerHTML = qso["date"];
         time.innerHTML = qso["time"];
         band.innerHTML = qso["band"];
@@ -1316,7 +1345,9 @@
         } else {
             completeness.innerHTML = "-"
         }
-        action.innerHTML = `<button type="button"><i class="fa fa-ban" onclick="delete_qso(${qso["id"]})"></i> </button>`
+        //action.innerHTML =  '<button type="button"><i class="fa fa-ban" onclick="delete_qso(${qso["id"]})"></i> </button>'
+        action.innerHTML += '<button type="button"><i class="fa fa-edit" onclick="edit_qso(' + qsoid + ')"> </i></button';
+        action.innerHTML += '<button type="button"><i class="fa fa-ban" onclick="delete_qso(' + qsoid + ')"> </i></button';
     }
 
     var max_notes_row_id = 10
@@ -1380,7 +1411,7 @@
     }
 
     function clear_qso_entry_row() {
-
+        document.getElementById("qso_id").innerText = ""
         document.getElementById("new_qso_date").value = ""
         document.getElementById("new_qso_time").value = ""
         document.getElementById("new_qso_band").value = ""
@@ -1391,6 +1422,7 @@
         document.getElementById("new_qso_distance").innerText = ""
         document.getElementById("new_qso_square").innerText = ""
         document.getElementById("new_qso_points").innerText = ""
+        document.getElementById("new_propmode").value = ""
     }
 
     function clear_note_entry_row() {
@@ -1416,12 +1448,53 @@
         myTab.deleteRow(table_id_to_row(myTab, id))
     }
 
+    function qsoIdRowInTable(id) {
+        let myTab = document.getElementById('logtable');
+        let tr = myTab.getElementsByTagName("tr");
+        for (i = 3; i < tr.length; i++) {
+            td = tr[i].getElementsByTagName("td")[0];
+            if (td) {
+                txtValue = td.textContent || td.innerText;
+                if (txtValue == id) {
+                    return i;
+                }
+            }
+        }
+        console.log("QSO ID ", id, " not found in log table");
+        return undefined;
+    }
+    function edit_qso(id) {
+        console.log("Editing QSO id ", id);
+        i = qsoIdRowInTable(id);
+        if (i) {
+            let myTab = document.getElementById('logtable');
+            let tr = myTab.getElementsByTagName("tr");
+            trels = tr[i].getElementsByTagName("td");
+            console.log("trels=", trels);
+            document.getElementById("qso_id").innerText = trels[0].innerText;
+            document.getElementById("new_qso_date").value = trels[1].innerText;
+            document.getElementById("new_qso_time").value = trels[2].innerText;
+            document.getElementById("new_qso_band").value = trels[3].innerText;
+            document.getElementById("new_callsign").value = trels[4].innerText;
+            document.getElementById("new_tx_rst").value = trels[5].innerText;
+            document.getElementById("new_rx_rst").value = trels[6].innerText;
+            document.getElementById("new_locator").value = trels[7].innerText;
+            document.getElementById("new_propmode").value = trels[9].innerText;
+        }
+    }
+
+
     function commit_new_qso() {
-        new_qso["tx"] = document.getElementById("new_tx_rst").value
-        new_qso["rx"] = document.getElementById("new_rx_rst").value
-        new_qso["date"] = document.getElementById("new_qso_date").value
-        new_qso["time"] = document.getElementById("new_qso_time").value
-        new_qso["band"] = document.getElementById("new_qso_band").value
+        givenQSOId = document.getElementById("qso_id").innerText;
+        new_qso["id"] = givenQSOId
+        new_qso["callsign"] = document.getElementById("new_callsign").value;
+        new_qso["tx"] = document.getElementById("new_tx_rst").value;
+        new_qso["rx"] = document.getElementById("new_rx_rst").value;
+        new_qso["date"] = document.getElementById("new_qso_date").value;
+        new_qso["time"] = document.getElementById("new_qso_time").value;
+        new_qso["band"] = document.getElementById("new_qso_band").value;
+        new_qso["locator"] = document.getElementById("new_locator").value;
+        new_qso["propmode"] = document.getElementById("new_propmode").value;
         new_qso["complete"] = true;
 
 
@@ -1430,26 +1503,80 @@
         socket.once("qso_committed", function (json) {
             new_qso["id"] = json["id"]
             // enter_qso_in_table(new_qso)
-            if (new_qso["rx"].length > 2) {
-                socket.emit('transmit_cw', {'msg': 'RR FB 73 # ee'})
+            console.log("QSO committed, given QSO ID=", givenQSOId);
+
+            if (givenQSOId)
+            {
+                console.log("Finding table row for qsoid", givenQSOId);
+                i = qsoIdRowInTable(givenQSOId);
+                if (i)
+                {
+                    console.log("Qsoid", givenQSOId, " is on row ", i);
+                    update_qso_in_table(json, i);
+                }
+                else
+                {
+                    console.log("Qsoid", givenQSOId, " not found in table ");
+                }
+            }
+            else
+            {
+                console.log("QSO entering into log table");
+                enter_qso_in_table(new_qso);
+                if (new_qso["rx"].length > 2)
+                {
+                    console.log("Transmitting 73");
+                    socket.emit('transmit_cw', {'msg': 'RR FB 73 # ee'});
+                }
             }
             clear_qso_entry_row()
         });
     }
 
     function commit_incomplete_qso() {
+        givenQSOId = document.getElementById("qso_id").innerText;
+        new_qso["id"] = givenQSOId
+        new_qso["callsign"] = document.getElementById("new_callsign").value;
         new_qso["date"] = document.getElementById("new_qso_date").value
         new_qso["time"] = document.getElementById("new_qso_time").value
         new_qso["band"] = document.getElementById("new_qso_band").value
         new_qso["tx"] = document.getElementById("new_tx_rst").value
         new_qso["rx"] = document.getElementById("new_rx_rst").value
+        new_qso["locator"] = document.getElementById("new_locator").value;
+        new_qso["propmode"] = document.getElementById("new_propmode").value;
         new_qso["complete"] = false;
 
         socket.emit("commit_qso", new_qso);
 
         socket.once("qso_committed", function (json) {
             new_qso["id"] = json["id"]
-            enter_qso_in_table(new_qso)
+            // enter_qso_in_table(new_qso)
+            console.log("QSO committed, given QSO ID=", givenQSOId);
+
+            if (givenQSOId)
+            {
+                console.log("Finding table row for qsoid", givenQSOId);
+                i = qsoIdRowInTable(givenQSOId);
+                if (i)
+                {
+                    console.log("Qsoid", givenQSOId, " is on row ", i);
+                    update_qso_in_table(json, i);
+                }
+                else
+                {
+                    console.log("Qsoid", givenQSOId, " not found in table ");
+                }
+            }
+            else
+            {
+                console.log("QSO entering into log table");
+                enter_qso_in_table(new_qso);
+                if (new_qso["rx"].length > 2)
+                {
+                    console.log("Transmitting 73");
+                    socket.emit('transmit_cw', {'msg': 'RR FB 73 # ee'});
+                }
+            }
             clear_qso_entry_row()
         });
     }

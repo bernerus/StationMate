@@ -287,6 +287,10 @@ class HamOp:
                     txmode = qso["band"].split('-')[1]
                 else:
                     txmode = "SSB"
+
+        if "distance" not in qso or not qso["distance"]:
+            qso = self.app.client_mgr.do_lookup_locator(qso)
+
         if "propmode" in qso and qso["propmode"]:
             propmode = qso["propmode"]
         else:
@@ -323,19 +327,31 @@ class HamOp:
         if "augmented_locator" not in qso or not qso["augmented_locator"] and "locator" in qso and qso["locator"]:
             qso["augmented_locator"] = qso["locator"]
 
-        cur.execute("""INSERT INTO nac_log_new (date, time, callsign, tx , rx , locator, distance, square, points, complete, band, accumulated_sqn, txmode, propmode, augmented_locator) 
+        if "id" in qso and qso["id"]:
+            cur.execute("""UPDATE nac_log_new SET date=%s, time=%s, callsign=%s, tx=%s , rx=%s , locator=%s, distance=%s, square=%s, points=%s, complete=%s, band=%s, accumulated_sqn=%s, txmode=%s, propmode=%s, augmented_locator=%s 
+                                  WHERE qsoid = %s""",
+                        (qso["date"], qso["time"], qso["callsign"], qso["tx"], qso["rx"], qso["locator"],
+                         qso["distance"], qso["square"], qso["points"], qso["complete"], band_or_fq, accumulated_square,
+                         txmode, propmode, qso["augmented_locator"], qso["id"]))
+            new_qso_id = qso["id"]
+        else:
+
+            cur.execute("""INSERT INTO nac_log_new (date, time, callsign, tx , rx , locator, distance, square, points, complete, band, accumulated_sqn, txmode, propmode, augmented_locator) 
                       values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s, %s) RETURNING qsoid""",
                     (qso["date"], qso["time"], qso["callsign"], qso["tx"], qso["rx"], qso["locator"],
                      qso["distance"], qso["square"], qso["points"], qso["complete"], band_or_fq, accumulated_square,
                      txmode, propmode, qso["augmented_locator"]))
-        new_qso_id = cur.fetchone()[0]
+            new_qso_id = cur.fetchone()[0]
         self.db.commit()
         cur.close()
 
         if "augmented_locator" in qso and qso["augmented_locator"]:
             self.app.client_mgr.add_mh_on_map(qso["augmented_locator"])
-        self.app.client_mgr.add_qso(qso)
-        return new_qso_id
+        if "id" in qso and qso["id"]:
+            return qso["id"]
+        else:
+            self.app.client_mgr.add_qso(qso)
+            return new_qso_id
 
     def callsigns_in_locator(self, loc):
         cur = self.db.cursor()
