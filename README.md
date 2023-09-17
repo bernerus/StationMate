@@ -5,6 +5,6 @@ It is heavily dependent on my home built hardware, and is not likely to be direc
 
 The hardware schematics etc is found in the following repositories here:
 
-The Station's core control unit: https://github.com/bernerus/StationCore
+* The Station's core control unit: https://github.com/bernerus/StationCore
 
 Christer / SM6FBQ
