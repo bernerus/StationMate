@@ -248,7 +248,7 @@ class HamOp:
         cur = self.db.cursor()
         cur.execute("""DELETE FROM nac_log_new WHERE qsoid = %s""", (int(qso["id"]),))
         self.db.commit()
-        self.app.client_mgr.send_reload()
+        # self.app.client_mgr.send_reload()
 
     def find_augmented_locator(self, callsign:str, given_locator:str) ->str:
         if not callsign:
