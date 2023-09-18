@@ -1443,8 +1443,10 @@
     function delete_qso(id) {
         console.log("Deleting QSO id ", id)
         let myTab = document.getElementById('logtable');
-        socket.emit("delete_qso", {'id': id})
-        myTab.deleteRow(table_id_to_row(myTab, id))
+        if (confirm("Ta bort QSO nr " + id + "?")) {
+              socket.emit("delete_qso", {'id': id})
+            myTab.deleteRow(table_id_to_row(myTab, id))
+        }
     }
 
     function qsoIdRowInTable(id) {
