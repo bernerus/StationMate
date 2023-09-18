@@ -24,7 +24,6 @@
     <link rel='stylesheet' href="{{ url_for('static',filename='fontawesome-free/css/brands.css') }}">
 
 
-
     <meta name="theme-color" content="#fafafa">
 
     <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
@@ -368,7 +367,7 @@
                                 <input style="text-transform: uppercase;width:6em;" id="new_callsign" type="text"
                                        placeholder="Anropssignal" onchange="begin_qso()"/></td>
                             <td><!--suppress HtmlFormInputWithoutLabel -->
-                                <input style="width:5em" id="new_tx_rst" type="text" disabled="true"
+                                <input style="width:5em" id="new_tx_rst" type="text"
                                        onchange="send_report()" list="reports"/>
                             </td>
                             <td><!--suppress HtmlFormInputWithoutLabel -->
@@ -1325,7 +1324,7 @@
 
         let qsoid = qso["id"]
 
-        qso_id.innerHTML = '<button onClick="edit_qso(' + qsoid + ')">' + qsoid + '</button>';
+        qso_id.innerHTML = qsoid;
         date.innerHTML = qso["date"];
         time.innerHTML = qso["time"];
         band.innerHTML = qso["band"];
