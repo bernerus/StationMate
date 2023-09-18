@@ -214,7 +214,7 @@ class HamOp:
         # self.logger.info("Args =  %s" % str(args))
         cur = self.db.cursor()
         q = """SELECT qsoid, date, time, callsign, tx, rx, locator, distance, square, points, complete, propmode, accumulated_sqn, band, augmented_locator
-               FROM nac_log_new WHERE date >= %s and date <= %s and ((time >= %s and time <= %s) or time is null) ORDER BY qsoid, date, time"""
+               FROM nac_log_new WHERE date >= %s and date <= %s and ((time >= %s and time <= %s) or time is null) ORDER BY date, time"""
         cur.execute(q , args)
 
         rows = cur.fetchall()
