@@ -79,13 +79,17 @@ class Reporter:
 	def parse_retrieved_data(self):
 		"""Parse the extracted data from pskreporter. In case of a parse error, the extracted data is not cached"""
 		self.logger.info("Fetching from pskreporter")
-		res = requests.get(self.retrieve_uri)
-		xml = res.text
-		# self.logger.info("Parsing element tree")
-		et = ElementTree(fromstring(xml))
-		with open(self.cache_file_name, "w") as fd:
-			fd.write(xml)
-		return et
+		try:
+			res = requests.get(self.retrieve_uri)
+			xml = res.text
+			# self.logger.info("Parsing element tree")
+			et = ElementTree(fromstring(xml))
+			with open(self.cache_file_name, "w") as fd:
+				fd.write(xml)
+			return et
+		except Exception as e:
+			self.logger.error("Pskreporter fetch failed: %s" % e)
+			raise ParseError
 
 
 	def retrieve(self):

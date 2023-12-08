@@ -152,6 +152,9 @@ class WsjtxNamespace(Namespace):
         logger.info("Set DX grid to %s" % grid)
         emit("fill_dx_grid", grid, namespace="/", broadcast=True)
 
+    def on_set_trx70(self, json):
+        logger.info("Set TRX70")
+        app.ham_op.set_trx70(json)
 
     def on_commit_wsjtx_qso(self, json):
         dt = json["date_time_on"]  # type: str
@@ -169,6 +172,8 @@ class WsjtxNamespace(Namespace):
             "complete": True,
             "propmode": json["propmode"]
         }
+
+
 
         # If given only the square, look up any known full locator if previously known
         found_loc = app.ham_op.lookup_locator(json["dx_call"], json["dx_grid"])
@@ -447,6 +452,7 @@ def handle_toggle_pa(_json):
 def handle_toggle_tx70(_json):
     app.ham_op.toggle_tx70()
 
+
 @socket_io.on("toggle_auto_track")
 def handle_toggle_auto_track(_json):
     app.client_mgr.toggle_auto_track()
@@ -454,6 +460,7 @@ def handle_toggle_auto_track(_json):
 @socket_io.on("toggle_rx70")
 def handle_toggle_rx70(_json):
     app.ham_op.toggle_rx70()
+
 
 @socket_io.on("toggle_hide_logged_stations")
 def handle_toggle_hide_logged_stations(_json):

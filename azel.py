@@ -167,19 +167,42 @@ class AzElControl:
 
 	def az_control_loop(self):
 		""" This function runs in an autonomous thread"""
-		if self.az_control_active:
-			self.logger.info("Azimuth control thread starting")
+
+		self.logger.info("Azimuth control thread starting")
+		prev_diff:int=None
+		to_sleep=0
+		rotated_cw=None
+		rotated_ccw=None
 		while(self.az_control_active):
 			if self.az_target is not None:
 				diff = self.az - self.az_target
 				if diff:
-					self.logger.debug("Diff = %s", diff)
+					if prev_diff is not None:
+						measured_speed = to_sleep / abs(prev_diff - diff)
+						if rotated_cw:
+							speed_change = (measured_speed - self.seconds_per_tick_cw )/ self.seconds_per_tick_cw
+							self.logger.debug("Measured cw speed:%s, anticipated: %f" % (measured_speed, self.seconds_per_tick_cw))
+							if abs(speed_change) > 0.01 and abs(speed_change) < 0.1:
+								self.seconds_per_tick_cw *= 1+0.5*speed_change
+								self.logger.info("CW speed adaption: measured change is %2.2f%%, new speed set to %s"%(speed_change*100, self.seconds_per_tick_cw))
+						elif rotated_ccw:
+							speed_change = (measured_speed - self.seconds_per_tick_ccw)/ self.seconds_per_tick_ccw
+							self.logger.debug("Measured ccw speed:%s, anticipated: %f" % (measured_speed, self.seconds_per_tick_cw))
+							if abs(speed_change) > 0.01 and abs(speed_change) < 0.1:
+								self.seconds_per_tick_ccw *= 1+0.5 * speed_change
+								self.logger.info("CCW speed adaption: measured change is %2.2f%%, new speed set to %s" % (speed_change * 100, self.seconds_per_tick_ccw))
+						else:
+							self.logger.error("Strange, there was no rotation going on")
+					else:
+						self.logger.info("Speed adaption not performed")
+					self.logger.debug("New Diff = %s", diff)
 					self.notify_stop = True
 				rotated_cw = False
 				rotated_ccw = False
 				if abs(diff) < self.az_hysteresis:
-					if self.rotating_ccw or self.rotating_ccw:
-						rotated_cw = self.rotating_ccw
+					prev_diff = None
+					if self.rotating_ccw or self.rotating_cw:
+						rotated_cw = self.rotating_cw
 						rotated_ccw = self.rotating_ccw
 						self.az_stop()
 					if self.calibrating:
@@ -214,7 +237,10 @@ class AzElControl:
 								self.az_stop()
 								time.sleep(1.5)  # Allow stabilizing before changing direction
 							self.az_cw()
+							rotated_cw = True
 							to_sleep = (abs(diff) - self.az_hysteresis) * self.seconds_per_tick_cw
+							prev_diff= diff
+							self.logger.debug("Sleeping for %s seconds for diff=%s rotating cw" % (to_sleep, diff))
 							if to_sleep > 0:
 								time.sleep(to_sleep)
 							continue
@@ -224,8 +250,11 @@ class AzElControl:
 							self.az_stop()
 							time.sleep(1.8)  # Allow stabilizing before changing direction
 						if not self.rotating_ccw:
+							rotated_ccw = True
 							self.az_ccw()
 							to_sleep = (abs(diff) - self.az_hysteresis) * self.seconds_per_tick_cw
+							prev_diff = diff
+							self.logger.debug("Sleeping for %s seconds for diff=%s rotating ccw" % (to_sleep, diff))
 							if to_sleep > 0:
 								time.sleep(to_sleep)
 							continue
@@ -237,6 +266,8 @@ class AzElControl:
 				time.sleep(2)
 		self.az_control_active = False
 		self.logger.info("Azimuth control thread stopping")
+
+
 
 	def sweep(self,start,stop,period,sweeps,increment):
 		scan = ScanTarget(self, "Scan", start, stop, period, abs(increment), sweeps, 30*60)
@@ -464,7 +495,8 @@ class AzElControl:
 		# self.p20.bit_write(P20_STOP_AZ, LOW)
 		# self.p20.bit_write(P20_ROTATE_CW, HIGH)
 
-		self.p20.byte_write(P20_STOP_AZ  | P20_ROTATE_CW , P20_ROTATE_CW)
+		#self.p20.byte_write(P20_STOP_AZ  | P20_ROTATE_CW , P20_ROTATE_CW)
+		self.rotate_stop()
 		time.sleep(0.4)  # Allow mechanics to settle
 		self.logger.debug("Stopped azimuth rotation at %d ticks"% self.az)
 		self.store_az()
@@ -472,15 +504,17 @@ class AzElControl:
 	def az_ccw(self):
 		self.logger.debug("Rotate anticlockwise")
 		self.azrot_err_count = 0
-		self.rotating_ccw = True
-		self.rotating_cw = False
+		#self.rotating_ccw = True
+		#self.rotating_cw = False
 		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ, HIGH)
 		time.sleep(0.1)
 		self.rotate_start_az = self.az
-		self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, P20_ROTATE_CW)
-		self.rotating_ccw = False
-		self.rotating_cw = False
+		#self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, P20_ROTATE_CW)
+		self.rotate_ccw()
+
+		#self.rotating_ccw = False
+		#self.rotating_cw = False
 
 		#self.p20.bit_write(P20_ROTATE_CW, HIGH)
 		#self.p20.bit_write(P20_AZ_TIMER, LOW)
@@ -493,14 +527,16 @@ class AzElControl:
 		self.p20.bit_write(P20_STOP_AZ, HIGH)
 		time.sleep(0.1)
 		self.rotate_start_az = self.az
-		self.rotating_ccw = True
-		self.rotating_cw = False
+		#self.rotating_ccw = True
+		#self.rotating_cw = False
 		nudge_time = float((abs(diff)/3) * self.seconds_per_tick_ccw)
-		self.p20.byte_write(P20_AZ_TIMER | P20_ROTATE_CW, P20_ROTATE_CW) # Start ccw
+		self.rotate_ccw()
+		#self.p20.byte_write(P20_AZ_TIMER | P20_ROTATE_CW, P20_ROTATE_CW) # Start ccw
 		time.sleep(nudge_time)
-		self.p20.byte_write(P20_STOP_AZ | P20_ROTATE_CW, P20_ROTATE_CW) # Stop
-		self.rotating_ccw = False
-		self.rotating_cw = False
+		self.rotate_stop()
+		#self.p20.byte_write(P20_STOP_AZ | P20_ROTATE_CW, P20_ROTATE_CW) # Stop
+		#self.rotating_ccw = False
+		#self.rotating_cw = False
 
 		# self.p20.bit_write(P20_ROTATE_CW, HIGH)
 		# self.p20.bit_write(P20_AZ_TIMER, LOW)
@@ -510,15 +546,16 @@ class AzElControl:
 	def az_cw(self):
 		self.logger.debug("Rotate clockwise")
 		self.azrot_err_count = 0
-		self.rotating_cw = True
-		self.rotating_ccw = False
+		#self.rotating_cw = True
+		#self.rotating_ccw = False
 		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ, HIGH)
 		time.sleep(0.1)
 		#self.p20.bit_write(P20_ROTATE_CW, LOW)
 		#self.p20.bit_write(P20_AZ_TIMER, LOW)
 		self.rotate_start_az = self.az
-		self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, 0)
+		self.rotate_cw()
+		#self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, 0)
 		self.logger.debug("Rotating clockwise")
 
 
@@ -531,17 +568,36 @@ class AzElControl:
 		#self.p20.bit_write(P20_ROTATE_CW, LOW)
 		#self.p20.bit_write(P20_AZ_TIMER, LOW)
 		self.rotate_start_az = self.az
-		self.rotating_cw = True
-		self.rotating_ccw = False
+		#self.rotating_cw = True
+		#self.rotating_ccw = False
 		nudge_time = float((abs(diff)/3) * self.seconds_per_tick_cw + 0.2)
-		self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, 0)
+		self.rotate_cw()
+		#self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, 0)
 		time.sleep(nudge_time)
-		self.p20.byte_write(P20_STOP_AZ | P20_ROTATE_CW, P20_ROTATE_CW)  # Stop
-		self.rotating_ccw = False
-		self.rotating_cw = False
+		self.rotate_stop()
+		#self.p20.byte_write(P20_STOP_AZ | P20_ROTATE_CW, P20_ROTATE_CW)  # Stop
+		#self.rotating_ccw = False
+		#self.rotating_cw = False
 		self.logger.debug("Nudged clockwise for %f seconds" % nudge_time)
 
+	def rotate_cw(self):
+		self.rotating_cw = True
+		self.rotating_ccw = False
+		self.p20.byte_write(P20_ROTATE_CW, 0)  # Select CW
+		time.sleep(0.2)
+		self.p20.byte_write(P20_AZ_TIMER | P20_ROTATE_CW, 0)  # Start
 
+	def rotate_ccw(self):
+		self.rotating_ccw = True
+		self.rotating_cw = False
+		self.p20.byte_write(P20_ROTATE_CW, P20_ROTATE_CW)  # Select ccw
+		time.sleep(0.2)
+		self.p20.byte_write(P20_AZ_TIMER | P20_ROTATE_CW, P20_ROTATE_CW)  # Start
+
+	def rotate_stop(self):
+		self.p20.byte_write(P20_STOP_AZ, P20_ROTATE_CW)
+		self.rotating_ccw = False
+		self.rotating_cw = False
 	def interrupt_dispatch(self, _channel):
 		current_sense = self.p21.byte_read(0xff)  # type: int
 		# self.logger.debug("Interrupt %s %s" % (self.sense2str(self.last_sense), self.sense2str(current_sense)))

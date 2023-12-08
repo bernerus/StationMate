@@ -19,20 +19,27 @@ def background_thread(app):
     count = 0
     with app.app_context():
         while True:
-            count += 1
-            if not msg_q.empty():
-                what, item = msg_q.get_nowait()
-                # print("Sending %s %d %s" % (what, count, item))
-                app.socket_io.emit(what, item, broadcast=True)
-            app.socket_io.sleep(0.1)
+                count += 1
+                try:
+                    if not msg_q.empty():
+                        what, item = msg_q.get_nowait()
+                        # print("Sending %s %d %s" % (what, count, item))
+                        app.socket_io.emit(what, item, broadcast=True)
+                except:
+                    pass
+                app.socket_io.sleep(0.1)
+
 
 def status_update_thread(app):
     """Check status and send updates to clients"""
     app.client_mgr.logger.info("Starting update thread")
     with app.app_context():
         while True:
-            current_status = app.ham_op.get_status()
-            app.client_mgr.status_push(current_status)
+            try:
+                current_status = app.ham_op.get_status()
+                app.client_mgr.status_push(current_status)
+            except:
+                pass
             app.socket_io.sleep(0.5)
 
 
@@ -57,7 +64,14 @@ def emit(what, data):
 
 class ClientMgr:
     def __init__(self, app, logger, socket_io):
+        """
+        Initializes the class instance with the given parameters.
 
+        :param app: The Flask app object.
+        :param logger: The logger object.
+        :param socket_io: The SocketIO object.
+
+        """
         self.station_layer = True
         self.aircraft_layer = True
         self.app=app
@@ -75,9 +89,9 @@ class ClientMgr:
         self.message_thread = None
         self.status_thread = None
 
-        self.map_mh_length = 6
-        self.mhs_on_map = []
-        self.distinct_mhs_on_map = False
+        self.map_locator_precision = 6
+        self.locators_on_map = []
+        self.distinct_locators_on_map = False
 
         self.show_log_since = None
         self.show_log_until = None
@@ -104,22 +118,38 @@ class ClientMgr:
         send_update_state("tx70_led", "disabled", False)
         pass
 
-    def get_map_mh_length(self):
-        return self.map_mh_length
+    def get_locator_precision_used_on_map(self):
+        return self.map_locator_precision
 
-    def set_map_mh_length(self, length):
-        if length != self.get_map_mh_length():
+    def set_locator_precision_used_on_map(self, length):
+        """
+        :param length: The desired length of the map locator precision.
+        :return: None
+
+        Set the locator precision used on the map to the specified length. If the length is different from the current precision, the map MH length is updated to the
+        * specified length. If the length is less than 6, the distinct locators on the map are set to True and the map zoom level is set to 6. Otherwise, the distinct locators on the map are
+        * set to False and the map zoom level is set to 8. Finally, the `send_reload()` method is called to reset and reload the map.
+        """
+        if length != self.get_locator_precision_used_on_map():
             self.logger.info("Setting map MH length to %d", length)
-            self.map_mh_length = length
+            self.map_locator_precision = length
             if length < 6:
-                self.distinct_mhs_on_map = True
+                self.distinct_locators_on_map = True
                 emit("setMapZoom", 6)
             else:
-                self.distinct_mhs_on_map = False
+                self.distinct_locators_on_map = False
                 emit("setMapZoom", 8)
             self.send_reload()
 
     def set_log_scope(self, scope):
+        """
+        Set the log scope for logging.
+
+        :param scope: The new log scope.
+        :type scope: str
+        :return: None
+        :rtype: None
+        """
         if scope != self.current_log_scope:
             self.current_log_scope = scope
             if scope == "Forever":
@@ -135,45 +165,69 @@ class ClientMgr:
             self.send_reload()
 
 
-    def add_mhs_on_map(self, mhs):
-        distinct = self.distinct_mhs_on_map
-        mh_length = self.get_map_mh_length()
+    def add_mhs_on_map(self, locator_list):
+        """
+        :param locator_list: list of locators to add on the map
+        :return: None
+
+        This method takes a list of locators and adds them on the map. It performs the following steps:
+        1. Gets the distinct locators already on the map.
+        2. Retrieves the locator precision used on the map.
+        3. Initializes an empty list named "to_send" to store the data to be sent to the client.
+        4. Iterates through each locator in the input list.
+           a. Trims the locator to the specified precision.
+           b. Checks if the locator is distinct and not already present on the map.
+              - If true, adds the locator to the "to_send" list.
+           c. Attempts to calculate the rectangular coordinates (n, s, w, e, lat, lon) for the locator.
+              - If successful, appends the locator to the "locators_on_map" list.
+           d. Retrieves the callsigns associated with the locator.
+           e. Determines the title and hover_info based on the length of the locator.
+           f. Constructs the information string for the locator and its associated callsigns.
+              - Appends the HTML table containing the callsigns to the string.
+           g. Appends a dictionary with the locator information to the "to_send" list.
+        5. Adds the "to_send" list to the message queue to send the data to the desired recipient.
+
+        Note: The method has an instance method dependency, "get_locator_precision_used_on_map()"
+        and an external module dependency, "mh". Also, it uses an external variable, "msg_q".
+        """
+        distinct = self.distinct_locators_on_map
+        locator_precision = self.get_locator_precision_used_on_map()
         to_send = []
 
-        mhs = [x[0:mh_length] if x else None for x in mhs]
+        locator_list = [x[0:locator_precision] if x else None for x in locator_list]
         if distinct:
-            mhs = set(mhs) - set(self.mhs_on_map)
-        for loc in mhs:
+            locator_list = set(locator_list) - set(self.locators_on_map)
+        for loc in locator_list:
             n, s, w, e, lat, long = None, None, None, None, None, None
             try:
                 n, s, w, e, lat, lon = mh.to_rect(loc)
-                self.mhs_on_map.append(loc)
+                self.locators_on_map.append(loc)
             except (TypeError, ValueError):
                 pass
 
             callsigns = self.app.ham_op.callsigns_in_locator(loc)
             title = "Lokator"
-            hoverinfo=True
+            hover_info=True
             if len(loc) < 6:
-                hoverinfo=False
+                hover_info=False
                 title="Ruta"
             if len(loc) < 4:
                 title = "Fält"
             info = "%s <b>%s</b>:<br/>" % (title, loc)
             info += "<table id=\"loctable_%s\" class=\"locator_callsigns\">" % loc
-            cs_array = ([],[],[],[])
+            callsign_array = ([],[],[],[])
             nc=0
-            col_size = int(len(callsigns)/len(cs_array))+1
+            col_size = int(len(callsigns)/len(callsign_array))+1
             for cs in callsigns:
                 col = int(nc / col_size)
                 try:
-                    cs_array[col].append(cs)
+                    callsign_array[col].append(cs)
                 except IndexError as e:
                     pass
                 nc += 1
-            for row in range(max([len(x) for x in cs_array])):
+            for row in range(max([len(x) for x in callsign_array])):
                 info+="<tr>"
-                for col in cs_array:
+                for col in callsign_array:
                         try:
                             info +="<td>"+col[row]+"</td>"
                         except IndexError:
@@ -181,7 +235,7 @@ class ClientMgr:
                 info += "</tr>"
 
             info += "</table>"
-            to_send.append({"id": loc, "n": n, "s": s, "w": w, "e": e, 'info':info, 'hoverinfo': hoverinfo})
+            to_send.append({"id": loc, "n": n, "s": s, "w": w, "e": e, 'info':info, 'hover_info': hover_info})
 
         msg_q.put(("add_rects", to_send))
 
@@ -195,17 +249,24 @@ class ClientMgr:
         # else:
         #     self.enable_core_controls()
         if current is None:
+
+            # self.logger.info("Status push, force=%s" % force)
             send_update_state("pa_ready_led", "disabled", True)
             send_update_state("trx_rx_led", "disabled", True)
             send_update_state("trx_tx_led", "disabled", True)
             send_update_state("rx70_led", "disabled", True)
             send_update_state("tx70_led", "disabled", True)
+            self.last_pushed_status = current
         else:
-            send_update_state("trx_rx_led", "disabled", False)
-            send_update_state("trx_tx_led", "disabled", False)
-            send_update_state("rx70_led", "disabled", False)
-            send_update_state("tx70_led", "disabled", False)
+            if self.last_pushed_status is None:
+                self.logger.info("Status push, force=%s" % force)
+                send_update_state("trx_rx_led", "disabled", False)
+                send_update_state("trx_tx_led", "disabled", False)
+                send_update_state("rx70_led", "disabled", False)
+                send_update_state("tx70_led", "disabled", False)
+
             if current and ((current != self.last_pushed_status)  or self.last_pushed_status is None or force):
+                self.logger.info("Status push, force=%s" % force)
                 if current & P26_PA_READY:
                     send_update_class("pa_ready_led", "active", True)
                     send_update_class("pa_ready_led", "warming", False)
@@ -239,11 +300,11 @@ class ClientMgr:
                 send_update_class("log_scope_contest", "active", self.current_log_scope == "Contest")
                 self.last_pushed_log_scope = self.current_log_scope
 
-            if self.map_mh_length != self.last_pushed_map_mh_length or force:
-                send_update_class("loc_fields", "active", self.map_mh_length == 2)
-                send_update_class("loc_squares", "active", self.map_mh_length == 4)
-                send_update_class("loc_locators", "active", self.map_mh_length >= 6)
-                self.last_pushed_map_mh_length = self.map_mh_length
+            if self.map_locator_precision != self.last_pushed_map_mh_length or force:
+                send_update_class("loc_fields", "active", self.map_locator_precision == 2)
+                send_update_class("loc_squares", "active", self.map_locator_precision == 4)
+                send_update_class("loc_locators", "active", self.map_locator_precision >= 6)
+                self.last_pushed_map_mh_length = self.map_locator_precision
 
 
         self.app.azel.status_update()
@@ -286,6 +347,12 @@ class ClientMgr:
 
 
     def connect(self, namespace="/"):
+        """
+        Connects to the given namespace.
+
+        :param namespace: The namespace to connect to.
+        :return: None
+        """
         # Clear the queue
 
         if namespace=="/":
@@ -314,14 +381,14 @@ class ClientMgr:
             rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
             qsos = []
             mhs = []
-            self.mhs_on_map = []
+            self.locators_on_map = []
             mhsqnumber = 0
             mhsqs = set()
             for row in rows:
                 newmsqn = None
                 if row[6]:
                     mhsq = row[6][:4].upper()
-                    if mhsq not in mhsqs and row[13].startswith(re.split("[-.]",self.current_band)[0]):
+                    if mhsq not in mhsqs and row[13].startswith(re.split("[-.]",self.current_band)[0]) and row[10]:
                         newmsqn = len(mhsqs)+1
                         mhsqs.add(mhsq)
 
@@ -360,7 +427,7 @@ class ClientMgr:
 
 
     def update_map_center(self):
-        settings = self.app.ham_op.get_map_setting(self.current_band, self.map_mh_length, self.current_log_scope)
+        settings = self.app.ham_op.get_map_setting(self.current_band, self.map_locator_precision, self.current_log_scope)
         #print("Settings=",settings)
         if settings:
             lon, lat, zoom = settings
@@ -375,7 +442,7 @@ class ClientMgr:
         n, s, w, e, lat, lon = mh.to_rect(myqth)
         zoom=8
 
-        settings = self.app.ham_op.get_map_setting(self.current_band, self.map_mh_length, self.current_log_scope)
+        settings = self.app.ham_op.get_map_setting(self.current_band, self.map_locator_precision, self.current_log_scope)
         if settings:
             lon, lat, zoom = settings
 
@@ -473,6 +540,16 @@ class ClientMgr:
         msg_q.put(("update_planes", planes2))
 
     def update_reachable_stations(self, beaming, other):
+        """
+        :param beaming: A dictionary of stations that are beaming towards the user's location. Each key-value pair in the dictionary represents a unique station, where the key is the station
+        *'s unique identifier and the value is a dictionary containing station information.
+        :param other: A dictionary of other stations that are not beaming towards the user's location. Each key-value pair in the dictionary represents a unique station, where the key is the
+        * station's unique identifier and the value is a dictionary containing station information.
+        :return: None
+
+        This method updates the list of reachable stations based on the provided dictionaries of beaming and other stations. It uses the provided information to create a JSON object representing
+        * each station and stores them in a dictionary. The resulting dictionary is then sent to a message queue for further processing and communication with the client application.
+        """
         json={}
 
         worked_callsigns = set()
@@ -550,7 +627,7 @@ class ClientMgr:
 
     def map_settings(self, json):
         self.logger.debug("Map settings received: %s", json)
-        self.app.ham_op.store_map_setting(json, self.current_band, self.map_mh_length, self.current_log_scope)
+        self.app.ham_op.store_map_setting(json, self.current_band, self.map_locator_precision, self.current_log_scope)
 
     def toggle_hide_logged_stations(self):
         self.hiding_logged_stations = not self.hiding_logged_stations

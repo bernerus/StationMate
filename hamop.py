@@ -221,7 +221,15 @@ class HamOp:
         return rows
 
     def distance_to(self, other_loc, qso_date=None, qso_time=None):
+        """
+        Calculates the bearing and distance to another location.
 
+        :param other_loc: The coordinates of the other location.
+        :param qso_date: The date of the QSO (optional).
+        :param qso_time: The time of the QSO (optional).
+        :return: A tuple containing the bearing and distance to the other location. If qso_date and qso_time
+                 are provided, it also returns the points and square_count.
+        """
         bearing, distance = mh.distance_between(self.my_qth(), other_loc)
         points = math.ceil(distance)
 
@@ -251,6 +259,14 @@ class HamOp:
         # self.app.client_mgr.send_reload()
 
     def find_augmented_locator(self, callsign:str, given_locator:str) ->str:
+        """
+        :param callsign: The callsign of the person for whom to find the augmented locator.
+        :type callsign: str
+        :param given_locator: The given locator to filter the search results. Optional.
+        :type given_locator: str
+        :return: The augmented locator of the person if found, else None.
+        :rtype: str
+        """
         if not callsign:
             return None
         cur = self.db.cursor()
@@ -527,29 +543,42 @@ class HamOp:
     def commit_qso(self, request):
         ret = {"added": 0, "adjusted": 0}
 
+
+    def process_log_file(self, cur, file_data, ret):
+        for qsos in file_data.splitlines():
+            qso = qsos.split(',')
+            self.merge_into_old_log_db(cur, qso, ret)
+
+    def process_adi_file(self, cur, file_data, ret):
+        qsos_raw, adif_header = adif_io.read_from_string(file_data)
+        for qso in qsos_raw:
+            self.merge_into_log_db(cur, ret, qso)
+
     def my_wsjtx_upload(self, request):
+        """
+        :param request: The request object containing files to be uploaded.
+        :return: A string indicating the number of QSOs added and adjusted during the upload process.
+        """
         ret = {"added": 0, "adjusted": 0}
         cur = self.db.cursor()
         for k, v in request.files.items():
             file_data = v.read().decode("utf-8")
             if v.filename.endswith(".log"):
-                # print(file_data)
-                for qsos in file_data.splitlines():
-                    qso = qsos.split(',')
-                    self.merge_into_old_log_db(cur, qso, ret)
+                self.process_log_file(cur, file_data, ret)
                 break
-            if v.filename.endswith(".adi"):
-                # ADIF files have more data which goes to another table. Hence another routine.
-                qsos_raw, adif_header = adif_io.read_from_string(file_data)
-                for qso in qsos_raw:
-                    self.merge_into_log_db(cur, ret, qso)
-
+            elif v.filename.endswith(".adi"):
+                self.process_adi_file(cur, file_data, ret)
             if ret["adjusted"]:
                 self.db.commit()
         return "QSQ:s added: %d, adjusted: %s" % (ret["added"], ret["adjusted"])
 
     def merge_into_old_log_db(self, cur, qso, ret):
-        startdate, starttime, enddate, endtime, callsign, locator, frequency, txmode, trprt, rrprt, power, comment, dxname, propmode = qso
+        try:
+
+            startdate, starttime, enddate, endtime, callsign, locator, frequency, txmode, trprt, rrprt, power, comment, dxname, propmode = qso[0:14]
+        except:
+            pprint.pprint(qso)
+            raise
         starttime = starttime.replace(':', '')[:4]
         _endtime = endtime.replace(':', '')[:4]
         if propmode == "T":
@@ -703,6 +732,22 @@ class HamOp:
 
             self.app.client_mgr.status_update(force=True)
 
+    def set_trx70(self, json):
+        if self.p27 and self.p26:
+
+            if "tx" in json:
+                if json["tx"]:
+                    self.p27.bit_write(P27_TX_432_L, LOW)
+                else:
+                    self.p27.bit_write(P27_TX_432_L, HIGH)
+
+            if "rx" in json:
+                if json["rx"]:
+                    self.p27.bit_write(P27_RX_432_L, LOW)
+                else:
+                    self.p27.bit_write(P27_RX_432_L, HIGH)
+
+            self.app.client_mgr.status_update(force=True)
 
     def toggle_pa(self):
         if self.p27 and self.p26:
@@ -750,6 +795,13 @@ class HamOp:
 
 
     def lookup_locator(self, callsign, given_loc=None) -> str:
+        """
+        Retrieves the locator associated with a given callsign from the QSO log or, if not found, from the callbook in the database.
+
+        :param callsign: The callsign to lookup.
+        :param given_loc: The optional locator to match against.
+        :return: The found locator if found and matches given_loc, otherwise None.
+        """
         q = """SELECT qsoid, locator from nac_log_new where callsign = %s order by date desc"""
 
         cur = self.db.cursor()
@@ -758,7 +810,7 @@ class HamOp:
         found_loc = None
 
         for row in rows:
-            if len(row[1]) < 6:
+            if not row[1] or len(row[1]) < 6:
                 continue
             found_loc = row[1]
             break
@@ -785,6 +837,15 @@ class HamOp:
 
 
     def store_map_setting(self, json, current_band, map_mh_length, log_scope):
+        """
+        Store the map setting in the database.
+
+        :param json: A dictionary containing the map settings.
+        :param current_band: The current band.
+        :param map_mh_length: The map MH length.
+        :param log_scope: The log scope.
+        :return: None
+        """
         from_az, to_az = self.app.azel.get_az_sector()
         q = """INSERT INTO origi(origo_lon, origo_lat, zoom, mh_length, band, az_from, az_to, log_scope)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT ON CONSTRAINT origi_keys DO UPDATE
@@ -904,6 +965,11 @@ class HamOp:
             return ret
 
     def translate_qras(self):
+        """
+        Translate QRA locators to MH locators in the `nac_log_new` table.
+
+        :return: A string containing the translated QRA locators and the number of locators translated.
+        """
         import locator.src.qra as qra
         with self.db.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
             q = "SELECT qsoid, callsign, locator from nac_log_new where length(locator) = 5"
@@ -928,6 +994,13 @@ class HamOp:
         return ret + "%d QRA locators translated" % n
 
     def recompute_distances(self):
+        """
+        Recomputes distances for callsigns in the database based on their locator and my_locator.
+        Updates the distance field in the database for each callsign that has a changed distance.
+
+        :return: A formatted string listing the ODXs and MH fields and the number of distances changed.
+        """
+
         from collections import defaultdict
         q =  "SELECT qsoid,callsign,locator,my_locator, distance, propmode, band from nac_log_new"
 

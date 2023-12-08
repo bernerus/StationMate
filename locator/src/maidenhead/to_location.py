@@ -39,15 +39,18 @@ def to_location(maiden: str) -> T.Tuple[float, float]:
         lon += (ord(maiden[4]) - Oa) * 5.0 / 60
         lat += (ord(maiden[5]) - Oa) * 2.5 / 60
     # %%
-    if N >= 8:
-        lon += int(maiden[6]) * 5.0 / 600
-        lat += int(maiden[7]) * 2.5 / 600
-    if N >= 10:
-        lon += (ord(maiden[8]) - Oa) * 5.0 / 600 / 24
-        lat += (ord(maiden[9]) - Oa) * 2.5 / 600 / 24
-    if N >= 12:
-        lon += int(maiden[10]) * 5.0 /  600 / 240
-        lat += int(maiden[11]) *  2.5 / 600 / 240
+    try:
+        if N >= 8:
+            lon += int(maiden[6]) * 5.0 / 600
+            lat += int(maiden[7]) * 2.5 / 600
+        if N >= 10:
+            lon += (ord(maiden[8]) - Oa) * 5.0 / 600 / 24
+            lat += (ord(maiden[9]) - Oa) * 2.5 / 600 / 24
+        if N >= 12:
+            lon += int(maiden[10]) * 5.0 /  600 / 240
+            lat += int(maiden[11]) *  2.5 / 600 / 240
+    except ValueError as e:
+            print("ValueError %s on extended locator '%s', using first 6 characters" % (e, maiden))
 
     # %%
 

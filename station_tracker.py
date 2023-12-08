@@ -45,10 +45,10 @@ class StationTracker:
 			except Exception as e:
 				self.logger.error("Stations update failed while getting stations, exception=%s"% e)
 
-			#try:
-			self.app.client_mgr.update_reachable_stations(self.beaming_stations, self.other_stations )  # self.other_stations)
-			#except Exception as e:
-				#self.logger.error("Stations update failed while updating, exception=%s"% e)
+			try:
+				self.app.client_mgr.update_reachable_stations(self.beaming_stations, self.other_stations )  # self.other_stations)
+			except Exception as e:
+				self.logger.error("Stations update failed while updating, exception=%s"% e)
 			st_abortable_sleep(300)
 			# print("StationThread is awake")
 

@@ -126,7 +126,7 @@ class TargetStack:
 				continue
 			if target.active:
 				if taz != self.azel.az:
-					self.logger.info("Tracking target %s %s" % (target.id, taz))
+					self.logger.info("Tracking target %s %s°" % (target.id, taz))
 					self.azel._az_track(taz)
 					self.update_ui(force=True)
 			else:
@@ -134,9 +134,9 @@ class TargetStack:
 				self.azel.untrack()
 				self.update_ui(force=True)
 			sleep = datetime.datetime.now().second + 60 * datetime.datetime.now().minute
-			self.logger.info("Raw sleep: %d seconds" % sleep)
+			#self.logger.info("Raw sleep: %d seconds" % sleep)
 			sleep = target.update_in - (sleep % target.update_in)
-			self.logger.info("Cooked sleep: %d seconds" % sleep)
+			#self.logger.info("Cooked sleep: %d seconds" % sleep)
 			abortable_sleep(sleep)
 
 class Target:
@@ -165,11 +165,11 @@ class Target:
 	def done(self):
 		if self.start_time:
 			ret = time.time() > self.start_time + self.ttl
-			print("Target %s, done=%s, time=%s, start_time=%s, ttl=%s" %
-			                  (self.id, ret, time.time(), self.start_time, self.ttl))
+			self.azel.logger.debug("Target %s, done=%s, time=%s, start_time=%s, ttl=%s, tl=%4.0f" %
+			                  (self.id, ret, time.time(), self.start_time, self.ttl, self.ttl - (time.time()-self.start_time)))
 			return time.time() > self.start_time + self.ttl
 		else:
-			print("Target %s, done=false, time=%s, start_time=%s, ttl=%s" %
+			self.azel.logger.debug("Target %s, done=false, time=%s, start_time=%s, ttl=%s" %
 			                  (self.id, time.time(), self.start_time, self.ttl))
 			return False
 
@@ -295,10 +295,12 @@ class WindTarget(Target):
 	def active(self):
 		if not self.details:
 			return False
-		if self.details["air_temperature"] < -4:
-			return True   # Avoid freezing the rotator by moving it around now and then.
 		if self.details["wind_speed_of_gust"] > 10  or self.details["wind_speed"] > 7:
 			return True
+
+		if self.details["air_temperature"] < -4 and time.localtime().tm_hour > 6:
+			return True   # Avoid freezing the rotator by moving it around now and then, but not during the night,
+
 		return False # No need for turning around
 
 
