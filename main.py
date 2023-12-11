@@ -333,7 +333,7 @@ def calibrate(_json):
 @socket_io.event
 def set_map_mh_length(json):
     length = int(json["length"])
-    app.client_mgr.set_map_mh_length(length)
+    app.client_mgr.set_locator_precision_used_on_map(length)
 
 @socket_io.event
 def set_log_scope(json):

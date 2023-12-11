@@ -474,42 +474,41 @@
 <script src="https://maps.googleapis.com/maps/api/js?key={{gapikey}}&v=weekly&libraries=geometry" ></script>
 
 <script>
-    function initButtonGroup(parentId) {
-        var buttonGroup = document.getElementById(parentId),
-            i = 0,
-            len = buttonGroup.childNodes.length,
-            button;
-        handleButtonGroupClick = initClickHandler(parentId);
+    const BUTTON = 'BUTTON';
 
-        for (; i < len; i += 1) {
-            button = buttonGroup.childNodes[i];
-            if (button.nodeName === 'BUTTON') {
-                button.addEventListener('click', handleButtonGroupClick);
-            }
-        }
+    function initButtonGroup(buttonGroupId) {
+        const buttonGroup = document.getElementById(buttonGroupId);
+        const handleButtonGroupClick = createClickHandler(buttonGroupId);
+
+        forEachButtonInGroup(buttonGroup, button => {
+            button.addEventListener('click', handleButtonGroupClick);
+        });
     }
 
-    function initClickHandler(parentId) {
+    function createClickHandler(buttonGroupId) {
         return function (e) {
-            var buttonGroup = document.getElementById(parentId),
-                i = 0,
-                len = buttonGroup.childNodes.length,
-                button;
-
+            const buttonGroup = document.getElementById(buttonGroupId);
             e.preventDefault();
 
-            for (; i < len; i += 1) {
-                button = buttonGroup.childNodes[i];
-                if (button.nodeName === 'BUTTON') {
-                    button.className = '';
-                }
-            }
+            forEachButtonInGroup(buttonGroup, button => {
+                button.className = '';
+            });
 
             e.target.className = 'active';
         };
     }
 
+    function forEachButtonInGroup(buttonGroup, callback) {
+        for (let index = 0; index < buttonGroup.childNodes.length; index += 1) {
+            const button = buttonGroup.childNodes[index];
+            if (button.nodeName === BUTTON) {
+                callback(button);
+            }
+        }
+    }
+
     initButtonGroup('locatorButtons');
+</script>
 </script>
 
 <script>
