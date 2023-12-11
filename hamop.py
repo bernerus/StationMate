@@ -184,17 +184,92 @@ class HamOp:
         return s
 
     def fetch_my_current_data(self, band="144"):
+        return self.fetch_config_data(type="str", band=band)
+
+        #cur = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        # ts = datetime.now().isoformat()[:10]
+        # cur.execute("""SELECT * FROM config_str
+        #                             WHERE (time_start IS NULL OR time_start <= %s ) AND
+        #                                    (time_stop IS NULL OR time_stop >= %s) AND
+        #                                    (band IS NULL OR band = %s)
+        #                                    ORDER BY key""",
+        #             (ts, ts, band)
+        #             )
+        # rows = cur.fetchall()
+        # return rows
+
+    def fetch_config_value(self, type, key, default=None):
+        try:
+            return {x["key"]: x["value"] for x in self.fetch_config_data(type, key)}[key]
+        except KeyError:
+            return default
+
+    def fetch_config_data(self, type, key=None, band=None, at_time=None):
+
+        valid_types = ["int", "float", "str"]
+
+        if type not in valid_types:
+            raise ValueError("Invalid type: %s for fetching config data, must be one of %s " % (type, valid_types))
+
+        if band and type is not "str":
+            raise ValueError("Fetching config data: band selector is only supported fir str type")
+
         cur = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        ts = datetime.now().isoformat()[:10]
-        cur.execute("""SELECT * FROM config_str 
-                                    WHERE (time_start IS NULL OR time_start <= %s ) AND 
-                                           (time_stop IS NULL OR time_stop >= %s) AND
-                                           (band IS NULL OR band = %s) 
-                                           ORDER BY key""",
-                    (ts, ts, band)
-                    )
+        if at_time is None:
+            at_time = datetime.now().isoformat()
+        s = "SELECT "
+        s += "*" if key is None else "key, value"
+        s += " FROM config_%s WHERE (" % type
+        s += " (time_start IS NULL OR time_start <= %s) AND (time_stop IS NULL OR time_stop >= %s )"
+        s +=  "AND key = %s" if key is not None else " "
+        s += " AND (band IS NULL OR band = %s)" if band is not None else " "
+        s += ") ORDER BY key"
+
+        args = []
+        args.append(at_time)
+        args.append(at_time)
+        if key is not None: args.append(key)
+        if band is not None: args.append(band)
+        # print(s, args)
+        cur.execute(s, args)
         rows = cur.fetchall()
         return rows
+
+
+    def set_config_data(self, type, key, value, from_time=None, to_time=None):
+        if from_time is None:
+            from_time = datetime.now().isoformat()
+        valid_types = ["int", "float", "str"]
+        if type not in valid_types:
+            raise ValueError("Invalid type: %s for setting config data, must be one of %s " % (type, valid_types))
+
+        cur = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            # Start a transaction
+            cur.execute('BEGIN;')
+
+            # Expire all active entries with the same key
+            cur.execute("""
+                    UPDATE config_%s """ % type + """
+                    SET time_stop = %s
+                    WHERE key = %s AND (time_stop IS NULL OR time_stop > %s);
+                """, (from_time, key, from_time))
+
+            # Insert the new entry with from_time as the time_start and NULL as the time_stop
+            cur.execute("""
+                    INSERT INTO config_%s""" % type + """ (key, value, time_start, time_stop) 
+                    VALUES (%s, %s, %s, NULL);
+                """, (key, value, from_time))
+
+            # commit the transaction after all updates
+            self.db.commit()
+        except Exception as e:
+            print("Error:", e)
+            self.db.rollback()  # Rollback on exception
+
+
+
+
 
 
     def get_log_rows(self, since: datetime=None, until:datetime=None):

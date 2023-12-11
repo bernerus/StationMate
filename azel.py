@@ -9,6 +9,7 @@ from p21_defs import *
 from p20_defs import *
 from target_tracking import *
 from flask import Flask
+import hamop
 
 def sense2str(value):
 	x = 1
@@ -27,6 +28,7 @@ class AzElControl:
 
 	def __init__(self, app: Flask, logger, socket_io, hysteresis: int = 10):
 		self.app = app
+		self.ham_op = self.app.ham_op # type: hamop.HamOp
 		self.logger=logger
 		self.socket_io = socket_io
 		self.az_hysteresis = hysteresis
@@ -89,14 +91,16 @@ class AzElControl:
 		self.seconds_per_rev_cw = 81
 		self.seconds_per_rev_ccw = 78
 
-		self.seconds_per_tick_cw = self.seconds_per_rev_cw / (self.AZ_CW_MECH_STOP - self.AZ_CCW_MECH_STOP)
-		self.seconds_per_tick_ccw = self.seconds_per_rev_ccw / (self.AZ_CW_MECH_STOP - self.AZ_CCW_MECH_STOP)
+		self.seconds_per_tick_cw = self.ham_op.fetch_config_value("float", "az_cw_speed", default=self.seconds_per_rev_cw / (self.AZ_CW_MECH_STOP - self.AZ_CCW_MECH_STOP))
+		self.seconds_per_tick_ccw = self.ham_op.fetch_config_value("float", "az_ccw_speed", default=self.seconds_per_rev_ccw / (self.AZ_CW_MECH_STOP - self.AZ_CCW_MECH_STOP))
 
 		self.last_sent_az = None
 
 		self.retriggering = None
 		self.rotating_cw = None
 		self.rotating_ccw = None
+		self.rotated_cw = None
+		self.rotated_ccw = None
 
 		self.nudge_az = True
 
@@ -164,100 +168,99 @@ class AzElControl:
 				self.logger.debug("%d %d %d", deg, self.az, self.az2ticks(deg))
 
 			self.az = 0
+	def az_nudge(self, current_diff):
+		if current_diff < 0:
+			self.notify_stop = True
+			if self.rotated_ccw:
+				time.sleep(4)  # Allow stabilizing before changing direction
+			self.nudge_cw(current_diff)
+			time.sleep(2.5)
+			return True
+		if current_diff > 0:
+			self.notify_stop = True
+			if self.rotated_cw:
+				time.sleep(4)  # Allow stabilizing before changing direction
+			self.nudge_ccw(current_diff)
+			time.sleep(2.1)
+			return True
+		if self.notify_stop:
+			self.az_stop()
+			self.notify_stop = False
+		return False
+
+	def az_rotate(self, current_diff):
+		if current_diff < 0:
+			self.notify_stop = True
+			if not self.rotating_cw:
+				if self.rotated_ccw:
+					self.az_stop()
+					time.sleep(1.5)  # Allow stabilizing before changing direction
+				self.az_cw()
+				self.rotated_cw = True
+				to_sleep = (abs(current_diff) - self.az_hysteresis) * self.seconds_per_tick_cw
+				previous_diff = current_diff
+				self.logger.debug("Sleeping for %s seconds for diff=%s rotating cw" % (to_sleep, current_diff))
+				if to_sleep > 0:
+					time.sleep(to_sleep)
+				return to_sleep
+		if current_diff > 0:
+			self.notify_stop = True
+			if self.rotated_cw:
+				self.az_stop()
+				time.sleep(1.8)  # Allow stabilizing before changing direction
+			if not self.rotating_ccw:
+				self.rotated_ccw = True
+				self.az_ccw()
+				to_sleep = (abs(current_diff) - self.az_hysteresis) * self.seconds_per_tick_cw
+				previous_diff = current_diff
+				self.logger.debug("Sleeping for %s seconds for diff=%s rotating ccw" % (to_sleep, current_diff))
+				if to_sleep > 0:
+					time.sleep(to_sleep)
+				return to_sleep
+		return 0
 
 	def az_control_loop(self):
 		""" This function runs in an autonomous thread"""
 
 		self.logger.info("Azimuth control thread starting")
-		prev_diff:int=None
+		previous_diff=0
 		to_sleep=0
-		rotated_cw=None
-		rotated_ccw=None
-		while(self.az_control_active):
+		self.rotated_cw=None
+		self.rotated_ccw=None
+		slept=0
+		while self.az_control_active:
 			if self.az_target is not None:
-				diff = self.az - self.az_target
-				if diff:
-					if prev_diff is not None:
-						measured_speed = to_sleep / abs(prev_diff - diff)
-						if rotated_cw:
-							speed_change = (measured_speed - self.seconds_per_tick_cw )/ self.seconds_per_tick_cw
-							self.logger.debug("Measured cw speed:%s, anticipated: %f" % (measured_speed, self.seconds_per_tick_cw))
-							if abs(speed_change) > 0.01 and abs(speed_change) < 0.1:
-								self.seconds_per_tick_cw *= 1+0.5*speed_change
-								self.logger.info("CW speed adaption: measured change is %2.2f%%, new speed set to %s"%(speed_change*100, self.seconds_per_tick_cw))
-						elif rotated_ccw:
-							speed_change = (measured_speed - self.seconds_per_tick_ccw)/ self.seconds_per_tick_ccw
-							self.logger.debug("Measured ccw speed:%s, anticipated: %f" % (measured_speed, self.seconds_per_tick_cw))
-							if abs(speed_change) > 0.01 and abs(speed_change) < 0.1:
-								self.seconds_per_tick_ccw *= 1+0.5 * speed_change
-								self.logger.info("CCW speed adaption: measured change is %2.2f%%, new speed set to %s" % (speed_change * 100, self.seconds_per_tick_ccw))
-						else:
-							self.logger.error("Strange, there was no rotation going on")
+				current_diff = self.az - self.az_target
+				if current_diff:
+					if previous_diff and slept:
+						measured_speed = slept / abs(previous_diff - current_diff)
+						self.adapt_rotation_speed(measured_speed)
 					else:
 						self.logger.info("Speed adaption not performed")
-					self.logger.debug("New Diff = %s", diff)
+					self.logger.debug("New Azimuth diff = %s", current_diff)
 					self.notify_stop = True
-				rotated_cw = False
-				rotated_ccw = False
-				if abs(diff) < self.az_hysteresis:
-					prev_diff = None
+				#self.rotated_cw = False
+				#self.rotated_ccw = False
+				if abs(current_diff) < self.az_hysteresis:
+					previous_diff = 0
 					if self.rotating_ccw or self.rotating_cw:
-						rotated_cw = self.rotating_cw
-						rotated_ccw = self.rotating_ccw
+						#self.rotated_cw = self.rotating_cw
+						#self.rotated_ccw = self.rotating_ccw
 						self.az_stop()
 					if self.calibrating:
 						time.sleep(1.5)
 						continue
 					if self.nudge_az:
-						if diff < 0:
-							self.notify_stop = True
-							if rotated_ccw:
-								time.sleep(4) # Allow stabilizing before changing direction
-							self.nudge_cw(diff)
-							time.sleep(2.5)
+						if self.az_nudge(current_diff):
 							continue
-						if diff > 0:
-							self.notify_stop = True
-							if rotated_cw:
-								time.sleep(4) # Allow stabilizing before changing direction
-							self.nudge_ccw(diff)
-							time.sleep(2.1)
-							continue
-						if self.notify_stop:
-							self.az_stop()
-							self.notify_stop=False
 					time.sleep(2)
 				else:
-					rotated_cw = self.rotating_ccw
-					rotated_ccw = self.rotating_ccw
-					if diff < 0:
-						self.notify_stop=True
-						if not self.rotating_cw:
-							if rotated_ccw:
-								self.az_stop()
-								time.sleep(1.5)  # Allow stabilizing before changing direction
-							self.az_cw()
-							rotated_cw = True
-							to_sleep = (abs(diff) - self.az_hysteresis) * self.seconds_per_tick_cw
-							prev_diff= diff
-							self.logger.debug("Sleeping for %s seconds for diff=%s rotating cw" % (to_sleep, diff))
-							if to_sleep > 0:
-								time.sleep(to_sleep)
-							continue
-					if diff > 0:
-						self.notify_stop=True
-						if rotated_cw:
-							self.az_stop()
-							time.sleep(1.8)  # Allow stabilizing before changing direction
-						if not self.rotating_ccw:
-							rotated_ccw = True
-							self.az_ccw()
-							to_sleep = (abs(diff) - self.az_hysteresis) * self.seconds_per_tick_cw
-							prev_diff = diff
-							self.logger.debug("Sleeping for %s seconds for diff=%s rotating ccw" % (to_sleep, diff))
-							if to_sleep > 0:
-								time.sleep(to_sleep)
-							continue
+					previous_diff=current_diff
+					self.rotated_cw = self.rotating_cw
+					self.rotated_ccw = self.rotating_ccw
+					slept = self.az_rotate(current_diff)
+					if slept:
+						continue
 					time.sleep(2)
 			else:
 				if not self.calibrating:
@@ -267,7 +270,23 @@ class AzElControl:
 		self.az_control_active = False
 		self.logger.info("Azimuth control thread stopping")
 
-
+	def adapt_rotation_speed(self, measured_speed):
+		if self.rotated_cw:
+			speed_change = (measured_speed - self.seconds_per_tick_cw) / self.seconds_per_tick_cw
+			self.logger.debug("Measured cw speed:%s, anticipated: %f" % (measured_speed, self.seconds_per_tick_cw))
+			if 0.01 < abs(speed_change) < 0.1:
+				self.seconds_per_tick_cw *= 1 + 0.5 * speed_change
+				self.ham_op.set_config_data("float","az_cw_speed",self.seconds_per_tick_cw)
+				self.logger.info("CW speed adaption: measured change is %2.2f%%, new speed set to %s" % (speed_change * 100, self.seconds_per_tick_cw))
+		elif self.rotated_ccw:
+			speed_change = (measured_speed - self.seconds_per_tick_ccw) / self.seconds_per_tick_ccw
+			self.logger.debug("Measured ccw speed:%s, anticipated: %f" % (measured_speed, self.seconds_per_tick_cw))
+			if 0.01 < abs(speed_change) < 0.1:
+				self.seconds_per_tick_ccw *= 1 + 0.5 * speed_change
+				self.ham_op.set_config_data("float","az_ccw_speed",self.seconds_per_tick_ccw)
+				self.logger.info("CCW speed adaption: measured change is %2.2f%%, new speed set to %s" % (speed_change * 100, self.seconds_per_tick_ccw))
+		else:
+			self.logger.error("Strange, there was no rotation going on")
 
 	def sweep(self,start,stop,period,sweeps,increment):
 		scan = ScanTarget(self, "Scan", start, stop, period, abs(increment), sweeps, 30*60)
@@ -489,8 +508,8 @@ class AzElControl:
 
 	def az_stop(self):
 		self.logger.debug("Stop azimuth rotation")
-		self.rotating_ccw = False
-		self.rotating_cw = False
+		#self.rotating_ccw = False
+		#self.rotating_cw = False
 		# self.p20.byte_write(0xff, ~self.STOP_AZ)
 		# self.p20.bit_write(P20_STOP_AZ, LOW)
 		# self.p20.bit_write(P20_ROTATE_CW, HIGH)
@@ -546,7 +565,7 @@ class AzElControl:
 	def az_cw(self):
 		self.logger.debug("Rotate clockwise")
 		self.azrot_err_count = 0
-		#self.rotating_cw = True
+		self.rotating_cw = True
 		#self.rotating_ccw = False
 		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ, HIGH)
@@ -641,10 +660,11 @@ class AzElControl:
 		cur.close()
 
 	def store_az(self):
-		cur = self.app.ham_op.db.cursor()
+		cur = self.ham_op.db.cursor()
 		cur.execute("UPDATE azel_current set az = %s WHERE ID=0", (self.az,))
+		# self.ham_op.set_config_data("int", "latest_az_stop", self.az)
 		cur.close()
-		self.app.ham_op.db.commit()
+		self.ham_op.db.commit()
 	# self.app.ham_op.db.close()
 
 	def startup(self):
