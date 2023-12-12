@@ -232,7 +232,7 @@ class AzElControl:
 			if self.az_target is not None:
 				current_diff = self.az - self.az_target
 				if current_diff:
-					if previous_diff and slept:
+					if previous_diff and slept and previous_diff != current_diff:
 						measured_speed = slept / abs(previous_diff - current_diff)
 						self.adapt_rotation_speed(measured_speed)
 					else:
