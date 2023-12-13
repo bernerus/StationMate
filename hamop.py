@@ -1,5 +1,6 @@
 import pprint
 
+import util
 from pcf8574 import *
 
 from p27_defs import *
@@ -655,6 +656,13 @@ class HamOp:
             pprint.pprint(qso)
             raise
         starttime = starttime.replace(':', '')[:4]
+
+        timestamp = util.str_to_datetime(startdate,starttime)
+        ts_min,ts_max = util.get_timespan(timestamp, 10)
+
+        min_date_str,min_time_str = util.datetime_to_str(ts_min)
+        max_date_str, max_time_str = util.datetime_to_str(ts_max)
+
         _endtime = endtime.replace(':', '')[:4]
         if propmode == "T":
             propmode = "TR"
@@ -662,10 +670,10 @@ class HamOp:
         locator = locator.upper()
         augmented_locator = self.find_augmented_locator(callsign, locator)
 
-        q = """SELECT qsoid, date, time, tx, rx, locator, propmode, txmode, augmented_locator from nac_log_new where date=%s and
-                         abs(date_part('hour',time::time-%s::time)*60+date_part('minute',time::time-%s::time)) < 10
-                         and callsign = %s"""
-        cur.execute(q, (startdate, starttime, starttime, callsign))
+        q = """SELECT qsoid, date, time, tx, rx, locator, propmode, txmode, augmented_locator from nac_log_new where 
+                                concat(date,time) between %s and %s
+                                 and callsign = %s"""
+        cur.execute(q, (min_date_str+min_time_str,max_date_str+max_time_str, callsign))
         lines = cur.fetchall()
         if len(lines) == 1:
             # print("Found QSO: %s" % lines)
