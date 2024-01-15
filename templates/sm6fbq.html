@@ -196,6 +196,10 @@
                                 </legend>
                             </div>
                             <!--suppress HtmlFormInputWithoutLabel -->
+
+                            <button id="direct_cw" type="button" onmousedown="send_manual('cw')"  onmouseup="send_manual('stop')"  onmouseout="send_manual('stop')">CW</button>
+                            <button id="direct_ccw" type="button" onmousedown="send_manual('ccw')" onmouseup="send_manual('stop')"  onmouseout="send_manual('stop')">CCW</button>
+                            <br/>
                             <button id="auto_track" type="button" onclick="send_toggle_auto_track()" title="Auto track new entered objects">Auto</button>
                             <input id="track_input" style="text-transform: uppercase; width:6em;" type="text" class="trkaz" placeholder="Track az"
                                 onkeydown="if (event.keyCode === 13) { send_track_az(); return false; }"/>
@@ -554,6 +558,11 @@
     function send_stop(az) {
         console.log("Sending stop");
         socket.emit('stop', {});
+    }
+
+    function send_manual(what) {
+        console.log("Sending manual " + what)
+        socket.emit("manual", what)
     }
 
     function send_release(az) {

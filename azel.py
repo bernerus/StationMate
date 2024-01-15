@@ -55,8 +55,8 @@ class AzElControl:
 
 		try:
 			self.p20 = PCF(self.logger, P20_I2C_ADDRESS,
-			              {P20_AZ_TIMER: (0, OUTPUT),
-			               P20_STOP_AZ: (1, OUTPUT),
+			              {P20_AZ_TIMER_L: (0, OUTPUT),
+			               P20_STOP_AZ_L: (1, OUTPUT),
 			               P20_ROTATE_CW: (2, OUTPUT),
 			               P20_RUN_EL: (3, OUTPUT),
 			               P20_EL_UP: (4, OUTPUT),
@@ -101,6 +101,7 @@ class AzElControl:
 		self.rotating_ccw = None
 		self.rotated_cw = None
 		self.rotated_ccw = None
+		self.rotating_manual = None
 
 		self.nudge_az = True
 
@@ -109,6 +110,11 @@ class AzElControl:
 
 		self.calibrating = None
 
+		""" az2inc converts between reading fork changes to azimuth tick changes to apply.
+			The first tw obits signifies the fork code previously known, and the last two bits
+			thtat is currently read. There are combinations that hardware-wise should not occur, 
+			like 0011 or 1100, these are deliberately not entered into the table, but should
+			generate a KeyException. """
 		self.azz2inc = {0b0000: 0,
 		                0b0001: 1,
 		                0b0010: -1,
@@ -130,6 +136,7 @@ class AzElControl:
 		self.inc = 0
 		self.inc = 0
 		self.az = 0
+		self.rotate_start_az = self.az
 
 		self.az_scan_dir = None
 		self.az_scan_start = self.AZ_CCW_MECH_STOP+1
@@ -365,10 +372,10 @@ class AzElControl:
 
 	def stop_interrupt(self, _last, _current):
 
-		if not self.p20.bit_read(P20_STOP_AZ):
+		if not self.p20.bit_read(P20_STOP_AZ_L):
 			self.logger.warning("Stop interrupt skipped. timer is cleared")
 			return  # Timer is cleared
-		if self.p20.bit_read(P20_AZ_TIMER) and not self.calibrating and not self.rotating_cw and not self.rotating_ccw:
+		if self.p20.bit_read(P20_AZ_TIMER_L) and not self.calibrating and not self.rotating_cw and not self.rotating_ccw:
 			self.logger.warning("Stop interrupt skipped. No rotation going on, retrig=%s, cw=%s, ccw=%s, calibrating=%s" %
 			      (self.retriggering, self.rotating_cw, self.rotating_ccw, self.calibrating))
 			return  # We are not rotating
@@ -407,15 +414,28 @@ class AzElControl:
 		else:
 			self._az_track()
 
-	def az_interrupt(self, last_az, current_az):
+	def az_interrupt(self, last_code, current_code):
+		"""
+		This method handles interrupt for azimuth movement.
 
-		# print("Azint; %x %x, %d" % (last_az, current_az, self.stop_count))
+		:param last_code: The last azimuth code from the reading forks.
+		:param current_code: The current azimuth code from the reading forks..
+		:return: None
+
+		"""
+		# print("Azint; %x %x, %d" % (last_code, current_code, self.stop_count))
+
 		try:
-			inc = self.azz2inc[last_az << 2 | current_az]
+			inc = self.azz2inc[last_code << 2 | current_code]
 		except KeyError:
-			self.logger.error("Key error: index=%s" % bin(last_az << 2 | current_az))
-			self._az_track()
-			return
+			if self.rotating_cw:
+				inc = 2
+			elif self.rotating_ccw:
+				inc = -2
+			else:
+				self.logger.error("Key error and no rotation: index=%s" % bin(last_code << 2 | current_code))
+				self._az_track()
+				return
 		self.az += inc
 
 		# self.logger.debug("Ticks: %d, stop_count=%d" % (self.az, self.stop_count))
@@ -482,39 +502,15 @@ class AzElControl:
 			self.az_control_active = True
 			self.az_control_thread.start()
 
-		# if self.az_target is not None:
-		# 	diff = self.az - self.az_target
-		# 	# self.logger.debug("Diff = %s", diff)
-		# 	if abs(diff) < self.az_hysteresis:
-		# 		self.az_stop()
-		# 		if self.calibrating:
-		# 			return
-		# 		if diff < 0:
-		# 			self.nudge_cw()
-		# 			return
-		# 		if diff > 0:
-		# 			self.nudge_ccw()
-		# 			return
-		# 		return
-		# 	if diff < 0:
-		# 		if not self.rotating_cw:
-		# 			self.az_cw()
-		# 	else:
-		# 		if not self.rotating_ccw:
-		# 			self.az_ccw()
-		# else:
-		# 	if not self.calibrating:
-		# 		self.logger.info("No Azel target tracked")
-
 	def az_stop(self):
 		self.logger.debug("Stop azimuth rotation")
 		#self.rotating_ccw = False
 		#self.rotating_cw = False
 		# self.p20.byte_write(0xff, ~self.STOP_AZ)
-		# self.p20.bit_write(P20_STOP_AZ, LOW)
+		# self.p20.bit_write(P20_STOP_AZ_L, LOW)
 		# self.p20.bit_write(P20_ROTATE_CW, HIGH)
 
-		#self.p20.byte_write(P20_STOP_AZ  | P20_ROTATE_CW , P20_ROTATE_CW)
+		#self.p20.byte_write(P20_STOP_AZ_L  | P20_ROTATE_CW , P20_ROTATE_CW)
 		self.rotate_stop()
 		time.sleep(0.4)  # Allow mechanics to settle
 		self.logger.debug("Stopped azimuth rotation at %d ticks"% self.az)
@@ -526,39 +522,39 @@ class AzElControl:
 		#self.rotating_ccw = True
 		#self.rotating_cw = False
 		# self.p20.byte_write(0xff, self.STOP_AZ)
-		self.p20.bit_write(P20_STOP_AZ, HIGH)
+		self.p20.bit_write(P20_STOP_AZ_L, HIGH)
 		time.sleep(0.1)
 		self.rotate_start_az = self.az
-		#self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, P20_ROTATE_CW)
+		#self.p20.byte_write(P20_AZ_TIMER_L  | P20_ROTATE_CW, P20_ROTATE_CW)
 		self.rotate_ccw()
 
 		#self.rotating_ccw = False
 		#self.rotating_cw = False
 
 		#self.p20.bit_write(P20_ROTATE_CW, HIGH)
-		#self.p20.bit_write(P20_AZ_TIMER, LOW)
+		#self.p20.bit_write(P20_AZ_TIMER_L, LOW)
 		self.logger.debug("Rotating anticlockwise")
 
 	def nudge_ccw(self, diff):
 		self.logger.debug("Nudging anticlockwise")
 		self.azrot_err_count = 0
 		# self.p20.byte_write(0xff, self.STOP_AZ)
-		self.p20.bit_write(P20_STOP_AZ, HIGH)
+		self.p20.bit_write(P20_STOP_AZ_L, HIGH)
 		time.sleep(0.1)
 		self.rotate_start_az = self.az
 		#self.rotating_ccw = True
 		#self.rotating_cw = False
 		nudge_time = float((abs(diff)/3) * self.seconds_per_tick_ccw)
 		self.rotate_ccw()
-		#self.p20.byte_write(P20_AZ_TIMER | P20_ROTATE_CW, P20_ROTATE_CW) # Start ccw
+		#self.p20.byte_write(P20_AZ_TIMER_L | P20_ROTATE_CW, P20_ROTATE_CW) # Start ccw
 		time.sleep(nudge_time)
 		self.rotate_stop()
-		#self.p20.byte_write(P20_STOP_AZ | P20_ROTATE_CW, P20_ROTATE_CW) # Stop
+		#self.p20.byte_write(P20_STOP_AZ_L | P20_ROTATE_CW, P20_ROTATE_CW) # Stop
 		#self.rotating_ccw = False
 		#self.rotating_cw = False
 
 		# self.p20.bit_write(P20_ROTATE_CW, HIGH)
-		# self.p20.bit_write(P20_AZ_TIMER, LOW)
+		# self.p20.bit_write(P20_AZ_TIMER_L, LOW)
 		self.logger.debug("Nudged anticlockwise for %f seconds" % nudge_time)
 
 
@@ -568,13 +564,13 @@ class AzElControl:
 		self.rotating_cw = True
 		#self.rotating_ccw = False
 		# self.p20.byte_write(0xff, self.STOP_AZ)
-		self.p20.bit_write(P20_STOP_AZ, HIGH)
+		self.p20.bit_write(P20_STOP_AZ_L, HIGH)
 		time.sleep(0.1)
 		#self.p20.bit_write(P20_ROTATE_CW, LOW)
-		#self.p20.bit_write(P20_AZ_TIMER, LOW)
+		#self.p20.bit_write(P20_AZ_TIMER_L, LOW)
 		self.rotate_start_az = self.az
 		self.rotate_cw()
-		#self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, 0)
+		#self.p20.byte_write(P20_AZ_TIMER_L  | P20_ROTATE_CW, 0)
 		self.logger.debug("Rotating clockwise")
 
 
@@ -582,44 +578,47 @@ class AzElControl:
 		self.logger.debug("Nudging clockwise")
 		self.azrot_err_count = 0
 		# self.p20.byte_write(0xff, self.STOP_AZ)
-		self.p20.bit_write(P20_STOP_AZ, HIGH)
+		self.p20.bit_write(P20_STOP_AZ_L, HIGH)
 		time.sleep(0.1)
 		#self.p20.bit_write(P20_ROTATE_CW, LOW)
-		#self.p20.bit_write(P20_AZ_TIMER, LOW)
+		#self.p20.bit_write(P20_AZ_TIMER_L, LOW)
 		self.rotate_start_az = self.az
 		#self.rotating_cw = True
 		#self.rotating_ccw = False
 		nudge_time = float((abs(diff)/3) * self.seconds_per_tick_cw + 0.2)
 		self.rotate_cw()
-		#self.p20.byte_write(P20_AZ_TIMER  | P20_ROTATE_CW, 0)
+		#self.p20.byte_write(P20_AZ_TIMER_L  | P20_ROTATE_CW, 0)
 		time.sleep(nudge_time)
 		self.rotate_stop()
-		#self.p20.byte_write(P20_STOP_AZ | P20_ROTATE_CW, P20_ROTATE_CW)  # Stop
+		#self.p20.byte_write(P20_STOP_AZ_L | P20_ROTATE_CW, P20_ROTATE_CW)  # Stop
 		#self.rotating_ccw = False
 		#self.rotating_cw = False
 		self.logger.debug("Nudged clockwise for %f seconds" % nudge_time)
 
 	def rotate_cw(self):
+		self.logger.debug("Rotate_cw")
 		self.rotating_cw = True
 		self.rotating_ccw = False
 		self.p20.byte_write(P20_ROTATE_CW, 0)  # Select CW
 		time.sleep(0.2)
-		self.p20.byte_write(P20_AZ_TIMER | P20_ROTATE_CW, 0)  # Start
+		self.p20.byte_write(P20_AZ_TIMER_L | P20_ROTATE_CW, 0)  # Start
 
 	def rotate_ccw(self):
+		self.logger.debug("Rotate_ccw")
 		self.rotating_ccw = True
 		self.rotating_cw = False
 		self.p20.byte_write(P20_ROTATE_CW, P20_ROTATE_CW)  # Select ccw
 		time.sleep(0.2)
-		self.p20.byte_write(P20_AZ_TIMER | P20_ROTATE_CW, P20_ROTATE_CW)  # Start
+		self.p20.byte_write(P20_AZ_TIMER_L | P20_ROTATE_CW, P20_ROTATE_CW)  # Start
 
 	def rotate_stop(self):
-		self.p20.byte_write(P20_STOP_AZ, P20_ROTATE_CW)
+		self.logger.debug("Rotate_stop")
+		self.p20.byte_write(P20_STOP_AZ_L, P20_ROTATE_CW)
 		self.rotating_ccw = False
 		self.rotating_cw = False
 	def interrupt_dispatch(self, _channel):
 		current_sense = self.p21.byte_read(0xff)  # type: int
-		# self.logger.debug("Interrupt %s %s" % (self.sense2str(self.last_sense), self.sense2str(current_sense)))
+		# self.logger.debug("Interrupt %s %s" % (sense2str(self.last_sense), sense2str(current_sense)))
 
 		diff = current_sense ^ self.last_sense
 
@@ -643,8 +642,8 @@ class AzElControl:
 
 	def retrigger_az_timer(self):
 		self.retriggering = True
-		self.p20.bit_write(P20_AZ_TIMER, HIGH)
-		self.p20.bit_write(P20_AZ_TIMER, LOW)
+		self.p20.bit_write(P20_AZ_TIMER_L, HIGH)
+		self.p20.bit_write(P20_AZ_TIMER_L, LOW)
 		self.retriggering = False
 
 	def restore_az(self):
@@ -657,6 +656,7 @@ class AzElControl:
 			self.az = 0
 			cur.execute("INSERT INTO azel_current VALUES(0,0,0)")
 			self.app.ham_op.db.commit()
+		self.rotate_start_az = self.az
 		cur.close()
 
 	def store_az(self):
@@ -668,7 +668,11 @@ class AzElControl:
 	# self.app.ham_op.db.close()
 
 	def startup(self):
+		"""
+		Method to start up the az/en controller.
 
+		:return: None
+		"""
 		self.logger.debug("Restoring last saved azimuth")
 		self.restore_az()
 		self.logger.info("Azimuth restored to %d ticks at %d degrees" % (self.az, self.ticks2az(self.az)))
@@ -683,6 +687,15 @@ class AzElControl:
 		return self.ticks2az(self.az), self.el
 
 	def calibrate(self):
+		"""
+		Calibrates the azimuth.
+
+		The method checks the current azimuth value and calibrates the system accordingly.
+		If the current azimuth is less than half of the clockwise mechanical stop value, it calls the calibrate_ccw() method.
+		Otherwise, it calls the calibrate_cw() method.
+
+		:return: None
+		"""
 		if self.az < self.AZ_CW_MECH_STOP / 2:
 			self.calibrate_ccw()
 		else:
@@ -690,6 +703,17 @@ class AzElControl:
 
 
 	def calibrate_ccw(self):
+		"""
+		Calibrates the rotation of the device in a counter-clockwise direction.
+
+		This method sets the `calibrating` flag to True, suspends the target stack, and initializes the `az_target`
+		variable to None. It then initiates clockwise rotation, pauses for 1 second, and stops the rotation. Next,
+		it sets `calibrating` to True again and starts counter-clockwise rotation. The method logs a warning message
+		"Awaiting calibration" and enters a loop until `calibrating` is set to False. Finally, it resumes tracking from
+		the target stack.
+
+		:return: None
+		"""
 		self.calibrating = True
 		self.target_stack.suspend()
 		self.az_target = None
@@ -704,6 +728,18 @@ class AzElControl:
 		self.target_stack.resume()
 
 	def calibrate_cw(self):
+		"""
+		Calibrates the clockwise (cw) rotation of the target.
+
+		The method sets the calibrating flag to True and suspends the target stack. It then starts rotating the target in
+		the counterclockwise (ccw) direction until it reaches its maximum position. After a short delay, it stops the
+		rotation. It then sets the calibrating flag to True and starts rotating the target in the clockwise (cw) direction.
+		It logs a warning message indicating that it is awaiting cw calibration. It waits until the calibrating flag is
+		set to False by another process. Finally, it resumes tracking from the target stack.
+
+		:return: None
+
+		"""
 		self.calibrating = True
 		self.target_stack.suspend()
 		self.az_target = None
@@ -718,6 +754,11 @@ class AzElControl:
 		self.target_stack.resume()
 
 	def set_az(self, az):
+		"""
+		Set the internal representation of the current azimuth angle
+		:param az: The azimuth value in degrees to set.
+		:return: None
+		"""
 		self.az = self.az2ticks(int(az))
 
 	def add_az(self, diff):
@@ -761,3 +802,45 @@ class AzElControl:
 
 	def update_target_list(self):
 		self.target_stack.update_ui(force=True)
+
+	from typing import NoReturn
+
+	def manual(self, what: str) -> NoReturn:
+		"""
+		Function to handle manual azimuth rotation of the antenna.
+
+		:param what: (str) The manual request. Should be "stop", "ccw", or "cw".
+		:return: None
+		"""
+		if what != "stop":
+			self.rotate_start_az = self.az
+			current_target=self.target_stack.get_top()
+			if type(current_target) is not ManualTarget:
+				target = ManualTarget(self)
+				self.target_stack.push(target)
+			self.target_stack.suspend()
+			if what=="ccw":
+				self.p20.bit_write(P20_STOP_AZ_L, HIGH)
+				time.sleep(0.1)
+				self.logger.info("Starting manual CCW rotation")
+				self.rotating_manual = True
+				self.rotate_ccw()
+				self.logger.info("Started manual CCW rotation")
+			elif what=="cw":
+				self.p20.bit_write(P20_STOP_AZ_L, HIGH)
+				time.sleep(0.1)
+				self.logger.info("Starting manual CW rotation")
+				self.rotating_manual = True
+				self.rotate_cw()
+				self.logger.info("Started manual CW rotation")
+			else:
+				self.logger.error("Invalid manual request: %s" % what)
+				self.az_stop()
+		else:
+			self.target_stack.resume()
+			if self.rotating_manual:
+				self.rotating_manual = False
+				self.az_stop()
+
+
+
