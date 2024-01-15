@@ -82,6 +82,7 @@ def byte_write(logger, pin_mask, bus, addr, value):
     while True:
 
         try:
+            # logger.debug("byte_write: addr=%x, value_write=%s"% (addr, format(value_write,'b')))
             bus.write_byte(addr, value_write)
             check = byte_read(logger, 0xff, bus, addr)
             if check != value_write:
