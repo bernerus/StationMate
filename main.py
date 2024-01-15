@@ -353,6 +353,11 @@ def set_az(json):
     app.azel.set_az(json["az"])
     app.client_mgr.send_azel(force=True)
 
+@socket_io.event
+def manual(what):
+    # print("Manual event %s" % what)
+    app.azel.manual(what)
+
 @socket_io.on("get_azel")
 def get_azel():
     ret=app.azel.get_azel()
