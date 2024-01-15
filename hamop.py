@@ -677,49 +677,49 @@ class HamOp:
         lines = cur.fetchall()
         if len(lines) == 1:
             # print("Found QSO: %s" % lines)
-            qso = lines[0]
-            qso_date = qso[1]
-            qso_time = qso[2]
+            qso_in_db = lines[0]
+            qso_in_db_date = qso_in_db[1]
+            qso_in_db_time = qso_in_db[2]
             adjustments = 0
             if locator:
-                if augmented_locator and (qso[8] is None or augmented_locator not in qso[8]) and augmented_locator.startswith(locator):
+                if augmented_locator and (qso_in_db[8] is None or augmented_locator not in qso_in_db[8]) and augmented_locator.startswith(locator):
                     self.logger.warning("Adding or updating augmented locator %s" % augmented_locator)
-                    bearing, distance, points, square_no = self.distance_to(augmented_locator, qso_date, qso_time)
+                    bearing, distance, points, square_no = self.distance_to(augmented_locator, qso_in_db_date, qso_in_db_time)
                     cur.execute(
                         "UPDATE nac_log_new set augmented_locator = %s, distance = %s, square = %s, points = %s where qsoid=%s",
-                        (augmented_locator, str(int(distance * 100) / 100.0), square_no, points, qso[0]))
+                        (augmented_locator, str(int(distance * 100) / 100.0), square_no, points, qso_in_db[0]))
                     adjustments += 1
             else:
-                if augmented_locator and (qso[8] is None or augmented_locator not in qso[8]):
+                if augmented_locator and (qso_in_db[8] is None or augmented_locator not in qso_in_db[8]):
                     self.logger.warning("Adding augmented locator %s from plain lookup" % augmented_locator)
-                    bearing, distance, points, square_no = self.distance_to(augmented_locator, qso_date, qso_time)
+                    bearing, distance, points, square_no = self.distance_to(augmented_locator, qso_in_db_date, qso_in_db_time)
                     cur.execute(
                         "UPDATE nac_log_new set augmented_locator = %s, distance = %s, square = %s, points = %s where qsoid=%s",
-                        (augmented_locator, str(int(distance * 100) / 100.0), square_no, points, qso[0]))
+                        (augmented_locator, str(int(distance * 100) / 100.0), square_no, points, qso_in_db[0]))
                     adjustments += 1
 
-            if locator and (qso[5] is None or locator not in qso[5]):
-                self.logger.error("Bad locator %s, should be %s" % (qso[5], locator))
-                bearing, distance, points, square_no = self.distance_to(locator, qso_date, qso_time)
+            if locator and (qso_in_db[5] is None or locator not in qso_in_db[5]):
+                self.logger.error("Bad locator %s, should be %s" % (qso_in_db[5], locator))
+                bearing, distance, points, square_no = self.distance_to(locator, qso_in_db_date, qso_in_db_time)
                 cur.execute(
                     "UPDATE nac_log_new set locator = %s, distance = %s, square = %s, points = %s where qsoid=%s",
-                    (locator, str(int(distance * 100) / 100.0), square_no, points, qso[0]))
+                    (locator, str(int(distance * 100) / 100.0), square_no, points, qso_in_db[0]))
                 adjustments += 1
-            if qso[6] != propmode and propmode:
-                self.logger.error("Bad propagation mode %s, should be %s" % (qso[6], propmode))
-                cur.execute("UPDATE nac_log_new set propmode = %s where qsoid=%s", (propmode, qso[0]))
+            if qso_in_db[6] != propmode and propmode:
+                self.logger.error("Bad propagation mode %s, should be %s" % (qso_in_db[6], propmode))
+                cur.execute("UPDATE nac_log_new set propmode = %s where qsoid=%s", (propmode, qso_in_db[0]))
                 adjustments += 1
-            if qso[7] != txmode:
-                self.logger.error("Bad transmit mode %s, should be %s" % (qso[7], txmode))
-                cur.execute("UPDATE nac_log_new set txmode = %s where qsoid=%s", (txmode, qso[0]))
+            if qso_in_db[7] != txmode:
+                self.logger.error("Bad transmit mode %s, should be %s" % (qso_in_db[7], txmode))
+                cur.execute("UPDATE nac_log_new set txmode = %s where qsoid=%s", (txmode, qso_in_db[0]))
                 adjustments += 1
-            if qso[3] != trprt:
-                self.logger.error("Bad sent report %s, should be %s" % (qso[3], trprt))
-                cur.execute("UPDATE nac_log_new set tx = %s where qsoid=%s", (trprt, qso[0]))
+            if qso_in_db[3] != trprt:
+                self.logger.error("Bad sent report %s, should be %s" % (qso_in_db[3], trprt))
+                cur.execute("UPDATE nac_log_new set tx = %s where qsoid=%s", (trprt, qso_in_db[0]))
                 adjustments += 1
-            if qso[4] != rrprt:
-                self.logger.error("Bad received report %s, should be %s" % (qso[4], rrprt))
-                cur.execute("UPDATE nac_log_new set rx = %s where qsoid=%s", (rrprt, qso[0]))
+            if qso_in_db[4] != rrprt:
+                self.logger.error("Bad received report %s, should be %s" % (qso_in_db[4], rrprt))
+                cur.execute("UPDATE nac_log_new set rx = %s where qsoid=%s", (rrprt, qso_in_db[0]))
                 adjustments += 1
             if adjustments:
                 ret["adjusted"] += 1
@@ -741,7 +741,7 @@ class HamOp:
                 square_no = None
                 if locator:
                     bearing, distance, points, square_no = self.distance_to(locator, startdate, starttime)
-                qso = {
+                qso_in_db = {
                     "date": startdate,
                     "time": starttime,
                     "callsign": callsign,
@@ -758,7 +758,7 @@ class HamOp:
                     "frequency": frequency,
                     "bearing": bearing
                 }
-                self.do_commit_qso(qso)
+                self.do_commit_qso(qso_in_db)
                 ret["added"] += 1
 
     def make_log(self, json):
