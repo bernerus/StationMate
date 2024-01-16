@@ -11,11 +11,7 @@ class StringWrapper:
     def write(self, string):
         self.string += string
 
-def produce_adif_log(band_and_mode, logger):
-
-    band = int(band_and_mode.split('-')[0])
-
-    #db = psycopg2.connect(dbname='ham_station', host="pi3.bernerus.se", user="bernerus", password="1b18sUA1zcl/AE?")
+def produce_adif_log():
     db = psycopg2.connect(dbname='ham_station')
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
@@ -58,4 +54,4 @@ if __name__ == '__main__':
     logger.addHandler(hdlr)
 
     logger.info("Starting adif_log")
-    produce_adif_log("144", logger)
+    produce_adif_log()
