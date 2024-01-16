@@ -1,22 +1,11 @@
 def to_maiden(lat: float, lon: float = None, *, precision: int = 3) -> str:
     """
-    Returns a maidenhead string for latitude, longitude at specified level.
+    Convert latitude and longitude coordinates to Maidenhead Locator System (Maidenhead Grid Square) representation.
 
-    Parameters
-    ----------
-
-    lat : float or tuple of float
-        latitude or tuple of latitude, longitude
-    lon : float, optional
-        longitude (if not given tuple)
-    precision : int, optional
-        level of precision (length of maidenhead grid string output)
-
-    Returns
-    -------
-
-    maiden : str
-        Maidenhead grid string of specified precision
+    :param lat: Latitude coordinate in decimal degrees.
+    :param lon: Longitude coordinate in decimal degrees. If not specified, default value is None.
+    :param precision: Number of characters in the Maidenhead Locator System representation. Default value is 3.
+    :return: Maidenhead Locator System representation of the coordinates.
     """
 
     A = ord("A")

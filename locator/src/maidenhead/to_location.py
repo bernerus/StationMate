@@ -3,19 +3,25 @@ import typing as T
 
 def to_location(maiden: str) -> T.Tuple[float, float]:
     """
-    convert Maidenhead grid to latitude, longitude
+    :param maiden: The Maidenhead locator string.
+    :return: The latitude and longitude coordinates corresponding to the given Maidenhead locator.
 
-    Parameters
-    ----------
+    The `to_location` method takes a Maidenhead locator string as input and returns the latitude and longitude coordinates corresponding to that locator.
 
-    maiden : str
-        Maidenhead grid locator of length 2 to 8
+    The Maidenhead locator is a system used to divide the world into grid squares for amateur radio communication. The locator string consists of 2 to 12 characters, with an even number
+    * of characters. Each pair of characters represents a different level of granularity in the grid. The first pair represents a large area, the second pair a medium area, and so on.
 
-    Returns
-    -------
+    The latitude is represented by the number of degrees north from the South Pole, and the longitude is represented by the number of degrees east from the Prime Meridian. The coordinates
+    * are returned as a tuple in the format (latitude, longitude).
 
-    latLon : tuple of float
-        Geographic latitude, longitude
+    If the given Maidenhead locator string does not meet the required length and format constraints, a ValueError is raised.
+
+    Example usage:
+
+    ```
+    >>> to_location("FN30")
+    (32.5, -85.0)
+    ```
     """
 
     maiden = maiden.strip().upper()

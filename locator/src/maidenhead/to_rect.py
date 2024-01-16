@@ -5,20 +5,12 @@ from . import to_location
 
 def to_rect(maiden: str) -> T.Tuple[float, float, float, float, float, float]:
     """
-    convert Maidenhead grid to a tuple containing north, south, west, east values of the limits and the location of the center of the given square
-    of the given locator.
+    Convert Maidenhead locator to rectangular coordinates.
 
-    Parameters
-    ----------
-
-    maiden : str
-        Maidenhead grid locator of length 2 to 8
-
-    Returns
-    -------
-
-    latLon : tuple of float
-        Geographic latitude, longitude
+    :param maiden: Maidenhead locator.
+    :return: Tuple containing north, south, west, east, latitude center, longitude center.
+    :raises ValueError: If the length of maiden is not between 2 and 12 (inclusive) or if it does not have an even
+        number of characters.
     """
 
     maiden = maiden.strip().upper()

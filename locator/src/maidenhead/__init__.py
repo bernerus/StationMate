@@ -1,36 +1,25 @@
-"""
-Maidenhead grid conversion <==> latitude, longitude
 
-toMaiden([lat, lon], level) returns a char (len = lvl*2)
-toLoc(mloc) takes any string and returns topleft [lat,lon] within mloc
-
-Beyond 8 characters is not defined for Maidenhead.
-"""
 
 from .to_location import to_location
 from .to_maiden import to_maiden
 from .to_rect import to_rect
 from geo import sphere
+"""
+    The Maidenhead locator is a system used to divide the world into grid squares for amateur radio communication. The locator string consists of 2 to 12 characters, with an even number
+    * of characters. Each pair of characters represents a different level of granularity in the grid. The first pair represents a large area, the second pair a medium area, and so on.
 
+    The latitude is represented by the number of degrees north from the South Pole, and the longitude is represented by the number of degrees east from the Prime Meridian. The coordinates
+    * are returned as a tuple in the format (latitude, longitude).
+"""
 
-def google_maps(maiden: str) -> str:
-    """
-    generate Google Maps URL from Maidenhead grid
-
-    Parameters
-    ----------
-
-    maiden : str
-        Maidenhead grid
-
-    Results
-    -------
-
-    url : str
-        Google Maps URL
+def google_maps(locator: str) -> str:
     """
 
-    loc = to_location(maiden)
+    :param locator: A string representing the location or address for which the Google Maps URL needs to be generated.
+    :return: A formatted URL string for Google Maps with the specified location or address.
+
+    """
+    loc = to_location(locator)
 
     url = f"https://www.google.com/maps/@?api=1&map_action=map&center={loc[0]},{loc[1]}"
 
@@ -38,25 +27,12 @@ def google_maps(maiden: str) -> str:
 
 def distance_between(this_loc, other_loc):
     """
-    :param this_loc: A tuple containing the latitude and longitude of the first location.
-    :param other_loc: A tuple containing the latitude and longitude of the second location.
+    Calculate the bearing and distance between two locations.
+
+    :param this_loc: A tuple or list containing the latitude and longitude of the current location.
+    :param other_loc: A tuple or list containing the latitude and longitude of the other location.
     :return: A tuple containing the bearing and distance between the two locations.
 
-    The `distance_between` method takes two location coordinates and calculates the bearing and distance between them using the Haversine formula.
-
-    The `this_loc` parameter is a tuple of latitude and longitude values for the first location.
-    The `other_loc` parameter is a tuple of latitude and longitude values for the second location.
-
-    The method returns a tuple consisting of the bearing and distance between the two locations in kilometers.
-
-    Example Usage:
-    ```
-    loc1 = (52.5200, 13.4050)
-    loc2 = (51.5074, -0.1278)
-    bearing, distance = distance_between(loc1, loc2)
-    print("Bearing:", bearing)
-    print("Distance:", distance, "km")
-    ```
     """
     mn, ms, mw, me, mlat, mlon = to_rect(this_loc)
 
