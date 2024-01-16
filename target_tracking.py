@@ -7,6 +7,8 @@ import datetime
 import ephem
 import math
 
+from typing import *
+
 
 from geo import sphere
 
@@ -150,13 +152,15 @@ class Target:
 		self.ttl = ttl
 		self.start_time = None
 		self.active = True
+		self.details = None
 		self.led_classes = "fas fa-bullseye"
 
 	def start(self):
 		self.start_time = time.time()
 		abortable_sleep.abort()
 
-	def restart(self):
+	@staticmethod
+	def restart():
 		abortable_sleep.abort()
 
 	def seconds_left(self):
@@ -434,7 +438,7 @@ class PlaneTarget(Target):
 
 		self.led_classes = "fas fa-plane"
 
-	def trigger_period(self) -> int:
+	def trigger_period(self) -> Union[int, None]:
 
 		(self.lng, self.lat)  = self.azel.app.aircraft_tracker.get_position(self.plane_id)
 		if self.lng is None or self.lat is None:

@@ -82,7 +82,8 @@ class StationTracker:
 	def has_station(self, callsign:str) ->bool:
 		return callsign in self.other_stations
 
-	def refresh(self):
+	@staticmethod
+	def refresh():
 		# self.logger.info("Aborting station tracker sleep")
 		st_abortable_sleep.abort()
 

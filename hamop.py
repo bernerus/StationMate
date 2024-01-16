@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-	from main import MyApp
+    from main import MyApp
 
 import util
 from pcf8574 import *
@@ -19,6 +19,10 @@ import adif_io
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import psycopg2
+
+
+def commit_qso(request):
+    ret = {"added": 0, "adjusted": 0}
 
 
 class HamOp:
@@ -336,7 +340,7 @@ class HamOp:
         self.db.commit()
         # self.app.client_mgr.send_reload()
 
-    def find_augmented_locator(self, callsign:str, given_locator:str) ->str:
+    def find_augmented_locator(self, callsign:str, given_locator:str) ->Union[str, None]:
         """
         :param callsign: The callsign of the person for whom to find the augmented locator.
         :type callsign: str
@@ -618,10 +622,6 @@ class HamOp:
                 # self.do_commit_qso(qso)
                 ret["added"] += 1
 
-    def commit_qso(self, request):
-        ret = {"added": 0, "adjusted": 0}
-
-
     def process_log_file(self, cur, file_data, ret):
         for qsos in file_data.splitlines():
             qso = qsos.split(',')
@@ -770,15 +770,16 @@ class HamOp:
         if band:
             contest_log = produce_contest_log(band, self.logger, log_remarks=log_remarks)
             json["contest_log"] = contest_log
-            self.app.client_mgr.emit_log(json)
+            emit_log(json)
 
-    def make_adif_log(self, json):
+    @staticmethod
+    def make_adif_log(json):
         from adif_log import produce_adif_log
         band = json.get("band", None)
         if band:
-            contest_log = produce_adif_log(band, self.logger)
+            contest_log = produce_adif_log()
             json["contest_log"] = contest_log
-            self.app.client_mgr.emit_log(json)
+            emit_log(json)
 
 
     def toggle_qro(self):
@@ -1108,7 +1109,7 @@ class HamOp:
                     bearing, distance = mh.distance_between(my_loc, dx_loc)
                     odx_key = r["propmode"]+"/"+band
                     if odx_key not in odxs:
-                        odxs[odx_key] = "",0.0;
+                        odxs[odx_key] = "",0.0
                     if distance > odxs[odx_key][1]:
                         odxs[odx_key] = callsign,distance
                     field_key = dx_loc[0:2]+"/"+band

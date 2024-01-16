@@ -129,32 +129,39 @@ class MyApp(Flask):
 app=MyApp(__name__)
 class WsjtxNamespace(Namespace):
 
-    def on_connect(self):
+    @staticmethod
+    def on_connect():
         logger.info("WSJTX exchanger connected")
         emit('server_response', {'data': 'Connected', 'count': 0})
-    def on_disconnect(self):
+    @staticmethod
+    def on_disconnect():
         logger.info("WSJTX exchanger disconnected")
         pass
 
-    def on_my_event(self, sid, data):
+    @staticmethod
+    def on_my_event(sid, data):
         emit('my_response', data)
 
-    def on_set_dx_note(self, json):
+    @staticmethod
+    def on_set_dx_note(json):
         logger.info("Fill DX note %s" % json)
         callsign = json["callsign"]
         locator = json["locator"]
         app.client_mgr.set_dx_call(callsign, locator)
         emit("fill_dx_note", json, namespace="/", broadcast=True)
 
-    def on_set_dx_grid(self, grid):
+    @staticmethod
+    def on_set_dx_grid(grid):
         logger.info("Set DX grid to %s" % grid)
         emit("fill_dx_grid", grid, namespace="/", broadcast=True)
 
-    def on_set_trx70(self, json):
+    @staticmethod
+    def on_set_trx70(json):
         logger.info("Set TRX70")
         app.ham_op.set_trx70(json)
 
-    def on_commit_wsjtx_qso(self, json):
+    @staticmethod
+    def on_commit_wsjtx_qso(json):
         dt = json["date_time_on"]  # type: str
         fq = int(json["dial_frequency"])
         qso = {
@@ -307,7 +314,7 @@ def az_scan(az_start,az_stop,period,sweeps, increment):
 
 @app.route('/commit_qso', methods=['POST'])
 def commit_qso():
-    return app.ham_op.commit_qso(request)
+    return commit_qso(request)
 
 ##############
 
@@ -512,7 +519,7 @@ def az_scan_go(json):
 @socket_io.event()
 def plane_click(plane_id):
     logger.info("Plane click on %s" % plane_id)
-    return app.aircraft_tracker.track_plane(app.azel, plane_id)
+    return app.aircraft_tracker.track_plane(plane_id)
 
 @socket_io.event()
 def station_click(callsign):
@@ -540,7 +547,7 @@ app.station_tracker.startup()
 
 if __name__ == '__main__':
     try:
-        socket_io.run(app, host='0.0.0.0', port=8877, log_output=False, debug=False)
+        socket_io.run(app, host='0.0.0.0', port=8877, log_output=False, debug=False, use_reloader=False)
     finally:
         app.azel.az_stop()
         pass
