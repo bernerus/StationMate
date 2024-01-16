@@ -11,9 +11,8 @@ from pcf8574 import *
 from p21_defs import *
 from p20_defs import *
 from target_tracking import *
-from flask import Flask
 import hamop
-
+from degree import Degree
 
 def sense2str(value):
 	x = 1
@@ -31,13 +30,14 @@ def sense2str(value):
 class AzElControl:
 
 	def __init__(self, app: 'MyApp', logger, socket_io, hysteresis: int = 10):
+		self.last_sense = None
 		self.app = app
 		self.ham_op = self.app.ham_op # type: hamop.HamOp
 		self.logger=logger
 		self.socket_io = socket_io
 		self.az_hysteresis = hysteresis
 		self.target_stack = TargetStack(self, logger)
-		self.azrot_err_count = 0
+		self.az_rotation_err_count = 0
 
 		try:
 			self.p21 = PCF(self.logger, P21_I2C_ADDRESS,
@@ -80,43 +80,43 @@ class AzElControl:
 		self.AZ_CCW_MECH_STOP: int = 0
 		self.AZ_CW_MECH_STOP: int = 734
 
-		self.CCW_BEARING_STOP: int = 292  # 278   273 270
-		self.CW_BEARING_STOP: int = 295  # 283   278 273
+		self.CCW_BEARING_STOP: Degree = Degree(292)  # 278   273 270
+		self.CW_BEARING_STOP: Degree = Degree(295)  # 283   278 273
 
-		self.BEARING_OVERLAP = abs(self.CW_BEARING_STOP - self.CCW_BEARING_STOP)
+		self.BEARING_OVERLAP:Degree = Degree(self.CW_BEARING_STOP - self.CCW_BEARING_STOP)
 
-		bearing_range = self.CW_BEARING_STOP - self.CCW_BEARING_STOP + 360
+		bearing_range:Degree = 360 + self.BEARING_OVERLAP
 
-		self.ticks_per_degree = (self.AZ_CW_MECH_STOP - self.AZ_CCW_MECH_STOP) / bearing_range
+		self.ticks_per_degree:float = (self.AZ_CW_MECH_STOP - self.AZ_CCW_MECH_STOP) / bearing_range
 
 		self.TICKS_OVERLAP = int(self.BEARING_OVERLAP * self.ticks_per_degree)
-		self.ticks_per_rev = self.AZ_CW_MECH_STOP - self.TICKS_OVERLAP
+		self.ticks_per_rev:int = self.AZ_CW_MECH_STOP - self.TICKS_OVERLAP
 
-		self.seconds_per_rev_cw = 81
-		self.seconds_per_rev_ccw = 78
+		self.seconds_per_rev_cw:float = 81.0
+		self.seconds_per_rev_ccw:float = 78.0
 
-		self.seconds_per_tick_cw = self.ham_op.fetch_config_value("float", "az_cw_speed", default=self.seconds_per_rev_cw / (self.AZ_CW_MECH_STOP - self.AZ_CCW_MECH_STOP))
-		self.seconds_per_tick_ccw = self.ham_op.fetch_config_value("float", "az_ccw_speed", default=self.seconds_per_rev_ccw / (self.AZ_CW_MECH_STOP - self.AZ_CCW_MECH_STOP))
+		self.seconds_per_tick_cw:float = self.ham_op.fetch_config_value("float", "az_cw_speed", default=self.seconds_per_rev_cw / (self.AZ_CW_MECH_STOP - self.AZ_CCW_MECH_STOP))
+		self.seconds_per_tick_ccw:float = self.ham_op.fetch_config_value("float", "az_ccw_speed", default=self.seconds_per_rev_ccw / (self.AZ_CW_MECH_STOP - self.AZ_CCW_MECH_STOP))
 
 		self.last_sent_az = None
 
-		self.retriggering = None
-		self.rotating_cw = None
-		self.rotating_ccw = None
-		self.rotated_cw = None
-		self.rotated_ccw = None
-		self.rotating_manual = None
+		self.retriggering:bool = False
+		self.rotating_cw:bool = False
+		self.rotating_ccw:bool = False
+		self.rotated_cw:bool = False
+		self.rotated_ccw:bool = False
+		self.rotating_manual:bool = False
 
-		self.nudge_az = True
+		self.nudge_az:bool = True
 
 		GPIO.setmode(GPIO.BCM)
 		GPIO.setup(self.AZ_INT, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-		self.calibrating = None
+		self.calibrating:bool = False
 
 		""" az2inc converts between reading fork changes to azimuth tick changes to apply.
 			The first tw obits signifies the fork code previously known, and the last two bits
-			thtat is currently read. There are combinations that hardware-wise should not occur, 
+			that is currently read. There are combinations that hardware-wise should not occur, 
 			like 0011 or 1100, these are deliberately not entered into the table, but should
 			generate a KeyException. """
 		self.azz2inc = {0b0000: 0,
@@ -134,21 +134,12 @@ class AzElControl:
 		                }
 
 		self.last_p2_sense = None
-		self.az_target = None           # Target in ticks
-		self.az_target_degrees = None   # Target in degrees
-		self.el = 0
-		self.inc = 0
-		self.inc = 0
-		self.az = 0
+		self.az_target:int = 0           # Target in ticks
+		self.az_target_degrees:Degree = Degree(None)   # Type: Degree
+		self.el:int = 0
+		self.az:int = 0
 		self.rotate_start_az = self.az
 
-		self.az_scan_dir = None
-		self.az_scan_start = self.AZ_CCW_MECH_STOP+1
-		self.az_scan_period = None
-		self.az_scan_stop = self.AZ_CW_MECH_STOP-1
-		self.az_scan_increment = self.az2ticks(15)-self.az2ticks(0)
-		self.az_scan_sweeps_left = 0
-		self.az_scan_intro = False
 		self.az_control_active = False
 		self.az_control_thread = None
 
@@ -156,30 +147,36 @@ class AzElControl:
 		self.stop_count = 0
 		self.az_at_stop = 0
 
-		self.map_mh_length = 6
-		self.mhs_on_map = []
-		self.distinct_mhs_on_map = False
-		# Degrees below, not ticks
-		self.az_sectors = [(0, 44), (45, 89), (90, 134), (135, 179), (180, 224), (225, 269), (270, 314), (315, 359)]
-		self.az_sector = self.current_az_sector()
-		self.notify_stop = True
+		# Degrees below, not ticks. Split circle en 8 slices.
+		self.az_sectors:List[Tuple[Degree,Degree]] = [(Degree(0),   Degree(44)),
+		                                              (Degree(45),  Degree(89)),
+		                                              (Degree(90),  Degree(134)),
+		                                              (Degree(135), Degree(179)),
+		                                              (Degree(180), Degree(224)),
+		                                              (Degree(225), Degree(269)),
+		                                              (Degree(270), Degree(314)),
+		                                              (Degree(315), Degree(359))
+		                                              ]
 
-		test_az2ticks = False
+		self.az_sector:Tuple[Degree,Degree] = self.current_az_sector()
+		self.notify_stop:bool = True
+
+		test_az2ticks:bool = False
 		if test_az2ticks:
 			self.az = 400
 			ranges = list(range(160, 361)) + list(range(0, 170))
 
 			for deg in ranges:
-				self.logger.debug("%d %d %d", deg , self.az, self.az2ticks(deg))
+				self.logger.debug("%d %d %d", deg , self.az, self.az2ticks(Degree(deg)))
 
 			self.az = 270
 			self.logger.debug("")
 
 			for deg in ranges:
-				self.logger.debug("%d %d %d", deg, self.az, self.az2ticks(deg))
+				self.logger.debug("%d %d %d", deg, self.az, self.az2ticks(Degree(deg)))
 
 			self.az = 0
-	def az_nudge(self, current_diff):
+	def az_nudge(self, current_diff)-> bool:
 		if current_diff < 0:
 			self.notify_stop = True
 			if self.rotated_ccw:
@@ -199,7 +196,7 @@ class AzElControl:
 			self.notify_stop = False
 		return False
 
-	def az_rotate(self, current_diff):
+	def az_rotate(self, current_diff)->int:
 		if current_diff < 0:
 			self.notify_stop = True
 			if not self.rotating_cw:
@@ -209,7 +206,6 @@ class AzElControl:
 				self.az_cw()
 				self.rotated_cw = True
 				to_sleep = (abs(current_diff) - self.az_hysteresis) * self.seconds_per_tick_cw
-				previous_diff = current_diff
 				self.logger.debug("Sleeping for %s seconds for diff=%s rotating cw" % (to_sleep, current_diff))
 				if to_sleep > 0:
 					time.sleep(to_sleep)
@@ -223,19 +219,17 @@ class AzElControl:
 				self.rotated_ccw = True
 				self.az_ccw()
 				to_sleep = (abs(current_diff) - self.az_hysteresis) * self.seconds_per_tick_cw
-				previous_diff = current_diff
 				self.logger.debug("Sleeping for %s seconds for diff=%s rotating ccw" % (to_sleep, current_diff))
 				if to_sleep > 0:
 					time.sleep(to_sleep)
 				return to_sleep
 		return 0
 
-	def az_control_loop(self):
+	def az_control_loop(self)->None:
 		""" This function runs in an autonomous thread"""
 
 		self.logger.info("Azimuth control thread starting")
 		previous_diff=0
-		to_sleep=0
 		self.rotated_cw=None
 		self.rotated_ccw=None
 		slept=0
@@ -304,14 +298,11 @@ class AzElControl:
 		self.target_stack.push(scan)
 
 
-	def track_wind(self, value=None):
+	def track_wind(self):
 		wind_target = WindTarget(self)
 		self.target_stack.push(wind_target)
 
-	def track_moon(self, value=None):
-		if value is None:
-			value = True
-
+	def track_moon(self):
 		moon_target = MoonTarget(self)
 		self.target_stack.push(moon_target)
 
@@ -319,10 +310,7 @@ class AzElControl:
 		self.logger.debug("Popping target stack")
 		return self.target_stack.pop()
 
-	def track_sun(self, value=None):
-		if value is None:
-			value = True
-
+	def track_sun(self):
 		sun_target = SunTarget(self)
 		self.target_stack.push(sun_target)
 
@@ -332,17 +320,12 @@ class AzElControl:
 		else:
 			return None
 
-	def ticks2az(self, ticks):
-		az = self.CCW_BEARING_STOP + ticks / self.ticks_per_degree
-		if az > 360:
-			az -= 360
-		if az < 0:
-			az += 360
-		return round(az)
+	def ticks2az(self, ticks) -> Degree:
+		return Degree(round(self.CCW_BEARING_STOP + ticks / self.ticks_per_degree))
 
-	def az2ticks(self, degrees):
-		degs1 = degrees - self.CCW_BEARING_STOP
-		ticks = round(self.ticks_per_degree * degs1)
+	def az2ticks(self, degrees: Degree):
+		degrees_1 = degrees - self.CCW_BEARING_STOP
+		ticks = round(self.ticks_per_degree * degrees_1)
 		while ticks < self.AZ_CCW_MECH_STOP:
 			ticks += self.ticks_per_rev
 		while ticks >= self.AZ_CW_MECH_STOP:
@@ -362,7 +345,7 @@ class AzElControl:
 
 		return ticks
 
-	def status_update(self, force=False):
+	def status_update(self):
 		self.target_stack.update_ui()
 
 	def el_interrupt(self, last, current):
@@ -380,10 +363,10 @@ class AzElControl:
 			self.logger.warning("Stop interrupt skipped. timer is cleared")
 			return  # Timer is cleared
 		if self.p20.bit_read(P20_AZ_TIMER_L) and not self.calibrating and not self.rotating_cw and not self.rotating_ccw:
-			self.logger.warning("Stop interrupt skipped. No rotation going on, retrig=%s, cw=%s, ccw=%s, calibrating=%s" %
+			self.logger.warning("Stop interrupt skipped. No rotation going on, retriggering=%s, cw=%s, ccw=%s, calibrating=%s" %
 			      (self.retriggering, self.rotating_cw, self.rotating_ccw, self.calibrating))
 			return  # We are not rotating
-		self.logger.warning("Azel stop interrupt, retrig=%s, cw=%s, ccw=%s, calibrating=%s, stop_count=%d" %
+		self.logger.warning("Azel stop interrupt, retriggering=%s, cw=%s, ccw=%s, calibrating=%s, stop_count=%d" %
 		      (self.retriggering, self.rotating_cw, self.rotating_ccw, self.calibrating, self.stop_count))
 		# time.sleep(1)
 		if self.stop_count < 1:
@@ -423,11 +406,11 @@ class AzElControl:
 		This method handles interrupt for azimuth movement.
 
 		:param last_code: The last azimuth code from the reading forks.
-		:param current_code: The current azimuth code from the reading forks..
+		:param current_code: The current azimuth code from the reading forks.
 		:return: None
 
 		"""
-		# print("Azint; %x %x, %d" % (last_code, current_code, self.stop_count))
+		# print("Azimuth interrupt; %x %x, %d" % (last_code, current_code, self.stop_count))
 
 		try:
 			inc = self.azz2inc[last_code << 2 | current_code]
@@ -463,13 +446,13 @@ class AzElControl:
 		diff = self.az - self.rotate_start_az
 		if (diff > 0  and self.rotating_ccw) or (diff < 0 and self.rotating_cw):
 			self.logger.debug("Azimuth rotation error, diff=%d, ccw=%d, cw=%d" % (diff, self.rotating_ccw, self.rotating_cw))
-			self.azrot_err_count += 1
-			if self.azrot_err_count > 20:
+			self.az_rotation_err_count += 1
+			if self.az_rotation_err_count > 20:
 				self.logger.error("Azimuth going wrong way, stopping.")
 				self.az_stop()
 				self.az_stop()
 				self.az_stop()
-				self.azrot_err_count = 0
+				self.az_rotation_err_count = 0
 				self._az_track(self.az_target_degrees)
 
 	def az_track_bearing(self, bearing:int) -> None:
@@ -485,17 +468,17 @@ class AzElControl:
 		self.target_stack.push(target)
 
 
-	def az_track(self, az=None, id=None, classes=None):
-		if id is None:
-			id="Fixed_"+str(az)
+	def az_track(self, az=None, what=None, classes=None):
+		if what is None:
+			what="Fixed_"+str(az)
 		self.az_target_degrees = az
-		target = Target(self, id, az, 0 , 10, 3600)
+		target = Target(self, what, az, 0 , 10, 3600)
 		if classes:
 			target.set_led_classes(classes)
 		self.logger.info("az_track %s" % az)
 		self.target_stack.push(target)
 
-	def _az_track(self, target=None):
+	def _az_track(self, target:Degree=None):
 		if target is not None:
 			if self.az2ticks(target) != self.az_target:
 				self.az_target = self.az2ticks(target)
@@ -522,7 +505,7 @@ class AzElControl:
 
 	def az_ccw(self):
 		self.logger.debug("Rotate anticlockwise")
-		self.azrot_err_count = 0
+		self.az_rotation_err_count = 0
 		#self.rotating_ccw = True
 		#self.rotating_cw = False
 		# self.p20.byte_write(0xff, self.STOP_AZ)
@@ -541,7 +524,7 @@ class AzElControl:
 
 	def nudge_ccw(self, diff):
 		self.logger.debug("Nudging anticlockwise")
-		self.azrot_err_count = 0
+		self.az_rotation_err_count = 0
 		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ_L, HIGH)
 		time.sleep(0.1)
@@ -564,7 +547,7 @@ class AzElControl:
 
 	def az_cw(self):
 		self.logger.debug("Rotate clockwise")
-		self.azrot_err_count = 0
+		self.az_rotation_err_count = 0
 		self.rotating_cw = True
 		#self.rotating_ccw = False
 		# self.p20.byte_write(0xff, self.STOP_AZ)
@@ -580,7 +563,7 @@ class AzElControl:
 
 	def nudge_cw(self,diff):
 		self.logger.debug("Nudging clockwise")
-		self.azrot_err_count = 0
+		self.az_rotation_err_count = 0
 		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ_L, HIGH)
 		time.sleep(0.1)
@@ -687,7 +670,7 @@ class AzElControl:
 		self.track_wind()
 
 
-	def get_azel(self):
+	def get_azel(self)-> Tuple[Degree, int]:
 		return self.ticks2az(self.az), self.el
 
 	def calibrate(self):
@@ -757,13 +740,13 @@ class AzElControl:
 			self.socket_io.sleep(1)
 		self.target_stack.resume()
 
-	def set_az(self, az):
+	def set_az(self, az:Degree):
 		"""
 		Set the internal representation of the current azimuth angle
 		:param az: The azimuth value in degrees to set.
 		:return: None
 		"""
-		self.az = self.az2ticks(int(az))
+		self.az = self.az2ticks(az)
 
 	def add_az(self, diff):
 		if self.az_target:
@@ -775,33 +758,30 @@ class AzElControl:
 
 	def stop(self):
 		self.az_target = self.az
-		self.az_scan_sweeps_left=0
 		self.az_stop()
 
 	def untrack(self):
 		self.az_target = None
 		self.az_target_degrees = None
-		self.az_scan_sweeps_left=0
 		self.az_stop()
 		self.logger.info("Stopped tracking at az=%d degrees" % self.ticks2az(self.az))
 
-	def GPIO_cleanup(self):
+	@staticmethod
+	def GPIO_cleanup():
 		GPIO.cleanup()
 
-	def current_az_sector(self):
-		az = self.get_azel()[0]
-		if az >= 360:
-			az -= 360
+	def current_az_sector(self)-> Tuple[Degree, Degree]:
+		az:Degree = self.get_azel()[0]
 		from_az = 0
 		to_az = 360
-		for oct in self.az_sectors:
-			if oct[0] <= az <= oct[1]:
-				from_az = oct[0]
-				to_az = oct[1]
+		for sector in self.az_sectors:
+			if sector[0] <= az <= sector[1]:
+				from_az = sector[0]
+				to_az = sector[1]
 				break
 		return from_az, to_az
 
-	def get_az_sector(self):
+	def get_az_sector(self) -> Tuple[Degree, Degree]:
 		return self.az_sector
 
 	def update_target_list(self):
