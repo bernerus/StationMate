@@ -201,6 +201,170 @@ PROPAGATION_MODES = ["", "AS", "AUE", "AUR", "BS", "ECH", "EME", "ES", "F2", "FA
 ADIF_VERSION = "3.0.4"
 
 
+def is_valid(field_name, data, data_type):
+    """ Validate the data in a field with respect to the ADIF specification.
+
+    :arg str field_name: The name of the ADIF field.
+    :arg str data: The data of the ADIF field to validate.
+    :arg str data_type: The type of data to be validated. See http://www.adif.org/304/ADIF_304.htm#Data_Types for the full list with descriptions.
+    :returns: True or False to indicate whether the data is valid or not.
+    :rtype: bool
+    """
+
+    logging.debug("Validating the following data in field '%s': %s" % (field_name, data))
+
+    # Allow an empty string or None, in case the user doesn't want
+    # to fill in this field.
+    if not data:
+        return True
+
+    if data_type == "N":
+        # Allow a decimal point before and/or after any numbers,
+        # but don't allow a decimal point on its own.
+        m = re.match(r"-?(([0-9]+\.?[0-9]*)|([0-9]*\.?[0-9]+))", data)
+        if m is None:
+            # Did not match anything.
+            return False
+        else:
+            # Make sure we match the whole string,
+            # otherwise there may be an invalid character after the match.
+            return m.group(0) == data
+
+    elif data_type == "B":
+        # Boolean
+        m = re.match(r"([YN])", data)
+        if m is None:
+            return False
+        else:
+            return m.group(0) == data
+
+    elif data_type == "D":
+        # Date
+        pattern = re.compile(r"([0-9]{4})")
+        m_year = pattern.match(data, 0)
+        if (m_year is None) or (int(m_year.group(0)) < 1930):
+            # Did not match anything.
+            return False
+        else:
+            pattern = re.compile(r"([0-9]{2})")
+            m_month = pattern.match(data, 4)
+            if (m_month is None) or int(m_month.group(0)) > 12 or int(m_month.group(0)) < 1:
+                # Did not match anything.
+                return False
+            else:
+                pattern = re.compile(r"([0-9]{2})")
+                m_day = pattern.match(data, 6)
+                days_in_month = calendar.monthrange(int(m_year.group(0)), int(m_month.group(0)))
+                if (m_day is None) or int(m_day.group(0)) > days_in_month[1] or int(m_day.group(0)) < 1:
+                    # Did not match anything.
+                    return False
+                else:
+                    # Make sure we match the whole string,
+                    # otherwise there may be an invalid character after the match.
+                    return len(data) == 8
+
+    elif data_type == "T":
+        # Time
+        pattern = re.compile(r"([0-9]{2})")
+        m_hour = pattern.match(data, 0)
+        if (m_hour is None) or (int(m_hour.group(0)) < 0) or (int(m_hour.group(0)) > 23):
+            # Did not match anything.
+            return False
+        else:
+            pattern = re.compile(r"([0-9]{2})")
+            m_minutes = pattern.match(data, 2)
+            if (m_minutes is None) or int(m_minutes.group(0)) < 0 or int(m_minutes.group(0)) > 59:
+                # Did not match anything.
+                return False
+            else:
+                if len(data) == 4:
+                    # HHMM format
+                    return True
+                pattern = re.compile(r"([0-9]{2})")
+                m_seconds = pattern.match(data, 4)
+                if (m_seconds is None) or int(m_seconds.group(0)) < 0 or int(m_seconds.group(0)) > 59:
+                    # Did not match anything.
+                    return False
+                else:
+                    # Make sure we match the whole string,
+                    # otherwise there may be an invalid character after the match.
+                    return len(data) == 6  # HHMMSS format
+
+    # FIXME: Need to make sure that the "S" and "M" data types accept ASCII-only characters
+    # in the range 32-126 inclusive.
+    elif data_type == "S":
+        # String
+        m = re.match(r"(.+)", data)
+        if m is None:
+            return False
+        else:
+            return m.group(0) == data
+
+    elif data_type == "I":
+        # IntlString
+        m = re.match(r"(.+)", data, re.UNICODE)
+        if m is None:
+            return False
+        else:
+            return m.group(0) == data
+
+    elif data_type == "G":
+        # IntlMultilineString
+        m = re.match(r"(.+(\r\n)*.*)", data, re.UNICODE)
+        if m is None:
+            return False
+        else:
+            return m.group(0) == data
+
+    elif data_type == "M":
+        # MultilineString
+        # m = re.match(r"(.+(\r\n)*.*)", data)
+        # if(m is None):
+        #   return False
+        # else:
+        #   return (m.group(0) == data)
+        return True
+
+    elif data_type == "L":
+        # Location
+        pattern = re.compile(r"([EWNS]{1})", re.IGNORECASE)
+        m_directional = pattern.match(data, 0)
+        if m_directional is None:
+            # Did not match anything.
+            return False
+        else:
+            pattern = re.compile(r"([0-9]{3})")
+            m_degrees = pattern.match(data, 1)
+            if (m_degrees is None) or int(m_degrees.group(0)) < 0 or int(m_degrees.group(0)) > 180:
+                # Did not match anything.
+                return False
+            else:
+                pattern = re.compile(r"([0-9]{2}\.[0-9]{3})")
+                m_minutes = pattern.match(data, 4)
+                if (m_minutes is None) or float(m_minutes.group(0)) < 0 or float(m_minutes.group(0)) > 59.999:
+                    # Did not match anything.
+                    return False
+                else:
+                    # Make sure we match the whole string,
+                    # otherwise there may be an invalid character after the match.
+                    return len(data) == 10
+
+    elif data_type == "E" or data_type == "A":
+        # Enumeration, AwardList.
+        if field_name == "MODE":
+            return data in list(MODES.keys())
+        elif field_name == "SUBMODE":
+            submodes = [submode for mode in list(MODES.keys()) for submode in MODES[mode]]
+            return data in submodes
+        elif field_name == "BAND":
+            return data in BANDS
+        else:
+            return True
+
+    else:
+        return True
+
+
 class ADIF:
 
     """ The ADIF class supplies methods for reading, parsing, and writing log files in the Amateur Data Interchange Format (ADIF).
@@ -231,7 +395,8 @@ class ADIF:
         logging.info("Read %d QSOs from %s in ADIF format." % (len(records), path))
         return records
 
-    def parse_adi(self, text):
+    @staticmethod
+    def parse_adi(text):
         """ Parse some raw text (defined in the 'text' argument) for ADIF field data.
 
         :arg str text: The raw text from the ADIF file to parse.
@@ -303,7 +468,7 @@ class ADIF:
                         comment = field_data
                     if field_name in AVAILABLE_FIELD_NAMES_ORDERED:
                         field_data_type = AVAILABLE_FIELD_NAMES_TYPES[field_name]
-                        if self.is_valid(field_name, field_data, field_data_type):
+                        if is_valid(field_name, field_data, field_data_type):
                             # Only add the field if it is a standard ADIF field and it holds valid data.
                             fields_and_data_dictionary[field_name] = field_data
 
@@ -327,7 +492,8 @@ class ADIF:
 
         return records
 
-    def write(self, records, path):
+    @staticmethod
+    def write(records, path):
         """ Write an ADIF file containing all the QSOs in the 'records' list.
 
         :arg list records: The list of QSO records to write.
@@ -393,166 +559,3 @@ class ADIF:
             logging.info("Wrote %d QSOs of %d to %s in ADIF format." % (n, len(records), path))
 
         return
-
-    def is_valid(self, field_name, data, data_type):
-        """ Validate the data in a field with respect to the ADIF specification.
-
-        :arg str field_name: The name of the ADIF field.
-        :arg str data: The data of the ADIF field to validate.
-        :arg str data_type: The type of data to be validated. See http://www.adif.org/304/ADIF_304.htm#Data_Types for the full list with descriptions.
-        :returns: True or False to indicate whether the data is valid or not.
-        :rtype: bool
-        """
-
-        logging.debug("Validating the following data in field '%s': %s" % (field_name, data))
-
-        # Allow an empty string or None, in case the user doesn't want
-        # to fill in this field.
-        if not data:
-            return True
-
-        if data_type == "N":
-            # Allow a decimal point before and/or after any numbers,
-            # but don't allow a decimal point on its own.
-            m = re.match(r"-?(([0-9]+\.?[0-9]*)|([0-9]*\.?[0-9]+))", data)
-            if m is None:
-                # Did not match anything.
-                return False
-            else:
-                # Make sure we match the whole string,
-                # otherwise there may be an invalid character after the match.
-                return m.group(0) == data
-
-        elif data_type == "B":
-            # Boolean
-            m = re.match(r"(Y|N)", data)
-            if m is None:
-                return False
-            else:
-                return m.group(0) == data
-
-        elif data_type == "D":
-            # Date
-            pattern = re.compile(r"([0-9]{4})")
-            m_year = pattern.match(data, 0)
-            if (m_year is None) or (int(m_year.group(0)) < 1930):
-                # Did not match anything.
-                return False
-            else:
-                pattern = re.compile(r"([0-9]{2})")
-                m_month = pattern.match(data, 4)
-                if (m_month is None) or int(m_month.group(0)) > 12 or int(m_month.group(0)) < 1:
-                    # Did not match anything.
-                    return False
-                else:
-                    pattern = re.compile(r"([0-9]{2})")
-                    m_day = pattern.match(data, 6)
-                    days_in_month = calendar.monthrange(int(m_year.group(0)), int(m_month.group(0)))
-                    if (m_day is None) or int(m_day.group(0)) > days_in_month[1] or int(m_day.group(0)) < 1:
-                        # Did not match anything.
-                        return False
-                    else:
-                        # Make sure we match the whole string,
-                        # otherwise there may be an invalid character after the match.
-                        return len(data) == 8
-
-        elif data_type == "T":
-            # Time
-            pattern = re.compile(r"([0-9]{2})")
-            m_hour = pattern.match(data, 0)
-            if (m_hour is None) or (int(m_hour.group(0)) < 0) or (int(m_hour.group(0)) > 23):
-                # Did not match anything.
-                return False
-            else:
-                pattern = re.compile(r"([0-9]{2})")
-                m_minutes = pattern.match(data, 2)
-                if (m_minutes is None) or int(m_minutes.group(0)) < 0 or int(m_minutes.group(0)) > 59:
-                    # Did not match anything.
-                    return False
-                else:
-                    if len(data) == 4:
-                        # HHMM format
-                        return True
-                    pattern = re.compile(r"([0-9]{2})")
-                    m_seconds = pattern.match(data, 4)
-                    if (m_seconds is None) or int(m_seconds.group(0)) < 0 or int(m_seconds.group(0)) > 59:
-                        # Did not match anything.
-                        return False
-                    else:
-                        # Make sure we match the whole string,
-                        # otherwise there may be an invalid character after the match.
-                        return len(data) == 6  # HHMMSS format
-
-        # FIXME: Need to make sure that the "S" and "M" data types accept ASCII-only characters
-        # in the range 32-126 inclusive.
-        elif data_type == "S":
-            # String
-            m = re.match(r"(.+)", data)
-            if m is None:
-                return False
-            else:
-                return m.group(0) == data
-
-        elif data_type == "I":
-            # IntlString
-            m = re.match(r"(.+)", data, re.UNICODE)
-            if m is None:
-                return False
-            else:
-                return m.group(0) == data
-
-        elif data_type == "G":
-            # IntlMultilineString
-            m = re.match(r"(.+(\r\n)*.*)", data, re.UNICODE)
-            if m is None:
-                return False
-            else:
-                return m.group(0) == data
-
-        elif data_type == "M":
-            # MultilineString
-            # m = re.match(r"(.+(\r\n)*.*)", data)
-            # if(m is None):
-            #   return False
-            # else:
-            #   return (m.group(0) == data)
-            return True
-
-        elif data_type == "L":
-            # Location
-            pattern = re.compile(r"([EWNS]{1})", re.IGNORECASE)
-            m_directional = pattern.match(data, 0)
-            if m_directional is None:
-                # Did not match anything.
-                return False
-            else:
-                pattern = re.compile(r"([0-9]{3})")
-                m_degrees = pattern.match(data, 1)
-                if (m_degrees is None) or int(m_degrees.group(0)) < 0 or int(m_degrees.group(0)) > 180:
-                    # Did not match anything.
-                    return False
-                else:
-                    pattern = re.compile(r"([0-9]{2}\.[0-9]{3})")
-                    m_minutes = pattern.match(data, 4)
-                    if (m_minutes is None) or float(m_minutes.group(0)) < 0 or float(m_minutes.group(0)) > 59.999:
-                        # Did not match anything.
-                        return False
-                    else:
-                        # Make sure we match the whole string,
-                        # otherwise there may be an invalid character after the match.
-                        return len(data) == 10
-
-        elif data_type == "E" or data_type == "A":
-            # Enumeration, AwardList.
-            if field_name == "MODE":
-                return data in list(MODES.keys())
-            elif field_name == "SUBMODE":
-                submodes = [submode for mode in list(MODES.keys()) for submode in MODES[mode]]
-                return data in submodes
-            elif field_name == "BAND":
-                return data in BANDS
-            else:
-                return True
-
-        else:
-            return True
