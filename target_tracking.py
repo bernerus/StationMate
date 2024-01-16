@@ -273,7 +273,7 @@ class WindTarget(Target):
 	""" This target type points in the current wind direction which is taken from yr.no given current location."""
 	def __init__(self, azel):
 		self.azel = azel
-		super().__init__( azel, "YR_wind", self.trigger_period(), 0, update_in=600, ttl=365*86400)  # Wind track lives for a year, updates every 10 minutes
+		super().__init__( azel, "YR_wind", self.trigger_period(), 0, update_in=1800, ttl=365*86400)  # Wind track lives for a year, updates every 10 minutes
 		self.led_classes = "fas fa-wind"
 
 	def trigger_period(self)  -> int:
