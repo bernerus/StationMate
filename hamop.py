@@ -1,4 +1,6 @@
-import pprint
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+	from main import MyApp
 
 import util
 from pcf8574 import *
@@ -67,7 +69,7 @@ class HamOp:
         return self.p26
 
 
-    def __init__(self, app, logger, db: psycopg2):
+    def __init__(self, app:'MyApp', logger, db: psycopg2):
         self.app = app
         self.logger = logger
         self.db = db
@@ -653,6 +655,7 @@ class HamOp:
 
             startdate, starttime, enddate, endtime, callsign, locator, frequency, txmode, trprt, rrprt, power, comment, dxname, propmode = qso[0:14]
         except:
+            import pprint
             pprint.pprint(qso)
             raise
         starttime = starttime.replace(':', '')[:4]

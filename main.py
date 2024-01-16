@@ -57,8 +57,8 @@ address = ("", 8878)
 s = socket.socket()
 try:
     s.bind(address)
-except OSError:
-    print("Another instance of StnMate2 is running. Quitting")
+except OSError as e:
+    print("Another instance of StnMate2 is running. Quitting: %s" % e)
     sys.exit(1)
 
 
@@ -85,61 +85,59 @@ logger.info("Starting stnMate")
 
 socket_io = SocketIO(async_mode="eventlet", logger=False, engineio_logger=False, ping_timeout=60, ping_interval=4)
 
-def create_app(config=DevelopmentConfig) -> Flask:
 
-    _app = Flask(__name__)
-    _app.config.from_object(config)
+class MyApp(Flask):
+    def __init__(self, import_name, **kwargs):
 
-    with open("etc/google_api.txt") as f:
-        api_key = f.readline()
-    _app.config['GOOGLEMAPS_API_KEY'] = api_key
+        super().__init__(import_name, **kwargs)
 
+        self.config.from_object(DevelopmentConfig)
 
-    socket_io.init_app(_app)
-    return _app
+        with open("etc/google_api.txt") as f:
+            api_key = f.readline()
+        self.config['GOOGLEMAPS_API_KEY'] = api_key
 
-app = create_app()
-app.socket_io = socket_io
+        socket_io.init_app(self)
 
-_db = psycopg2.connect(dbname='ham_station')
+        self.socket_io = socket_io
 
-from hamop import HamOp
-app.ham_op = HamOp(app, logger, _db,)
+        self._db = psycopg2.connect(dbname='ham_station')
 
-from clientmgr import ClientMgr
-app.client_mgr = ClientMgr(app, logger, socket_io)
+        from hamop import HamOp
+        self.ham_op = HamOp(self, logger, self._db)
 
-from azel import AzElControl
-app.azel = AzElControl(app, logger, socket_io, hysteresis=14)
+        from clientmgr import ClientMgr
+        self.client_mgr = ClientMgr(self, logger, socket_io)
 
-from aircraft_tracker import AircraftTracker
-app.aircraft_tracker = AircraftTracker(app, logger, socket_io, url="http://192.168.1.129:8754")
+        from azel import AzElControl
+        self.azel = AzElControl(self, logger, socket_io, hysteresis=14)
 
-from station_tracker import StationTracker
-app.station_tracker = StationTracker(app, logger, socket_io)
+        from aircraft_tracker import AircraftTracker
+        self.aircraft_tracker = AircraftTracker(self, logger, socket_io, url="http://192.168.1.129:8754")
 
-rows = app.ham_op.fetch_my_current_data("144")
-my_data = {x["key"]: x["value"] for x in rows}
+        from station_tracker import StationTracker
+        self.station_tracker = StationTracker(self, logger, socket_io)
 
+        rows = self.ham_op.fetch_my_current_data("144")
+        self.my_data = {x["key"]: x["value"] for x in rows}
 
+        self.keyer = Morser(logger, speed=None, p20=self.azel.p20)
+        self.keyer_thread = threading.Thread(target=self.keyer.background_thread, args=())
+        self.keyer_thread.daemon = True  # Daemonize keyer_thread
+        self.keyer_thread.start()
 
-app.keyer = Morser(logger, speed=None, p20=app.azel.p20)
-app.keyer_thread = threading.Thread(target=app.keyer.background_thread, args=())
-app.keyer_thread.daemon = True  # Daemonize keyer_thread
-app.keyer_thread.start()
-
+app=MyApp(__name__)
 class WsjtxNamespace(Namespace):
 
     def on_connect(self):
         logger.info("WSJTX exchanger connected")
-        self.emit('server_response', {'data': 'Connected', 'count': 0})
-
+        emit('server_response', {'data': 'Connected', 'count': 0})
     def on_disconnect(self):
         logger.info("WSJTX exchanger disconnected")
         pass
 
     def on_my_event(self, sid, data):
-        self.emit('my_response', data)
+        emit('my_response', data)
 
     def on_set_dx_note(self, json):
         logger.info("Fill DX note %s" % json)
@@ -220,8 +218,8 @@ def get_azimuth():
     return "Az=%d ticks" % app.azel.az
 
 @app.route("/help")
-def help():
-    s = """
+def cmd_help():
+    help_text = """
         <table>
         <tr><td>/</td><td>Start antenna and log view</td></tr>
         <tr><td>/help</td><td>See this help text</td></tr>
@@ -241,7 +239,7 @@ def help():
         <tr><td>/az_scan</td><td>Sweep the antenna azimuth. Requires parameters</td></tr>
         <tr><td>/commit_qso</td><td>Commit a qso to the station log. Requires parameters</td></tr></table>
         """
-    return s
+    return help_text
 
 @app.route("/myqth")
 def my_qth():
@@ -302,11 +300,10 @@ def my_tx70_off():
 def my_wsjtx_upload():
     return app.ham_op.my_wsjtx_upload(request)
 
-@app.route('/az_scan', defaults={"start":0,"stop":180, "period":30, "sweeps":2, "increment":15})
-def az_scan(start,stop,period,sweeps, increment):
-    start=1
-    logger.info("AZ_scan start=%d, stop=%d, period=%d, sweeps=%d increment=%d" % (start,stop,period,sweeps, increment))
-    return app.azel.sweep(start,stop,period,sweeps,increment)
+@app.route('/az_scan', defaults={"az_start":0,"az_stop":180, "period":30, "sweeps":2, "increment":15})
+def az_scan(az_start,az_stop,period,sweeps, increment):
+    logger.info("AZ_scan start=%d, az_stop=%d, period=%d, sweeps=%d increment=%d" % (az_start,az_stop,period,sweeps, increment))
+    return app.azel.sweep(az_start,az_stop,period,sweeps,increment)
 
 @app.route('/commit_qso', methods=['POST'])
 def commit_qso():

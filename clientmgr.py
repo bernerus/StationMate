@@ -1,3 +1,7 @@
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+	from main import MyApp
+
 import queue
 from threading import Lock
 from p26_defs import *
@@ -63,7 +67,7 @@ def emit(what, data):
 
 
 class ClientMgr:
-    def __init__(self, app, logger, socket_io):
+    def __init__(self, app: 'MyApp', logger, socket_io):
         """
         Initializes the class instance with the given parameters.
 

@@ -4,7 +4,9 @@ import threading
 
 station_thread = None
 station_thread_lock = Lock()
-
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+	from main import MyApp
 import locator.src.maidenhead as mh
 from typing import *
 
@@ -14,7 +16,7 @@ from pskreporter import Reporter
 
 class StationTracker:
 
-	def __init__(self, app, logger, socket_io) -> None:
+	def __init__(self, app:'MyApp', logger, socket_io) -> None:
 		self.logger = logger
 		self.app = app
 		self.azel = app.azel

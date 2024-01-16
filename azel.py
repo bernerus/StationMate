@@ -1,4 +1,7 @@
 #import datetime
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+	from main import MyApp
 
 import RPi.GPIO as GPIO
 from pcf8574 import *
@@ -10,6 +13,7 @@ from p20_defs import *
 from target_tracking import *
 from flask import Flask
 import hamop
+
 
 def sense2str(value):
 	x = 1
@@ -26,7 +30,7 @@ def sense2str(value):
 
 class AzElControl:
 
-	def __init__(self, app: Flask, logger, socket_io, hysteresis: int = 10):
+	def __init__(self, app: 'MyApp', logger, socket_io, hysteresis: int = 10):
 		self.app = app
 		self.ham_op = self.app.ham_op # type: hamop.HamOp
 		self.logger=logger
@@ -76,7 +80,7 @@ class AzElControl:
 		self.AZ_CCW_MECH_STOP: int = 0
 		self.AZ_CW_MECH_STOP: int = 734
 
-		self.CCW_BEARING_STOP: int = 291  # 278   273 270
+		self.CCW_BEARING_STOP: int = 292  # 278   273 270
 		self.CW_BEARING_STOP: int = 295  # 283   278 273
 
 		self.BEARING_OVERLAP = abs(self.CW_BEARING_STOP - self.CCW_BEARING_STOP)

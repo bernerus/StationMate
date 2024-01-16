@@ -9,9 +9,10 @@ import psycopg2.extras
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
 	import psycopg2
+	from main import MyApp
 
 class Reporter:
-	def __init__(self, app, logger, my_qth="JO67BQ68SL", max_distance=4300, min_freq=144000000, max_freq=144500000, max_db_age=3600, max_file_age=300, mode=None):
+	def __init__(self, app:'MyApp', logger, my_qth="JO67BQ68SL", max_distance=4300, min_freq=144000000, max_freq=144500000, max_db_age=3600, max_file_age=300, mode=None):
 		self.app = app
 		self.logger =  logger
 		self.max_distance=max_distance

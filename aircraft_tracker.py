@@ -1,3 +1,8 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from main import MyApp
+
 import queue
 from threading import Lock
 from flask import current_app
@@ -33,7 +38,7 @@ abortable_sleep = AbortableSleep()
 
 class AircraftTracker:
 
-	def __init__(self, app, logger, socket_io, url: str):
+	def __init__(self, app:'MyApp', logger, socket_io, url: str):
 		self.logger = logger
 		self.app = app
 		self.azel = app.azel
