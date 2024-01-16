@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-	from main import MyApp
+    from main import MyApp
 
 import queue
 from threading import Lock
@@ -66,6 +66,16 @@ def emit(what, data):
     msg_q.put((what, data))
 
 
+
+
+
+def emit_log(json):
+    emit("log_data", json)
+
+
+def send_reload():
+    msg_q.put(("globalReload", {}))
+
 class ClientMgr:
     def __init__(self, app: 'MyApp', logger, socket_io):
         """
@@ -104,7 +114,11 @@ class ClientMgr:
 
         self.auto_track = False
 
-    def disable_core_controls(self):
+    @staticmethod
+    def push_track_led(clazzes):
+        send_update_classes("track_led", clazzes)
+    @staticmethod
+    def disable_core_controls():
         send_update_state("pa_ready_led", "disabled", True)
         send_update_state("pa_active_led", "disabled", True)
         send_update_state("trx_rx_led", "disabled", True)
@@ -113,7 +127,8 @@ class ClientMgr:
         send_update_state("tx70_led", "disabled", True)
         pass
 
-    def enable_core_controls(self):
+    @staticmethod
+    def enable_core_controls():
         send_update_state("pa_ready_led", "disabled", False)
         send_update_state("pa_active_led", "disabled", False)
         send_update_state("trx_rx_led", "disabled", False)
@@ -143,7 +158,7 @@ class ClientMgr:
             else:
                 self.distinct_locators_on_map = False
                 emit("setMapZoom", 8)
-            self.send_reload()
+            send_reload()
 
     def set_log_scope(self, scope):
         """
@@ -166,7 +181,7 @@ class ClientMgr:
                 _dt, fr, to = get_contest_times(self.current_band)
                 self.show_log_since = datetime.strptime(fr, "%Y-%m-%d %H:%M:%S")
                 self.show_log_until = datetime.strptime(to, "%Y-%m-%d %H:%M:%S")
-            self.send_reload()
+            send_reload()
 
 
     def add_mhs_on_map(self, locator_list):
@@ -313,9 +328,6 @@ class ClientMgr:
 
         self.app.azel.status_update()
 
-    def push_track_led(self, clazzes):
-        send_update_classes("track_led", clazzes)
-
     def status_update(self, force=False):
         current_p2_sense = self.app.ham_op.get_status()
         self.status_push(current_p2_sense, force=force)
@@ -419,7 +431,7 @@ class ClientMgr:
                 emit("add_qsos", qsos)
                 self.logger.debug("Adding %d qso:s from %s to %s" % (len(qsos), qsos[0]["callsign"], qsos[-1]["callsign"]))
             self.add_mhs_on_map(mhs)
-            self.app.azel.update_target_list()
+            self.update_target_list([])
             self.status_update(force=True)
 
         else:
@@ -457,21 +469,17 @@ class ClientMgr:
     def send_qth(self):
         rows = self.app.ham_op.fetch_my_current_data(self.current_band)
         my_data = {x["key"]: x["value"] for x in rows}
-        myqth = my_data["my_locator"]
-        n, s, w, e, lat, lon = mh.to_rect(myqth)
+        my_qth = my_data["my_locator"]
+        n, s, w, e, lat, lon = mh.to_rect(my_qth)
 
         #print("Queueing qth %f %f" % (lon, lat))
-        msg_q.put(("set_qth", {"lon": lon, "lat": lat, "qth": myqth, "n": n, "s": s, "w": w, "e": e}))
+        msg_q.put(("set_qth", {"lon": lon, "lat": lat, "qth": my_qth, "n": n, "s": s, "w": w, "e": e}))
 
 
     def send_mydata(self):
         msg = self.app.ham_op.get_mydata(self.current_band)
         msg["current_band"] = self.current_band
         msg_q.put(("set_mydata", msg))
-
-    def lookup_locator(self, qso):
-        emit("locator_data", self.do_lookup_locator(qso))
-        other_loc = qso["locator"]
 
     def do_lookup_locator(self, qso):
         other_loc = qso["locator"]
@@ -495,10 +503,7 @@ class ClientMgr:
         if new_band != self.current_band:
             self.current_band = new_band
             self.app.station_tracker.set_band(new_band)
-            self.send_reload()
-
-    def emit_log(self, json):
-        emit("log_data", json)
+            send_reload()
 
     def add_qso(self, qso):
         self.logger.info("Adding QSO with %s" % qso["callsign"])
@@ -508,7 +513,8 @@ class ClientMgr:
     def send_reload(self):
         msg_q.put(("globalReload", {}))
 
-    def update_target_list(self, targets):
+    @staticmethod
+    def update_target_list(targets):
         s = "<table id=\"targets\"><tr><th>Id</th><th>Active</th><th>Az/El</th><th>Period</th><th>TTL</th><th>Left</th><th>Note 1</th><th>Note 2</th></tr>"
         th_count = s.count("<th>")
         if targets is None:
@@ -524,7 +530,8 @@ class ClientMgr:
         s += "</table>"
         msg_q.put(("update_target_list", s))
 
-    def update_planes(self, planes):
+    @staticmethod
+    def update_planes(planes):
 
         planes1 = {
             "3520": {"id": "TAY4537", "lat":57.6465, "lng": 13.0829, "alt":36000},
