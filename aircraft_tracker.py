@@ -5,7 +5,6 @@ if TYPE_CHECKING:
 
 import queue
 from threading import Lock
-from flask import current_app
 import requests
 import threading
 
@@ -100,6 +99,6 @@ class AircraftTracker:
 		return None, None
 
 
-	def track_plane(self, azel, plane_id):
+	def track_plane(self, plane_id):
 		target = PlaneTarget(self.azel, plane_id)
 		self.target_stack.push(target)
