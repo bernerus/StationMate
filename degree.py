@@ -43,7 +43,8 @@ class Degree(int):
     def __new__(cls, value):
         if value is None:
             return None
-        elif not 0 <= value <= 359:
+        value %= 360
+        if not 0 <= value <= 359:
             raise ValueError("Value must be between 0 and 359")
         return int.__new__(cls, value)
 
