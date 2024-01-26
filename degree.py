@@ -1,3 +1,5 @@
+from typing import Optional, Union
+
 class Degree(int):
     """
     The Degree class is a subclass of int that represents an angle in degrees. It ensures that the angle value is between 0 and 359.
@@ -40,38 +42,34 @@ class Degree(int):
         result = degree - 100
         print(result)  # Output: 305
     """
-    def __new__(cls, value):
+    def __new__(cls, value: Union[int, float]):
         if value is None:
             return None
-        value %= 360
+        if type(value) is float:
+            value=round(value)
+        value %= 360.0
         if not 0 <= value <= 359:
             raise ValueError("Value must be between 0 and 359")
         return int.__new__(cls, value)
 
-    def __add__(self, other):
-        if self is None or other is None:
+    def __add__(self, other: int) -> Optional['Degree']:
+        if other is None:
             return None
-        elif isinstance(other, int):
-            return Degree((int(self) + other) % 360)
-        return NotImplemented
+        return Degree((int(self) + other) % 360)
 
-    def __sub__(self, other):
-        if self is None or other is None:
+    def __sub__(self, other: int) -> Optional['Degree']:
+        if other is None:
             return None
-        elif isinstance(other, int):
-            return Degree((int(self) - other) % 360)
-        return NotImplemented
+        return Degree((int(self) - other) % 360)
 
-    def __mul__(self, other):
-        if self is None or other is None:
+    def __mul__(self, other: int) -> Optional['Degree']:
+        if other is None:
             return None
-        elif isinstance(other, int):
-            return Degree((int(self) * other) % 360)
-        return NotImplemented
+        return Degree((int(self) * other) % 360)
 
-    def __truediv__(self, other):
-        if self is None or other is None:
+    def __truediv__(self, other: int) -> Optional['Degree']:
+        if other is None:
             return None
-        elif isinstance(other, int):
-            return Degree((int(self) // other) % 360)
-        return NotImplemented
+        return Degree((int(self) // other) % 360)
+
+
