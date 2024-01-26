@@ -285,7 +285,7 @@ class ClientMgr:
                 send_update_state("tx70_led", "disabled", False)
 
             if current and ((current != self.last_pushed_status)  or self.last_pushed_status is None or force):
-                self.logger.info("Status push, force=%s" % force)
+                # self.logger.debug("Status push, force=%s" % force)
                 if current & P26_PA_READY:
                     send_update_class("pa_ready_led", "active", True)
                     send_update_class("pa_ready_led", "warming", False)
