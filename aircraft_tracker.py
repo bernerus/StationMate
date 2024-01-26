@@ -95,8 +95,8 @@ class AircraftTracker:
 	def get_position(self, plane_id):
 		if plane_id in self.current_planes:
 			plane = self.current_planes[plane_id]
-			return plane['lng'], plane['lat']
-		return None, None
+			return plane['lng'], plane['lat'], plane['alt']
+		return None, None, None
 
 
 	def track_plane(self, plane_id):
