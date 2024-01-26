@@ -27,7 +27,7 @@ def sense2str(value):
 	return ret
 
 
-class AzElControl:
+class AzelController:
 
 	def __init__(self, app: 'MyApp', logger, socket_io, hysteresis: int = 10):
 		self.last_sense = None
@@ -80,7 +80,7 @@ class AzElControl:
 		self.AZ_CCW_MECH_STOP: int = 0
 		self.AZ_CW_MECH_STOP: int = 734
 
-		self.CCW_BEARING_STOP: Degree = Degree(292)  # 278   273 270
+		self.CCW_BEARING_STOP: Degree = Degree(290)  # 278   273 270
 		self.CW_BEARING_STOP: Degree = Degree(295)  # 283   278 273
 
 		self.BEARING_OVERLAP:Degree = Degree(self.CW_BEARING_STOP - self.CCW_BEARING_STOP)
