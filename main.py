@@ -109,8 +109,8 @@ class MyApp(Flask):
         from clientmgr import ClientMgr
         self.client_mgr = ClientMgr(self, logger, socket_io)
 
-        from azel import AzElControl
-        self.azel = AzElControl(self, logger, socket_io, hysteresis=14)
+        from azel import AzelController
+        self.azel = AzelController(self, logger, socket_io, hysteresis=14)
 
         from aircraft_tracker import AircraftTracker
         self.aircraft_tracker = AircraftTracker(self, logger, socket_io, url="http://192.168.1.129:8754")
@@ -128,7 +128,63 @@ class MyApp(Flask):
 
 app=MyApp(__name__)
 class WsjtxNamespace(Namespace):
+    """
 
+    :class:`WsjtxNamespace` is a class that extends the `Namespace` class from the `SocketIO` library. It handles events related to WSJT-X
+    message exchanger py-wsjtx.
+
+    Methods:
+        - `on_connect()`:
+            - This method is called when the WSJT-X message exchanger connects.
+            - It logs a message that the exchanger has connected.
+            - then emits a `server_response` event with data `{'data': 'Connected', 'count': 0}`.
+
+        - `on_disconnect()`:
+            - This method is called when yhr WSJT-X message exchanger disconnects.
+            - It logs a message that the exchanger has disconnected.
+
+        - `on_my_event(sid, data)`:
+            - This method is called when a custom event `my_event` is triggered.
+            - It emits a `my_response` event with the given data.
+
+        - `on_set_dx_note(json)`:
+            - This method is called when a `set_dx_note` event is triggered with some JSON data.
+            - It logs a message that the DX note is being filled with the given JSON data.
+            - It retrieves the callsign and locator from the JSON data and sets them using the `set_dx_call` method from the `app.client_mgr`.
+            - It emits a `fill_dx_note` event with the JSON data, broadcasting it to all clients.
+
+        - `on_set_dx_grid(grid)`:
+            - Emits a `fill_dx_grid` event with the `grid`, broadcasting it to all clients.
+
+        - `on_set_trx70(json)`:
+            - This method is called when a `set_trx70` event is triggered with some JSON data.
+            - It logs a message that the TRX70 is being set.
+            - It sets the TRX70 using the `set_trx70` method from the `app.ham_op`.
+
+        - `on_commit_wsjtx_qso(json)`:
+            - This method is called when a `commit_wsjtx_qso` event is triggered with some JSON data.
+            - It retrieves the necessary fields from the JSON data and creates a `qso` dictionary with the following keys:
+                - `callsign`: The DX call from the JSON data.
+                - `band`: The dial frequency divided by 1,000,000.
+                - `txmode`: The transmit mode from the JSON data.
+                - `tx`: The report sent from the JSON data.
+                - `rx`: The report received from the JSON data.
+                - `locator`: The DX grid from the JSON data.
+                - `frequency`: The dial frequency divided by 1,000,000.
+                - `date`: The date from the `date_time_on` field of the JSON data.
+                - `time`: The time from the `date_time_on` field of the JSON data.
+                - `complete`: True.
+                - `propmode`: The propagation mode from the JSON data.
+            - If the `dx_call` and `dx_grid` are provided, it looks up any known full locator using the `lookup_locator` method from the `app.ham_op` and adds it to the `qso` dictionary
+    * as `augmented_locator`.
+            - It calculates the bearing, distance, contest points, and square count using the `distance_to` method from the `app.ham_op` and adds them to the `qso` dictionary.
+            - It logs a message that the QSO from WSJT-X is being committed with the `qso` dictionary.
+            - It commits the QSO using the `do_commit_qso` method from the `app.ham_op` and retrieves the new QSO ID.
+            - It adds the QSO ID to the `qso` dictionary.
+            - It emits a `commit_qso` event with the `qso` dictionary, broadcasting it to all clients.
+
+    Note: Please refer to the relevant code implementation for further details on the methods and their usage.
+    """
     @staticmethod
     def on_connect():
         logger.info("WSJTX exchanger connected")
@@ -312,9 +368,9 @@ def az_scan(az_start,az_stop,period,sweeps, increment):
     logger.info("AZ_scan start=%d, az_stop=%d, period=%d, sweeps=%d increment=%d" % (az_start,az_stop,period,sweeps, increment))
     return app.azel.sweep(az_start,az_stop,period,sweeps,increment)
 
-@app.route('/commit_qso', methods=['POST'])
-def commit_qso():
-    return commit_qso(request)
+# @app.route('/commit_qso', methods=['POST'])
+# def commit_qso():
+    # return commit_qso(request)
 
 ##############
 
