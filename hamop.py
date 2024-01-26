@@ -288,8 +288,8 @@ class HamOp:
         if until is not None:
             t_date_stop = until.isoformat()
 
-        self.logger.info("Log rows start %s"% t_date_start)
-        self.logger.info("Log rows end %s"% t_date_stop)
+        # self.logger.debug("Log rows start %s"% t_date_start)
+         #self.logger.debug("Log rows end %s"% t_date_stop)
 
         args = (
             t_date_start[:10], t_date_stop[:10], t_date_start[11:16].replace(":", ""), t_date_stop[11:16].replace(":", ""))
