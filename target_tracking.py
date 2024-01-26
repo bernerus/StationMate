@@ -9,11 +9,179 @@ import math
 
 from typing import *
 
-
 from geo import sphere
+if TYPE_CHECKING:
+	from azel import AzelController
+
+from degree import Degree
+
+class Target:
+	"""
+	A class representing a target.
+
+	:param azel: An instance of AzelController.
+	:type azel: AzelController
+	:param target_id: The ID of the target.
+	:type target_id: str
+	:param az: The azimuth angle of the target.
+	:type az: Degree
+	:param el: The elevation angle of the target.
+	:type el: Degree
+	:param update_in: The update interval of the target in seconds (default is 30 seconds).
+	:type update_in: int
+	:param ttl: The time-to-live of the target in seconds (default is 90 seconds).
+	:type ttl: int
+	"""
+	def __init__(self, azel: 'AzelController', target_id: str, az: Degree, el:Degree, update_in: int = 30, ttl:int = 90):
+		self.az:Degree = az  # Degrees
+		self.el:Degree = el # Degrees
+		self.id = target_id
+		self.update_in = update_in
+		self.azel = azel
+		self.ttl = ttl
+		self.start_time = None
+		self.active = True
+		self.details = None
+		self.led_classes = "fas fa-bullseye"
+
+	def start(self):
+		self.start_time = time.time()
+		abortable_sleep.abort()
+
+	@staticmethod
+	def restart():
+		abortable_sleep.abort()
+
+	def seconds_left(self):
+		return self.start_time + self.ttl - time.time()
+
+	def done(self):
+		if self.start_time:
+			ret = time.time() > self.start_time + self.ttl
+			self.azel.logger.debug("Target %s, done=%s, time=%s, start_time=%s, ttl=%s, tl=%4.0f" %
+			                  (self.id, ret, time.time(), self.start_time, self.ttl, self.ttl - (time.time()-self.start_time)))
+			return time.time() > self.start_time + self.ttl
+		else:
+			self.azel.logger.debug("Target %s, done=false, time=%s, start_time=%s, ttl=%s" %
+			                  (self.id, time.time(), self.start_time, self.ttl))
+			return False
+
+	def set_led_classes(self, classes):
+		self.led_classes = classes
+
+	@property
+	def active(self):
+		try:
+			return self._active
+		except AttributeError:
+			return None
+
+	@active.setter
+	def active(self, value):
+		self._active = value
+
+	@property
+	def ttl(self):
+		try:
+			return self._ttl
+		except AttributeError:
+			return None
+
+	@ttl.setter
+	def ttl(self, value):
+		self._ttl = value
+
+	@property
+	def az(self)-> Optional[Degree]:
+		if not self.active:
+			return None
+		try:
+			return self._az
+		except AttributeError:
+			return None
+
+	@az.setter
+	def az(self, value:Degree):
+		self._az = value
+
+	@property
+	def id(self):
+		#if not self.active:
+			#return None
+		try:
+			return self._target_id
+		except AttributeError:
+			return None
+
+	@id.setter
+	def id(self, value):
+		self._target_id = value
+
+	@property
+	def el(self)-> Optional[Degree]:
+		if not self.active:
+			return None
+		try:
+			return self._el
+		except AttributeError:
+			return None
+
+	@el.setter
+	def el(self, value:Degree):
+		self._el = value
+
+	@property
+	def update_in(self):
+		return self._update_in
+
+	@update_in.setter
+	def update_in(self, value):
+		self._update_in = value
+
+	def activate(self):
+		self.active = True
+
+	def deactivate(self):
+		self.active = False
+
+	def trigger_period(self) -> int:
+		return 0
+
+	def get_html_row(self):
+		az = self.az if self.az is not None else -360
+		el = self.el if self.el is not None else -180
+		ts = "<td>%s</td><td>%s</td><td>%4.2f/%3.2f</td><td>%s</td><td>%s</td><td>%s</td>" % (self.id, self.active, az, el, self.update_in, int(self.ttl), int(self.seconds_left()))
+		return ts
 
 class TargetStack:
-	def __init__(self, azel, logger):
+	"""
+	A class for managing a stack of tracking targets.
+
+	Parameters:
+	    azel (AzelController): The AzelController object.
+	    logger: The logger object.
+
+	Attributes:
+	    _target_stack (list): The stack of tracking targets.
+	    azel (AzelController): The AzelController object.
+	    logger: The logger object.
+	    track_thread (threading.Thread): The thread for tracking targets.
+	    track_thread_running (bool): Indicates if the track thread is running.
+	    suspended_activity: The activity that is suspended.
+	    suspended_tracking (bool): Indicates if tracking is suspended.
+
+	Methods:
+	    suspend(): Suspends tracking.
+	    resume(): Resumes tracking.
+	    get_top(): Returns the top target in the stack.
+	    get_stack_json(): Returns the stack of targets in JSON format.
+	    pop(): Removes and returns the top target in the stack.
+	    push(tracking_object:Target): Adds a new target to the stack.
+	    kick_thread(): Kicks off the track thread.
+	    update_ui(force=False): Updates the user interface.
+	    track_thread_function(): The function run by the track thread.
+	"""
+	def __init__(self, azel: 'AzelController', logger):
 		self._target_stack=[]
 		self.azel = azel
 		self.logger = logger
@@ -79,7 +247,7 @@ class TargetStack:
 
 		return top  # Returns the top element that we wished to pop away.
 
-	def push(self, tracking_object):
+	def push(self, tracking_object:Target):
 		if not tracking_object:
 			return
 		if not hasattr(tracking_object, "update_in"):
@@ -120,7 +288,7 @@ class TargetStack:
 				self.azel.untrack()
 				return
 			target.trigger_period() # Notify that we have started a new period
-			taz=target.az  # target.az is volatile, keep the value fetched once herein
+			taz:Degree = target.az  # target.az is volatile, keep the value fetched once herein
 			if target.done() or (taz is None and target.active):
 				# self.logger.debug("Popping myself away: Target=%s, done=%s, taz=%s, active=%s" % (target.id, target.done(), taz, target.active))
 				self.pop()
@@ -141,132 +309,14 @@ class TargetStack:
 			#self.logger.info("Cooked sleep: %d seconds" % sleep)
 			abortable_sleep(sleep)
 
-class Target:
-
-	def __init__(self, azel, target_id: str, az: int, el:int, update_in: int = 30, ttl:int = 90):
-		self.az = az  # Degrees
-		self.el = el # Degrees
-		self.id = target_id
-		self.update_in = update_in
-		self.azel = azel
-		self.ttl = ttl
-		self.start_time = None
-		self.active = True
-		self.details = None
-		self.led_classes = "fas fa-bullseye"
-
-	def start(self):
-		self.start_time = time.time()
-		abortable_sleep.abort()
-
-	@staticmethod
-	def restart():
-		abortable_sleep.abort()
-
-	def seconds_left(self):
-		return self.start_time + self.ttl - time.time()
-
-	def done(self):
-		if self.start_time:
-			ret = time.time() > self.start_time + self.ttl
-			self.azel.logger.debug("Target %s, done=%s, time=%s, start_time=%s, ttl=%s, tl=%4.0f" %
-			                  (self.id, ret, time.time(), self.start_time, self.ttl, self.ttl - (time.time()-self.start_time)))
-			return time.time() > self.start_time + self.ttl
-		else:
-			self.azel.logger.debug("Target %s, done=false, time=%s, start_time=%s, ttl=%s" %
-			                  (self.id, time.time(), self.start_time, self.ttl))
-			return False
-
-	def set_led_classes(self, classes):
-		self.led_classes = classes
-
-	@property
-	def active(self):
-		try:
-			return self._active
-		except AttributeError:
-			return None
-
-	@active.setter
-	def active(self, value):
-		self._active = value
-
-	@property
-	def ttl(self):
-		try:
-			return self._ttl
-		except AttributeError:
-			return None
-
-	@ttl.setter
-	def ttl(self, value):
-		self._ttl = value
-
-	@property
-	def az(self):
-		if not self.active:
-			return None
-		try:
-			return self._az
-		except AttributeError:
-			return None
-
-	@az.setter
-	def az(self, value):
-		self._az = value
-
-	@property
-	def id(self):
-		#if not self.active:
-			#return None
-		try:
-			return self._target_id
-		except AttributeError:
-			return None
-
-	@id.setter
-	def id(self, value):
-		self._target_id = value
-
-	@property
-	def el(self):
-		if not self.active:
-			return None
-		try:
-			return self._el
-		except AttributeError:
-			return None
-
-	@el.setter
-	def el(self, value):
-		self._el = value
-
-	@property
-	def update_in(self):
-		return self._update_in
-
-	@update_in.setter
-	def update_in(self, value):
-		self._update_in = value
-
-	def activate(self):
-		self.active = True
-
-	def deactivate(self):
-		self.active = False
-
-	def trigger_period(self) -> int:
-		return 0
-
-	def get_html_row(self):
-		az = self.az if self.az is not None else -360
-		el = self.el if self.el is not None else -180
-		ts = "<td>%s</td><td>%s</td><td>%4.2f/%3.2f</td><td>%s</td><td>%s</td><td>%s</td>" % (self.id, self.active, az, el, self.update_in, int(self.ttl), int(self.seconds_left()))
-		return ts
 
 class ManualTarget(Target):
-	""" This target is pushed whenever tracking is to be stopped, such as when pushing the manual buttons on the controller box"""
-	def __init__(self, azel):
+	"""
+	Creates a ManualTarget object that represents a manual target for the AzelController.
+
+	:param azel: An instance of AzelController.
+	"""
+	def __init__(self, azel: 'AzelController'):
 		self.azel = azel
 		super().__init__(azel, "Manual", 0, 0, update_in=90, ttl=15*60)  # Manual targets updates every 90 seconds and lives for 15 minutes
 		self.deactivate()
@@ -274,13 +324,34 @@ class ManualTarget(Target):
 
 
 class WindTarget(Target):
-	""" This target type points in the current wind direction which is taken from yr.no given current location."""
-	def __init__(self, azel):
+	"""
+	:class: WindTarget
+
+	A wind target class that represents a wind direction and speed target.
+
+	Attributes:
+	    - azel: An instance of `AzelController` class representing the azimuth and elevation controller.
+	    - led_classes: A string representing the CSS classes for the wind target LED indicator.
+	    - details: A dictionary representing the details of the wind target.
+
+	Methods:
+	    - __init__(self, azel: AzelController): Initializes a new WindTarget instance with the given AzelController instance.
+	    - trigger_period(self) -> Degree: Computes the wind direction target by making a request to a weather API.
+	    - active(self) -> bool: Determines if the wind target is active based on the wind speed and temperature conditions.
+	    - get_html_row(self) -> str: Generates an HTML table row representing the wind target.
+
+	Example:
+	    azel_controller = AzelController()
+	    wind_target = WindTarget(azel_controller)
+	    wind_target.active  # False
+	    wind_target.get_html_row()  # Returns an HTML table row string
+	"""
+	def __init__(self, azel: 'AzelController'):
 		self.azel = azel
 		super().__init__( azel, "YR_wind", self.trigger_period(), 0, update_in=1800, ttl=365*86400)  # Wind track lives for a year, updates every 10 minutes
 		self.led_classes = "fas fa-wind"
 
-	def trigger_period(self)  -> int:
+	def trigger_period(self)  -> Degree:
 			mn, ms, mw, me, my_lat, my_lon = mh.to_rect(self.azel.app.ham_op.my_qth())
 			ret = requests.get(
 				url="https://api.met.no/weatherapi/nowcast/2.0/complete?altitude=125&lat=%f&lon=%f" % (my_lat, my_lon),
@@ -288,12 +359,9 @@ class WindTarget(Target):
 			response = ret.json()
 
 			self.details = response["properties"]["timeseries"][0]["data"]["instant"]["details"]
-			wfd = self.details["wind_from_direction"] # type: float
-			wtd = wfd + 180.0
-			wtd = wtd + 360.0 if wtd < 0 else wtd
-			wtd = wtd - 360 if wtd > 360 else wtd
-			self.az = wtd
-			return int(wtd)
+			wtd = int(self.details["wind_from_direction"] + 180.0)# type: float
+			self.az = Degree(wtd)
+			return self.az
 
 	@Target.active.getter
 	def active(self):
@@ -324,7 +392,8 @@ class WindTarget(Target):
 class ScanTarget(Target):
 	""" This target type generates new directions on every update."""
 
-	def __init__(self, azel, target_id: str, range_start: int, range_stop: int, period: int, step:int, sweeps: int, ttl: int = 3600):
+
+	def __init__(self, azel: 'AzelController', target_id: str, range_start: Degree, range_stop: Degree, period: int, step:Degree, sweeps: int, ttl: int = 3600):
 		""" range_start sets one end of an azimuth range
 		    to_az sets the other end of the range
 		    period is the time in seconds between updates
@@ -353,7 +422,7 @@ class ScanTarget(Target):
 
 		self.intro = (self.az_ticks > self.range_stop or self.az_ticks < self.range_start)  # If we start outside the sweep
 
-	def trigger_period(self):
+	def trigger_period(self)-> None:
 		new_az_ticks = self.az_ticks + self.step_ticks
 		if self.az_ticks >= self.range_stop or self.az_ticks <= self.range_start:
 			if not self.intro:
@@ -377,11 +446,37 @@ class ScanTarget(Target):
 		return ts
 
 class MoonTarget(Target):
+	"""
+	:class: MoonTarget
 
+	This class represents a target following the Moon that can be tracked using an AzelController.
+
+	Methods:
+	    - done(): Determines if the moon target is done being tracked.
+	    - __init__(azel: 'AzelController'): Initializes a MoonTarget object.
+	    - trigger_period() -> Degree: Triggers a period of tracking for the moon target.
+
+	Attributes:
+	    - azel: The AzelController object used for tracking.
+	    - moon: The ephem.Moon object for computing moon position.
+	    - myqth: The ephem.Observer object representing the observer's location.
+	    - led_classes: The LED classes used for displaying the moon target.
+	    - az: The azimuth position of the moon target.
+	    - el: The elevation position of the moon target.
+
+	Example usage::
+
+	    azel_controller = AzelController()
+	    moon_target = MoonTarget(azel_controller)
+	    moon_target.trigger_period()
+	    if moon_target.done():
+	        print('Moon target tracking complete.')
+	"""
 	def done(self):
+		""" tracking is considered done when the Moon is below the horizon"""
 		return self.el < 0 or super().done()
 
-	def __init__(self, azel):
+	def __init__(self, azel: 'AzelController'):
 		self.azel = azel
 		self.moon = ephem.Moon()
 		self.myqth = ephem.Observer()
@@ -395,7 +490,7 @@ class MoonTarget(Target):
 
 		self.led_classes = "fas fa-moon"
 
-	def trigger_period(self)  -> int:
+	def trigger_period(self)  -> Degree:
 		self.myqth.date = datetime.datetime.utcnow()
 		self.moon.compute(self.myqth)
 		self.az = self.moon.az * 180.0 / math.pi
@@ -403,11 +498,26 @@ class MoonTarget(Target):
 		return self.az if self.el >= 0 else None
 
 class SunTarget(Target):
+	"""
+	Represent a target for tracking the Sun.
 
+	Attributes:
+	    azel (AzelController): The AzelController object.
+	    sun (ephem.Sun): The ephem Sun object.
+	    myqth (ephem.Observer): The ephem Observer object.
+	    led_classes (str): The classes for the LED icon.
+
+	Methods:
+	    done(): Check if the target is completed.
+	    __init__(azel: AzelController): Initialize a new SunTarget object.
+	    trigger_period() -> int: Trigger a period and update the target's position.
+
+	"""
 	def done(self):
+		""" tracking is considered done when the Sun is below the horizon"""
 		return self.el < 0 or super().done()
 
-	def __init__(self, azel):
+	def __init__(self, azel: 'AzelController'):
 		self.azel = azel
 
 		self.sun = ephem.Sun()
@@ -430,8 +540,23 @@ class SunTarget(Target):
 		return self.az if self.el >= 0 else None
 
 class PlaneTarget(Target):
+	"""
+	This class represents a target that tracks a plane using azimuth and elevation coordinates.
 
-	def __init__(self, azel, plane_id):
+	Attributes:
+	    azel (AzelController): An instance of the AzelController class.
+	    plane_id (str): The unique identifier of the plane being tracked.
+	    led_classes (str): The CSS classes for the icon representing the plane target.
+
+	Methods:
+	    __init__(azel, plane_id)
+	        Initializes a new PlaneTarget object.
+	    trigger_period() -> Union[int, None]
+	        Returns the azimuth angle between the observer's location and the tracked plane.
+	    done() -> bool
+	        Checks if the plane being tracked still exists or if the tracking is done.
+	"""
+	def __init__(self, azel: 'AzelController', plane_id):
 		self.plane_id = plane_id
 		_mn, _ms, _mw, _me, self.my_lat, self.my_lon = mh.to_rect(azel.app.ham_op.my_qth())
 		super().__init__(azel, plane_id, 0, 0, update_in=12, ttl=20*60)  # Plane track lives for 20 min and is updated every 12 seconds
@@ -440,27 +565,99 @@ class PlaneTarget(Target):
 
 	def trigger_period(self) -> Union[int, None]:
 
-		(self.lng, self.lat)  = self.azel.app.aircraft_tracker.get_position(self.plane_id)
+		(self.lng, self.lat, self.alt)  = self.azel.app.aircraft_tracker.get_position(self.plane_id)
 		if self.lng is None or self.lat is None:
 			return None
 		mn, ms, mw, me, mlat, mlon = mh.to_rect(self.azel.app.ham_op.my_qth())
 		self.az = sphere.bearing((mlon, mlat), (self.lng, self.lat))
-		self.azel.logger.debug("Calculated bearing from %s to %s to be %f" % (self.azel.app.ham_op.my_qth(), self.plane_id, self.az))
+
+		distance = sphere.distance((mlon, mlat), (self.lng, self.lat)) / 1000.0;
+
+		self.altkm = self.alt*(0.0254*12)/1000
+
+		self.azel.logger.debug("Plane %s: Long=%f, lat=%f, alt=%f(%f km), distance=%f" % (self.plane_id, self.lng, self.lat, self.alt, self.altkm, distance))
+
+		self.el = self.calculate_elevation(distance, self.alt*(0.0254*12)/1000, 0.145)
+		self.azel.logger.debug("Calculated bearing from %s to %s to be %f, elevation %f" % (self.azel.app.ham_op.my_qth(), self.plane_id, self.az, self.el))
 		return self.az if self.el >= 0 else None
 
 
 	def done(self):
 		return not self.azel.app.aircraft_tracker.has_plane(self.plane_id) or super().done()
 
+	def calculate_elevation(self, distance: float, object_altitude: float, observer_altitude: float):
+		"""
+		Calculate the elevation angle to an object on a certain altitude at a given distance from the observer.
+		This function takes the curvature of a spherical Earth into consideration.
+
+		Parameters:
+			distance (float): Distance to the object in kilometers.
+			object_altitude (float): Altitude of the object in kilometers.
+			observer_altitude (float): Altitude of the observer in kilometers.
+
+		Returns:
+			elev_angle (float): Elevation angle to the object at the given distance in degrees.
+		"""
+
+		import math
+
+		# Radius of Earth in kilometers
+		R = 6371.0
+
+		# Adjusted altitudes
+		adjusted_observer_altitude = R + observer_altitude
+		adjusted_object_altitude = R + object_altitude
+
+		elev_angle = (180/math.pi) * ((object_altitude - observer_altitude)/distance - distance/(2*R))
+
+		# The angle subtended at the centre of the Earth by the imaginary arc
+		#earth_angle_rad = math.acos(
+			#(math.pow(adjusted_observer_altitude, 2) + math.pow(distance, 2) - math.pow(adjusted_object_altitude, 2)) /
+			#(2 * adjusted_observer_altitude * distance))
+
+		# The angle of elevation required is the angle of the triangle at the observer subtended by the imaginary arc.
+
+		#elev_angle_rad = math.pi / 2 - earth_angle_rad
+
+		# Convert to degrees
+		# elev_angle = math.degrees(elev_angle_rad)
+
+		return elev_angle
+
 class AzTarget(Target):
-	def __init__(self, azel, az):
+	"""
+	:class: AzTarget
+
+	Class representing an azimuth target.
+
+	:param azel: An instance of AzelController representing the azimuth-elevation controller.
+	:type azel: AzelController
+	:param az: The azimuth value of the target.
+	:type az: int
+
+	Attributes:
+	- ``azel``: An instance of AzelController representing the azimuth-elevation controller.
+	- ``az``: The azimuth value of the target.
+
+	Methods:
+	- ``__init__(self, azel: AzelController, az: int)``: Initialize a new instance of the AzTarget class.
+	- ``trigger_period(self) -> int``: Returns the azimuth value of the target.
+
+	"""
+	def __init__(self, azel: 'AzelController', az):
 		super().__init__(azel, "AZ: %d"%az, int(az), 5, ttl=3600)
 
 	def trigger_period(self) -> int:
 		return self.az
 
 class MhTarget(Target):
-	def __init__(self, azel, what:str):
+	"""
+	Initialize Maidenhead locator Target object.
+
+	:param azel: AzelController object.
+	:param what: Maidenhead locator.
+	"""
+	def __init__(self, azel: 'AzelController', what:str):
 		self._active=False
 		ham_op = azel.app.ham_op
 		try:
@@ -478,7 +675,17 @@ class MhTarget(Target):
 		return self.az
 
 class StationTarget(Target):
-	def __init__(self, azel, who:str, given_loc:str =None):
+	"""
+	Represents a station target for tracking.
+
+	:param azel: Instance of AzelController.
+	:type azel: AzelController
+	:param who: Callsign of the station.
+	:type who: str
+	:param given_loc: Locator information of the station (optional).
+	:type given_loc: str
+	"""
+	def __init__(self, azel: 'AzelController', who:str, given_loc:str =None):
 		self._active=False
 		ham_op = azel.app.ham_op
 		found_loc = ham_op.lookup_locator(who, given_loc)
@@ -495,6 +702,26 @@ class StationTarget(Target):
 
 
 class AbortableSleep:
+	"""
+	A class that provides a sleep function that can be aborted.
+
+	The AbortableSleep class allows for sleeping for a specified number of seconds,
+	with the ability to abort the sleep before it completes.
+
+	:ivar _condition: A threading.Condition object used for synchronization.
+	:ivar _aborted: A boolean flag indicating whether the sleep was aborted.
+
+	Example usage:
+
+	```python
+	abortable_sleep = AbortableSleep()
+	if abortable_sleep(5):
+	    print("Sleep completed")
+	else:
+	    print("Sleep aborted")
+	```
+
+	"""
 	def __init__(self):
 		import threading
 		self._condition = threading.Condition()
@@ -510,6 +737,7 @@ class AbortableSleep:
 		with self._condition:
 			self._condition.notify()
 			self._aborted = True
+
 
 
 abortable_sleep = AbortableSleep()
