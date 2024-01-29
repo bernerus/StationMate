@@ -1,12 +1,12 @@
-#import datetime
+import datetime
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
 	from main import MyApp
 
+
 import RPi.GPIO as GPIO
 from pcf8574 import *
 # import locator.src.maidenhead as mh
-
 # import requests
 from p21_defs import *
 from p20_defs import *
@@ -80,8 +80,8 @@ class AzelController:
 		self.AZ_CCW_MECH_STOP: int = 0
 		self.AZ_CW_MECH_STOP: int = 734
 
-		self.CCW_BEARING_STOP: Degree = Degree(290)  # 278   273 270
-		self.CW_BEARING_STOP: Degree = Degree(295)  # 283   278 273
+		self.CCW_BEARING_STOP: Degree = Degree(293)  # 278   273 270
+		self.CW_BEARING_STOP: Degree = Degree(302)  # 283   278 273
 
 		self.BEARING_OVERLAP:Degree = Degree(self.CW_BEARING_STOP - self.CCW_BEARING_STOP)
 
@@ -89,7 +89,7 @@ class AzelController:
 
 		self.ticks_per_degree:float = (self.AZ_CW_MECH_STOP - self.AZ_CCW_MECH_STOP) / bearing_range
 
-		self.TICKS_OVERLAP = int(self.BEARING_OVERLAP * self.ticks_per_degree)
+		self.TICKS_OVERLAP = int(float(self.BEARING_OVERLAP) * self.ticks_per_degree)
 		self.ticks_per_rev:int = self.AZ_CW_MECH_STOP - self.TICKS_OVERLAP
 
 		self.seconds_per_rev_cw:float = 81.0
@@ -455,7 +455,7 @@ class AzelController:
 				self.az_rotation_err_count = 0
 				self._az_track(self.az_target_degrees)
 
-	def az_track_bearing(self, bearing:int) -> None:
+	def az_track_bearing(self, bearing:Degree) -> None:
 		target = AzTarget(self, bearing)
 		self.target_stack.push(target)
 
@@ -472,7 +472,7 @@ class AzelController:
 		if what is None:
 			what="Fixed_"+str(az)
 		self.az_target_degrees = az
-		target = Target(self, what, az, 0 , 10, 3600)
+		target = Target(self, what, az, Degree(0) , 10, 3600)
 		if classes:
 			target.set_led_classes(classes)
 		self.logger.info("az_track %s" % az)
