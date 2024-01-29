@@ -318,7 +318,7 @@ class ManualTarget(Target):
 	"""
 	def __init__(self, azel: 'AzelController'):
 		self.azel = azel
-		super().__init__(azel, "Manual", 0, 0, update_in=90, ttl=15*60)  # Manual targets updates every 90 seconds and lives for 15 minutes
+		super().__init__(azel, "Manual", Degree(0), Degree(0), update_in=90, ttl=15*60)  # Manual targets updates every 90 seconds and lives for 15 minutes
 		self.deactivate()
 		self.led_classes = "fas fa-hand"
 
@@ -348,7 +348,7 @@ class WindTarget(Target):
 	"""
 	def __init__(self, azel: 'AzelController'):
 		self.azel = azel
-		super().__init__( azel, "YR_wind", self.trigger_period(), 0, update_in=1800, ttl=365*86400)  # Wind track lives for a year, updates every 10 minutes
+		super().__init__( azel, "YR_wind", self.trigger_period(), Degree(0), update_in=1800, ttl=365*86400)  # Wind track lives for a year, updates every 10 minutes
 		self.led_classes = "fas fa-wind"
 
 	def trigger_period(self)  -> Degree:
@@ -407,12 +407,11 @@ class ScanTarget(Target):
 			tmp = self.range_start
 			self.range_start = self.range_stop
 			self.range_stop = tmp
-		self.step_ticks = azel.ticks_per_degree*step
+		self.step_ticks = azel.ticks_per_degree*float(step)
 		self.period = period
 		self.sweeps_left = sweeps
-		az = azel.get_azel()[0]
-		el = azel.get_azel()[1]
-		super().__init__(azel, target_id, az, el, update_in=period, ttl=ttl)
+		az, el = azel.get_azel()
+		super().__init__(azel, target_id, az, Degree(el), update_in=period, ttl=ttl)
 		self.az_ticks = azel.az2ticks(az)
 
 		if self.az_ticks > self.range_stop:
@@ -485,7 +484,7 @@ class MoonTarget(Target):
 		self.myqth.lon = my_lon * math.pi / 180.0
 		self.myqth.lat = my_lat * math.pi / 180.0
 
-		super().__init__(azel, "Moon", 0, 0, update_in=241, ttl=86400)  # Moon track lives for a day and is updated every 4.01 minutes
+		super().__init__(azel, "Moon", Degree(0), Degree(0), update_in=241, ttl=86400)  # Moon track lives for a day and is updated every 4.01 minutes
 		self.trigger_period()
 
 		self.led_classes = "fas fa-moon"
@@ -527,7 +526,7 @@ class SunTarget(Target):
 		self.myqth.lon = my_lon * math.pi / 180.0
 		self.myqth.lat = my_lat * math.pi / 180.0
 
-		super().__init__(azel, "Sun", 0, 0, update_in=240, ttl=86400)  # Sun track lives for a day and is updated every 4.08 minutes
+		super().__init__(azel, "Sun", Degree(0), Degree(0), update_in=240, ttl=86400)  # Sun track lives for a day and is updated every 4.08 minutes
 		self.trigger_period()
 
 		self.led_classes = "fas fa-sun"
@@ -559,7 +558,7 @@ class PlaneTarget(Target):
 	def __init__(self, azel: 'AzelController', plane_id):
 		self.plane_id = plane_id
 		_mn, _ms, _mw, _me, self.my_lat, self.my_lon = mh.to_rect(azel.app.ham_op.my_qth())
-		super().__init__(azel, plane_id, 0, 0, update_in=12, ttl=20*60)  # Plane track lives for 20 min and is updated every 12 seconds
+		super().__init__(azel, plane_id, Degree(0), Degree(0), update_in=12, ttl=20*60)  # Plane track lives for 20 min and is updated every 12 seconds
 
 		self.led_classes = "fas fa-plane"
 
@@ -569,16 +568,17 @@ class PlaneTarget(Target):
 		if self.lng is None or self.lat is None:
 			return None
 		mn, ms, mw, me, mlat, mlon = mh.to_rect(self.azel.app.ham_op.my_qth())
-		self.az = sphere.bearing((mlon, mlat), (self.lng, self.lat))
+		bearing = sphere.bearing((mlon, mlat), (self.lng, self.lat))
+		self.az = bearing
+		distance = sphere.distance((mlon, mlat), (self.lng, self.lat)) / 1000.0
 
-		distance = sphere.distance((mlon, mlat), (self.lng, self.lat)) / 1000.0;
+		altkm = self.alt*(0.0254*12)/1000
 
-		self.altkm = self.alt*(0.0254*12)/1000
+		self.azel.logger.debug("Plane %s: Long=%f, lat=%f, alt=%f(%f km), distance=%f" % (self.plane_id, self.lng, self.lat, self.alt, altkm, distance))
 
-		self.azel.logger.debug("Plane %s: Long=%f, lat=%f, alt=%f(%f km), distance=%f" % (self.plane_id, self.lng, self.lat, self.alt, self.altkm, distance))
-
-		self.el = self.calculate_elevation(distance, self.alt*(0.0254*12)/1000, 0.145)
-		self.azel.logger.debug("Calculated bearing from %s to %s to be %f, elevation %f" % (self.azel.app.ham_op.my_qth(), self.plane_id, self.az, self.el))
+		elevation  = self.calculate_elevation(distance, self.alt*(0.0254*12)/1000, 0.145)
+		self.el = elevation
+		self.azel.logger.debug("Calculated bearing from %s to %s to be %f, elevation %f" % (self.azel.app.ham_op.my_qth(), self.plane_id, bearing, elevation))
 		return self.az if self.el >= 0 else None
 
 
@@ -644,8 +644,8 @@ class AzTarget(Target):
 	- ``trigger_period(self) -> int``: Returns the azimuth value of the target.
 
 	"""
-	def __init__(self, azel: 'AzelController', az):
-		super().__init__(azel, "AZ: %d"%az, int(az), 5, ttl=3600)
+	def __init__(self, azel: 'AzelController', az:Degree):
+		super().__init__(azel, "AZ: %d"%az, az, Degree(5), ttl=3600)
 
 	def trigger_period(self) -> int:
 		return self.az
@@ -667,7 +667,7 @@ class MhTarget(Target):
 		except (TypeError, ValueError):
 			error=True
 			return
-		super().__init__(azel, what, round(az), 5, ttl=3600)
+		super().__init__(azel, what, round(az), Degree(5), ttl=3600)
 
 		self.led_classes = "fas fa-globe"
 
@@ -693,7 +693,7 @@ class StationTarget(Target):
 		if found_loc:
 			(az, _dist) = ham_op.distance_to(found_loc)
 			azel.logger.debug("Tracking Az %s to %s at %s" % (az, who, found_loc))
-			super().__init__(azel,who, round(az), 5, ttl=3600)
+			super().__init__(azel,who, round(az), Degree(5), ttl=3600)
 		self.led_classes = "fas fa-broadcast-tower"
 
 
