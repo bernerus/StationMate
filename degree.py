@@ -42,7 +42,7 @@ class Degree(int):
         result = degree - 100
         print(result)  # Output: 305
     """
-    def __new__(cls, value: Union[int, float]):
+    def __new__(cls, value: Optional[Union[int, float]]):
         if value is None:
             return None
         if type(value) is float:
