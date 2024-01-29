@@ -1,9 +1,9 @@
 
 import os, signal
 import sys
-import time
-import datetime
 import argparse
+# noinspection PyUnresolvedReferences
+import time
 
 
 def kill_siblings():
@@ -18,7 +18,7 @@ def kill_siblings():
 
             # extracting Process ID from the output
             pid = fields[1]
-            ppid = fields[2]
+            _ppid = fields[2]
             if int(pid) == os.getpid(): # Avoid suicide
                 continue
             # if fields[-1].endswith("debugging"):
@@ -31,12 +31,12 @@ def kill_siblings():
                     # os.kill(int(ppid), signal.SIGSTOP)
                     print("Sent kill signal to process %d" % int(pid))
                     time.sleep(1)
-                except Exception as e:
-                    print ("Process %s is now dead: %s" % (int(pid), e))
+                except Exception as ex:
+                    print ("Process %s is now dead: %s" % (int(pid), ex))
                     break
 
-    except:
-        print("Error Encountered while running script")
+    except Exception as ex:
+        print("Error %s Encountered while running script"%ex)
 
 
 parser = argparse.ArgumentParser(
@@ -65,7 +65,8 @@ except OSError as e:
 from flask import Flask, render_template, request
 import psycopg2
 from config import DevelopmentConfig
-from flask_socketio import SocketIO, emit, send, Namespace
+from flask_socketio import SocketIO, emit
+from flask_socketio.namespace import Namespace
 from morsetx import *
 import threading
 import atexit
@@ -196,7 +197,7 @@ class WsjtxNamespace(Namespace):
 
     @staticmethod
     def on_my_event(sid, data):
-        emit('my_response', data)
+        emit('my_response', (sid,data))
 
     @staticmethod
     def on_set_dx_note(json):
