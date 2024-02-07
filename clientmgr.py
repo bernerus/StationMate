@@ -674,7 +674,7 @@ class ClientMgr:
         if callsign in knowns:
             emit("fill_dx_grid", callsign)
             if self.auto_track:
-                self.app.azel.az_track_station(callsign)
+                self.app.azel.az_track_station(callsign, auto=True)
         else:
             emit("fill_dx_grid", locator)
             if self.auto_track:

@@ -471,8 +471,11 @@ class AzelController:
 		target = MhTarget(self, loc)
 		self.target_stack.push(target)
 
-	def az_track_station(self, who:str) -> None:
+	def az_track_station(self, who:str, auto=False) -> None:
 		target = StationTarget(self, who)
+		if auto and target.distance < 100.0:
+				self.logger.warning("Distance to %s is too close for auto-tracking" % who)
+				return
 		self.target_stack.push(target)
 
 

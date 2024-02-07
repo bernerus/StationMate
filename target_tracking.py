@@ -32,10 +32,11 @@ class Target:
 	:param ttl: The time-to-live of the target in seconds (default is 90 seconds).
 	:type ttl: int
 	"""
-	def __init__(self, azel: 'AzelController', target_id: str, az: Degree, el:Degree, update_in: int = 30, ttl:int = 90):
+	def __init__(self, azel: 'AzelController', target_id: str, az: Degree, el:Degree, distance:float = None, update_in: int = 30, ttl:int = 90):
 		self.az:Degree = az  # Degrees
 		self.el:Degree = el # Degrees
 		self.id = target_id
+		self.distance = distance
 		self.update_in = update_in
 		self.azel = azel
 		self.ttl = ttl
@@ -691,9 +692,9 @@ class StationTarget(Target):
 		found_loc = ham_op.lookup_locator(who, given_loc)
 		self._active = True
 		if found_loc:
-			(az, _dist) = ham_op.distance_to(found_loc)
+			(az, dist) = ham_op.distance_to(found_loc)
 			azel.logger.debug("Tracking Az %s to %s at %s" % (az, who, found_loc))
-			super().__init__(azel,who, round(az), Degree(5), ttl=3600)
+			super().__init__(azel,who, round(az), Degree(5), distance=dist, ttl=3600)
 		self.led_classes = "fas fa-broadcast-tower"
 
 
