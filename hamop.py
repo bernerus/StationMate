@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 def commit_qso(request):
-    ret = {"added": 0, "adjusted": 0}
+    _ret = {"added": 0, "adjusted": 0}
 
 
 class HamOp:
@@ -770,16 +770,16 @@ class HamOp:
         if band:
             contest_log = produce_contest_log(band, self.logger, log_remarks=log_remarks)
             json["contest_log"] = contest_log
-            emit_log(json)
+            self.app.client_mgr.emit_log(json)
 
-    @staticmethod
-    def make_adif_log(json):
+
+    def make_adif_log(self, json):
         from adif_log import produce_adif_log
         band = json.get("band", None)
         if band:
             contest_log = produce_adif_log()
             json["contest_log"] = contest_log
-            emit_log(json)
+            self.app.client_mgr.emit_log(json)
 
 
     def toggle_qro(self):
@@ -870,7 +870,7 @@ class HamOp:
             pass
 
         try:
-            n, s, w, e, lat, lon = mh.to_rect(what)
+            _dummy = mh.to_rect(what)  # Checks if it is a valid MH locator
             self.app.azel.az_track_loc(what)
             self.app.client_mgr.add_mh_on_map(what)
         except (TypeError, ValueError):
@@ -1088,7 +1088,6 @@ class HamOp:
         :return: A formatted string listing the ODXs and MH fields and the number of distances changed.
         """
 
-        from collections import defaultdict
         q =  "SELECT qsoid,callsign,locator,my_locator, distance, propmode, band from nac_log_new"
 
         with self.db.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
@@ -1128,6 +1127,7 @@ class HamOp:
                         cur.execute(q1, (distance, r["qsoid"]))
                         n += 1
             # ret += pprint.pformat(odxs)
+            import pprint
             pprint.pprint(mhfields)
             ret += "ODX list:<br/>"
             for k,v in odxs.items():
