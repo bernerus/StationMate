@@ -881,7 +881,7 @@ class HamOp:
             self.app.azel.az_track_station(what)
 
 
-    def lookup_locator(self, callsign, given_loc=None) -> str:
+    def lookup_locator(self, callsign, given_loc=None) -> Optional[str]:
         """
         Retrieves the locator associated with a given callsign from the QSO log or, if not found, from the callbook in the database.
 
@@ -889,37 +889,54 @@ class HamOp:
         :param given_loc: The optional locator to match against.
         :return: The found locator if found and matches given_loc, otherwise None.
         """
-        q = """SELECT qsoid, locator from nac_log_new where callsign = %s order by date desc"""
+        q = """SELECT qsoid, locator, date from nac_log_new where callsign = %s order by date desc"""
 
         cur = self.db.cursor()
         cur.execute(q, (callsign,))
         rows = cur.fetchall()
+        log_loc = None
+        log_date = None
+        callbook_loc = None
+        callbook_date = None
         found_loc = None
 
         for row in rows:
             if not row[1] or len(row[1]) < 6:
                 continue
-            found_loc = row[1]
+            log_loc = row[1].upper()
+            log_date = row[2]
             break
 
-        if found_loc is None:
-            q = """SELECT locator from callbook where callsign = %s"""
-            cur = self.db.cursor()
-            cur.execute(q, (callsign,))
-            rows = cur.fetchall()
-            for row in rows:
-                if len(row[0]) < 6:
-                    continue
-                found_loc = row[0]
-            if given_loc:
-                return found_loc if given_loc[:4] == found_loc[:4] else None
+
+        q = """SELECT locator, last_change from callbook where callsign = %s order by last_change desc, length(locator) desc"""
+        cur = self.db.cursor()
+        cur.execute(q, (callsign,))
+        rows = cur.fetchall()
+        for row in rows:
+            if len(row[0]) < 6:
+                continue
+            callbook_loc = row[0].upper()
+            callbook_date = datetime.isoformat(row[1]).replace('T',' ')
+            break
+
+        if callbook_loc and log_loc:
+            if log_date > callbook_date:
+                found_loc = log_loc
             else:
-                return found_loc
+                found_loc = callbook_loc
+
         else:
-            if given_loc:
-                return found_loc if given_loc[:4] == found_loc[:4] else None
+            if callbook_loc:
+                found_loc =callbook_loc
+            elif log_loc:
+                found_loc = log_loc
             else:
-                return found_loc
+                return None
+
+        if given_loc:
+            return found_loc if given_loc[:4] == found_loc[:4] else None
+        else:
+            return found_loc
 
 
 
