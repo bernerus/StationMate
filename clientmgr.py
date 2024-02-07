@@ -68,11 +68,6 @@ def emit(what, data):
 
 
 
-
-def emit_log(json):
-    emit("log_data", json)
-
-
 def send_reload():
     msg_q.put(("globalReload", {}))
 
@@ -114,6 +109,9 @@ class ClientMgr:
 
         self.auto_track = False
 
+    @staticmethod
+    def emit_log(json):
+        emit("log_data", json)
     @staticmethod
     def push_track_led(clazzes):
         send_update_classes("track_led", clazzes)
