@@ -429,7 +429,7 @@ class ClientMgr:
                 emit("add_qsos", qsos)
                 self.logger.debug("Adding %d qso:s from %s to %s" % (len(qsos), qsos[0]["callsign"], qsos[-1]["callsign"]))
             self.add_mhs_on_map(mhs)
-            self.update_target_list([])
+            self.app.azel.target_stack.update_ui(force=True)
             self.status_update(force=True)
 
         else:
