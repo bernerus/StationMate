@@ -1,4 +1,3 @@
-import datetime
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
 	from main import MyApp
@@ -416,9 +415,18 @@ class AzelController:
 			inc = self.azz2inc[last_code << 2 | current_code]
 		except KeyError:
 			if self.rotating_cw:
-				inc = 2
+				pass
+				# inc = 2
+				self.logger.error("Key error rotating cw: index=%s" % bin(last_code << 2 | current_code))
+				self._az_track()
+				return
 			elif self.rotating_ccw:
-				inc = -2
+				pass
+
+				self.logger.error("Key error rotating ccw: index=%s" % bin(last_code << 2 | current_code))
+				# inc = -2
+				self._az_track()
+				return
 			else:
 				self.logger.error("Key error and no rotation: index=%s" % bin(last_code << 2 | current_code))
 				self._az_track()
