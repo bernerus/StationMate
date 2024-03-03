@@ -527,6 +527,9 @@ def handle_toggle_auto_track(_json):
 def handle_toggle_rx70(_json):
     app.ham_op.toggle_rx70()
 
+@socket_io.on("toggle_distinct")
+def handle_toggle_rx70(_json):
+    app.client_mgr.toggle_distinct()
 
 @socket_io.on("toggle_hide_logged_stations")
 def handle_toggle_hide_logged_stations(_json):

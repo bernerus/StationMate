@@ -157,6 +157,10 @@ body {
     background: cyan;
 }
 
+#loc_distinct_led.active {
+    background: cyan;
+}
+
 #rx70_led.active {
     background: #7df1cc;
 }

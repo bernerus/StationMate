@@ -140,12 +140,18 @@ class ClientMgr:
 
     def set_locator_precision_used_on_map(self, length):
         """
-        :param length: The desired length of the map locator precision.
+        :param length: The desired length for the map MH (map locator precision).
         :return: None
 
-        Set the locator precision used on the map to the specified length. If the length is different from the current precision, the map MH length is updated to the
-        * specified length. If the length is less than 6, the distinct locators on the map are set to True and the map zoom level is set to 6. Otherwise, the distinct locators on the map are
-        * set to False and the map zoom level is set to 8. Finally, the `send_reload()` method is called to reset and reload the map.
+        This method sets the map MH length to the specified value. If the length is different from the current map MH length, it updates the map_locator_precision attribute, emits a log message
+        *, updates other attributes and invokes other methods accordingly.
+
+        If the length is less than 6, it sets distinct_locators_on_map to True and emits "setMapZoom" event with zoom level 6. Otherwise, it sets distinct_locators_on_map to False and emits
+        * "setMapZoom" event with zoom level 8. It also sends an update message for the "loc_distinct_led" class with the "active" attribute set to the updated distinct_locators_on_map value
+        *. Finally, it invokes the update_locator_rects_on_map() method and potentially sends a reload message.
+
+        Example usage:
+        set_locator_precision_used_on_map(10)
         """
         if length != self.get_locator_precision_used_on_map():
             self.logger.info("Setting map MH length to %d", length)
@@ -156,7 +162,13 @@ class ClientMgr:
             else:
                 self.distinct_locators_on_map = False
                 emit("setMapZoom", 8)
-            send_reload()
+            send_update_class("loc_distinct_led", "active", self.distinct_locators_on_map)
+            self.update_locator_rects_on_map()
+            #send_reload()
+
+    def update_locator_rects_on_map(self):
+        locators, _qsqs = self.get_mhs()
+        self.push_locator_rects_to_map(locators)
 
     def set_log_scope(self, scope):
         """
@@ -182,82 +194,79 @@ class ClientMgr:
             send_reload()
 
 
-    def add_mhs_on_map(self, locator_list):
+    def push_locator_rects_to_map(self, locators):
         """
-        :param locator_list: list of locators to add on the map
+        :param locators: A list of locators that need to be pushed to the map.
         :return: None
 
-        This method takes a list of locators and adds them on the map. It performs the following steps:
-        1. Gets the distinct locators already on the map.
-        2. Retrieves the locator precision used on the map.
-        3. Initializes an empty list named "to_send" to store the data to be sent to the client.
-        4. Iterates through each locator in the input list.
-           a. Trims the locator to the specified precision.
-           b. Checks if the locator is distinct and not already present on the map.
-              - If true, adds the locator to the "to_send" list.
-           c. Attempts to calculate the rectangular coordinates (n, s, w, e, lat, lon) for the locator.
-              - If successful, appends the locator to the "locators_on_map" list.
-           d. Retrieves the callsigns associated with the locator.
-           e. Determines the title and hover_info based on the length of the locator.
-           f. Constructs the information string for the locator and its associated callsigns.
-              - Appends the HTML table containing the callsigns to the string.
-           g. Appends a dictionary with the locator information to the "to_send" list.
-        5. Adds the "to_send" list to the message queue to send the data to the desired recipient.
+        This method takes a list of locators and pushes rects outlining them to the map.
 
-        Note: The method has an instance method dependency, "get_locator_precision_used_on_map()"
-        and an external module dependency, "mh". Also, it uses an external variable, "msg_q".
+        It first retrieves the locator precision used on the map through the method `get_locator_precision_used_on_map()`.
+        Then, it processes each locator in the list by truncating it to the retrieved locator precision. If distinct locators are required on the map, it removes any duplicate locators from the list.
+
+        For each remaining locator, it attempts to convert it to a rectangle (rect) using the `mh.to_rect()` method. If the conversion is successful, the locator is added to the list of locators on
+        * the map. If the conversion fails, the locator is ignored.
+
+        Next, the method retrieves a list of callsigns associated with the locator using the `callsigns_in_locator()` method from the `ham_op` manager. Based on the length
+        * of the locator, the method determines the title and hover_info properties. If the locator length is less than 6, the title is set to "Ruta" and hover_info is set to False. If the locator
+        * length is less than 4, the title is set to "Fält".
+
+        The method then builds an info string containing the title and the locator. It constructs an HTML table for displaying the callsigns associated with the locator. The callsigns are divided
+        * into columns, with the number of columns determined based on the number of callsigns. Each callsign is appended to the appropriate column in the table.
+
+        Finally, the method constructs a dictionary containing the id, north, south, west, east, info, and hover_info properties for each locator. This dictionary is added to a list called `
+        *to_send`. The list of dictionaries is then passed to the `add_rects` method of the `msg_q` object for further processing.
         """
-        distinct = self.distinct_locators_on_map
         locator_precision = self.get_locator_precision_used_on_map()
         to_send = []
 
-        locator_list = [x[0:locator_precision] if x else None for x in locator_list]
-        if distinct:
-            locator_list = set(locator_list) - set(self.locators_on_map)
-        for loc in locator_list:
+        locators = [x[0:locator_precision] if x else None for x in locators]
+        if self.distinct_locators_on_map:
+            locators = set(locators) - set(self.locators_on_map)
+        for locator in locators:
             n, s, w, e, lat, long = None, None, None, None, None, None
             try:
-                n, s, w, e, lat, lon = mh.to_rect(loc)
-                self.locators_on_map.append(loc)
+                n, s, w, e, lat, lon = mh.to_rect(locator)
+                self.locators_on_map.append(locator)
             except (TypeError, ValueError):
                 pass
 
-            callsigns = self.app.ham_op.callsigns_in_locator(loc)
+            callsigns = self.app.ham_op.callsigns_in_locator(locator)
             title = "Lokator"
             hover_info=True
-            if len(loc) < 6:
+            if len(locator) < 6:
                 hover_info=False
                 title="Ruta"
-            if len(loc) < 4:
+            if len(locator) < 4:
                 title = "Fält"
-            info = "%s <b>%s</b>:<br/>" % (title, loc)
-            info += "<table id=\"loctable_%s\" class=\"locator_callsigns\">" % loc
+            info = "%s <b>%s</b>:<br/>" % (title, locator)
+            info += "<table id=\"loctable_%s\" class=\"locator_callsigns\">" % locator
             callsign_array = ([],[],[],[])
-            nc=0
-            col_size = int(len(callsigns)/len(callsign_array))+1
+            callsign_count=0
+            callsigns_per_column = int(len(callsigns)/len(callsign_array))+1
             for cs in callsigns:
-                col = int(nc / col_size)
+                column_number = int(callsign_count / callsigns_per_column)
                 try:
-                    callsign_array[col].append(cs)
+                    callsign_array[column_number].append(cs)
                 except IndexError as e:
                     pass
-                nc += 1
+                callsign_count += 1
             for row in range(max([len(x) for x in callsign_array])):
                 info+="<tr>"
-                for col in callsign_array:
+                for column_number in callsign_array:
                         try:
-                            info +="<td>"+col[row]+"</td>"
+                            info +="<td>"+column_number[row]+"</td>"
                         except IndexError:
                             info += "<td/>"
                 info += "</tr>"
 
             info += "</table>"
-            to_send.append({"id": loc, "n": n, "s": s, "w": w, "e": e, 'info':info, 'hover_info': hover_info})
+            to_send.append({"id": locator, "n": n, "s": s, "w": w, "e": e, 'info':info, 'hover_info': hover_info})
 
         msg_q.put(("add_rects", to_send))
 
     def add_mh_on_map(self, loc):
-        self.add_mhs_on_map([loc])
+        self.push_locator_rects_to_map([loc])
 
     def status_push(self, current, force=False):
 
@@ -392,43 +401,11 @@ class ClientMgr:
 
             emit('my_response', {'data': 'Connected', 'count': 0})
 
-            rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
-            qsos = []
-            mhs = []
-            self.locators_on_map = []
-            mhsqnumber = 0
-            mhsqs = set()
-            for row in rows:
-                newmsqn = None
-                if row[6]:
-                    mhsq = row[6][:4].upper()
-                    if mhsq not in mhsqs and row[13].startswith(re.split("[-.]",self.current_band)[0]) and row[10]:
-                        newmsqn = len(mhsqs)+1
-                        mhsqs.add(mhsq)
-
-                qso = {"id": row[0],
-                       "date": row[1],
-                       "time": row[2],
-                       "callsign": row[3].upper(),
-                       "tx": row[4],
-                       "rx": row[5],
-                       "locator": row[14].upper() if row[14] else row[6].upper() if row[6] else None,
-                       "distance": row[7],
-                       "square": row[8],
-                       "points": row[9],
-                       "complete": row[10],
-                       "propmode": row[11],
-                       "acc_sqn": newmsqn,
-                       "band": row[13],
-                       }
-                qsos.append(qso)
-                if row[6]:
-                    if row[13].startswith(re.split("[-.]",self.current_band)[0]) and (row[6] or row[14]):
-                        mhs.append(row[14].upper() if row[14] and row[6] and len(row[14]) > len(row[6]) else row[6].upper())
+            mhs, qsos = self.get_mhs()
             if qsos:
                 emit("add_qsos", qsos)
                 self.logger.debug("Adding %d qso:s from %s to %s" % (len(qsos), qsos[0]["callsign"], qsos[-1]["callsign"]))
-            self.add_mhs_on_map(mhs)
+            self.push_locator_rects_to_map(mhs)
             self.app.azel.target_stack.update_ui(force=True)
             self.status_update(force=True)
 
@@ -439,6 +416,41 @@ class ClientMgr:
         # stations =self.app.ham_op.get_reachable_stations()
         # self.update_reachable_stations(stations)
 
+    def get_mhs(self):
+        rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
+        qsos = []
+        mhs = []
+        self.locators_on_map = []
+        mhsqnumber = 0
+        mhsqs = set()
+        for row in rows:
+            newmsqn = None
+            if row[6]:
+                mhsq = row[6][:4].upper()
+                if mhsq not in mhsqs and row[13].startswith(re.split("[-.]", self.current_band)[0]) and row[10]:
+                    newmsqn = len(mhsqs) + 1
+                    mhsqs.add(mhsq)
+
+            qso = {"id": row[0],
+                   "date": row[1],
+                   "time": row[2],
+                   "callsign": row[3].upper(),
+                   "tx": row[4],
+                   "rx": row[5],
+                   "locator": row[14].upper() if row[14] else row[6].upper() if row[6] else None,
+                   "distance": row[7],
+                   "square": row[8],
+                   "points": row[9],
+                   "complete": row[10],
+                   "propmode": row[11],
+                   "acc_sqn": newmsqn,
+                   "band": row[13],
+                   }
+            qsos.append(qso)
+            if row[6]:
+                if row[13].startswith(re.split("[-.]", self.current_band)[0]) and (row[6] or row[14]):
+                    mhs.append(row[14].upper() if row[14] and row[6] and len(row[14]) > len(row[6]) else row[6].upper())
+        return mhs, qsos
 
     def update_map_center(self):
         settings = self.app.ham_op.get_map_setting(self.current_band, self.map_locator_precision, self.current_log_scope)
@@ -637,6 +649,11 @@ class ClientMgr:
     def map_settings(self, json):
         self.logger.debug("Map settings received: %s", json)
         self.app.ham_op.store_map_setting(json, self.current_band, self.map_locator_precision, self.current_log_scope)
+
+    def toggle_distinct(self):
+        self.distinct_locators_on_map = not self.distinct_locators_on_map
+        send_update_class("loc_distinct_led", "active", self.distinct_locators_on_map)
+        self.update_locator_rects_on_map()
 
     def toggle_hide_logged_stations(self):
         self.hiding_logged_stations = not self.hiding_logged_stations

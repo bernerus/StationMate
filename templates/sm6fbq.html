@@ -111,12 +111,18 @@
             })
 
             socket.on('add_rect', function (msg) {
-                // console.log("Got rect " + msg.id)
+                console.log("GOT RECT " + msg.id)
                 addRect(msg.id, msg.n, msg.s, msg.w, msg.e, msg.info, msg.hoverinfo);
             })
 
             socket.on('add_rects', function (rects) {
-                // console.log("Got rects " + rects)
+                //console.log("Got rects " + rects)
+                for (key in rectsDict ) {
+                   // if (!(key in rects)) {
+                        removeRect(key)
+                   // }
+                }
+
                 for (const rect of rects) {
                     addRect(rect.id, rect.n, rect.s, rect.w, rect.e, rect.info, rect.hoverinfo);
                 }
@@ -145,7 +151,7 @@
 
             socket.on("setMapZoom", function (msg) {
                 console.log("setMapZoom" + msg)
-                set_map_zoom(msg)
+                setMapZoom(msg)
             })
 
             socket.on("fill_dx_note", function(msg) {
@@ -255,6 +261,7 @@
             <fieldset>
                 <legend>Karta</legend>
                 <div id="locatorButtons">
+                    <button id="loc_distinct_led" onclick="send_toggle_distinct()">Distinkt</button>
                     <button id="loc_fields" onclick="send_set_map_mh_length(2)">Fält</button>
                     <button id="loc_squares" onclick="send_set_map_mh_length(4)">Rutor</button>
                     <button id="loc_locators" onclick="send_set_map_mh_length(6)">Lokatorer</button>
@@ -526,7 +533,6 @@
         alert('The file has been uploaded successfully.');
     }
 </script>
-
 <script>
     var map = new google.maps.Map(document.getElementById("map"), {
             center: {lat: 0.0, lng: 0.0},
@@ -579,6 +585,11 @@
     function send_toggle_qro() {
         console.log("Toggling qro")
         socket.emit("toggle_qro", {});
+    }
+
+    function send_toggle_distinct() {
+        console.log("Toggling distinct")
+        socket.emit("toggle_distinct", {});
     }
 
     function send_toggle_pa() {
@@ -779,6 +790,7 @@
 
     var planesDict = new Object();
     var stationsDict = new Object();
+    var rectsDict = new Object();
 
      Number.prototype.toRad = function() {
          return this * Math.PI / 180;
@@ -1060,6 +1072,10 @@
         //console.log("Moved map center to " + lat + " " + lon, "zoom=" + zoom);
     }
 
+    function setMapZoom(zoom) {
+        map.setZoom(zoom);
+    }
+
     function setQth(lat, lon, qth, n, s, w, e) {
         my_lat = lat
         my_lng = lon
@@ -1144,6 +1160,12 @@
 
     function addRect(id, n, s, w, e, infocontent, hoverinfo) {
 
+        if (id in rectsDict) {
+            //console.log("Rect with id=", id, "already on  map");
+            my_rect = rectsDict[id];
+            my_rect.fillOpacity += 0.07;
+            return;
+         }
 
         var my_rect = new google.maps.Rectangle();
         my_rect.setOptions({
@@ -1166,8 +1188,16 @@
             createClickablePoly(my_rect, infocontent, map, infowinpos);
         }
 
+        rectsDict[id] = my_rect;
 
-        // console.log("Added rect with id=", id)
+        //console.log("Added rect with id=", id);
+
+    }
+
+    function removeRect(key) {
+        //console.log("Removing rect with key=", key);
+        rectsDict[key].setMap(null);
+        delete rectsDict[key];
 
     }
 
