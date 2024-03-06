@@ -178,6 +178,11 @@
                 hidingLoggedStations(msg)
             })
 
+            socket.on("show_alert", function(msg) {
+                alert(msg);
+            })
+
+
         });
     </script>
 
@@ -531,7 +536,7 @@
             method: "POST",
             body: formData
         });
-        alert('The file has been uploaded successfully.');
+        // alert('The file has been uploaded successfully.');
     }
 </script>
 <script>

@@ -14,6 +14,7 @@ from datetime import datetime
 import locator.src.maidenhead as mh
 import math
 import adif_io
+import threading
 
 
 from typing import TYPE_CHECKING
@@ -622,33 +623,41 @@ class HamOp:
                 # self.do_commit_qso(qso)
                 ret["added"] += 1
 
-    def process_log_file(self, cur, file_data, ret):
+    def process_log_file(self, cur, file_data):
+        ret = {"added": 0, "adjusted": 0}
         for qsos in file_data.splitlines():
             qso = qsos.split(',')
             self.merge_into_old_log_db(cur, qso, ret)
+        if ret["added"] or ret["adjusted"]:
+             self.db.commit()
+        self.app.client_mgr.emit("show_alert","WSJT-X log file uploaded. QSQ:s added: %d, adjusted: %s" % (ret["added"], ret["adjusted"]))
 
-    def process_adi_file(self, cur, file_data, ret):
+    def process_adi_file(self, cur, file_data):
+        ret = {"added": 0, "adjusted": 0}
         qsos_raw, adif_header = adif_io.read_from_string(file_data)
         for qso in qsos_raw:
             self.merge_into_log_db(cur, ret, qso)
+        if ret["added"] or ret["adjusted"]:
+            self.db.commit()
+        self.app.client_mgr.emit("show_alert", "WSJT-X adi file uploaded. QSQ:s added: %d, adjusted: %s" % (ret["added"], ret["adjusted"]))
 
     def my_wsjtx_upload(self, request):
         """
         :param request: The request object containing files to be uploaded.
         :return: A string indicating the number of QSOs added and adjusted during the upload process.
         """
-        ret = {"added": 0, "adjusted": 0}
         cur = self.db.cursor()
         for k, v in request.files.items():
             file_data = v.read().decode("utf-8")
             if v.filename.endswith(".log"):
-                self.process_log_file(cur, file_data, ret)
-                break
+                t=threading.Thread(target=self.process_log_file, args=(cur,file_data))
+                t.start()
+                # self.process_log_file(cur, file_data, ret)
             elif v.filename.endswith(".adi"):
-                self.process_adi_file(cur, file_data, ret)
-            if ret["adjusted"]:
-                self.db.commit()
-        return "QSQ:s added: %d, adjusted: %s" % (ret["added"], ret["adjusted"])
+                t = threading.Thread(target=self.process_adi_file, args=(cur, file_data))
+                t.start()
+                # self.process_adi_file(cur, file_data, ret)
+        return
 
     def merge_into_old_log_db(self, cur, qso, ret):
         try:
