@@ -266,7 +266,9 @@ class ClientMgr:
         msg_q.put(("add_rects", to_send))
 
     def add_mh_on_map(self, loc):
-        self.push_locator_rects_to_map([loc])
+        locators, _qsqs = self.get_mhs()
+        locators.append(loc)
+        self.push_locator_rects_to_map(locators)
 
     def status_push(self, current, force=False):
 
