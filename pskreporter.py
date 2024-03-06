@@ -111,7 +111,7 @@ class Reporter:
 
 			q0 = """INSERT INTO callbook 
 											VALUES (%s, %s, %s, %s)
-										   ON CONFLICT ON CONSTRAINT callbook_pk DO UPDATE SET antenna = %s, main_lobe_degrees = %s """
+										   ON CONFLICT ON CONSTRAINT callbook_pk DO UPDATE SET antenna = %s, main_lobe_degrees = %s"""
 			all_receivers= []
 
 			q1 = """INSERT INTO reports 
@@ -120,15 +120,16 @@ class Reporter:
 								"""
 			all_reports = []
 
-			q2 = """INSERT INTO callbook VALUES (%s, %s, NULL, NULL) ON CONFLICT ON CONSTRAINT callbook_pk DO NOTHING"""
+			q2 = """INSERT INTO callbook VALUES (%s, %s, NULL, NULL) ON CONFLICT ON CONSTRAINT callbook_pk DO UPDATE SET last_change = CURRENT_TIMESTAMP"""
 			all_callbooks = []
 
 			#self.logger.debug("Building batch data")
 			for kid in kids:
 				if kid.tag=="activeReceiver":
 					if "callsign" in kid.attrib and "locator" in kid.attrib and len(kid.attrib["locator"]) >= 6:
-						# print(kid.attrib["callsign"], kid.attrib["locator"])
-						#self.logger.info("Inserting into callbook")
+						if kid.attrib["callsign"] == "SM6CEN":
+							print(kid.attrib["callsign"], kid.attrib["locator"])
+							self.logger.info("Inserting into callbook")
 						all_receivers.append([kid.attrib["locator"], kid.attrib["callsign"],
 									kid.attrib["antennaInformation"] if  "antennaInformation" in kid.attrib else None,
 									30,
@@ -148,9 +149,14 @@ class Reporter:
 						tx_cs = kid.attrib["senderCallsign"].upper()
 						tx_loc = kid.attrib["senderLocator"].upper()
 
+						if tx_cs == "SM6CEN" or rx_cs == "SM6CEN":
+							print("%s %s" % (rx_cs, rx_loc))
+							print("%s %s" % (tx_cs, tx_loc))
+
 						mode = kid.attrib["mode"]
 						snr = int(kid.attrib["sNR"])
 						happened_at = int(kid.attrib['flowStartSeconds'])
+
 
 						my_rx_distance = mh.distance_between(self.my_qth, rx_loc)
 						try:
