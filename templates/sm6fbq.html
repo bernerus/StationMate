@@ -212,19 +212,19 @@
                             <button id="direct_ccw" type="button" onmousedown="send_manual('ccw')" onmouseup="send_manual('stop')"  onmouseout="send_manual('stop')"title="Vrid antennen moturs" >CCW</button>
                             <button id="antenna_freeze_button" type="button" onclick="send_toggle('antenna_freeze')" title="Stoppa styrning och indikering av antennens läge">Frys</button>
                             <br/>
-                            <button id="auto_track_button" type="button" onclick="send_toggle('auto_track')" title="Auto track new entered objects">Auto</button>
-                            <input id="track_input" style="text-transform: uppercase; width:6em;" type="text" class="trkaz" placeholder="Track az"
+                            <button id="auto_track_button" type="button" onclick="send_toggle('auto_track')" title="Följ automatiskt inlagda mål">Auto</button>
+                            <input id="track_input" style="text-transform: uppercase; width:6em;" type="text" class="trkaz" placeholder="Ange mål"
                                 onkeydown="if (event.keyCode === 13) { send_track_az(); return false; }"/>
-                            <button id="track_button" type="submit" onclick="send_track_az()" title="Track azimuth of object entered">Track</button>
-                            <button id="calibrate_button" type="button" onclick="send_calibrate()" title="Calibrate indicator with real azimuth">Calibrate</button>
-                            <button id="stop_button" type="button" onclick="send_stop()" title="Stop rotation">Stop</button>
-                            <button id="release_button" type="button" onclick="send_release()" title="Stop tracking">Release</button>
-                            <button id="pointing_north_button" type="button" onclick="send_az()" title="Adjust for actually pointing north">Pointing North</button>
-                            <button id="track_wind_button" type="button" onclick="send_track_wind()" title="Track current wind direction"> Wind</button>
-                            <button id="track_moon_button" type="button" onclick="send_track_moon()" title="Track the moon if above horizon" >Moon</button>
-                            <button id="track_sun_button" type="button" onclick="send_track_sun()" title="Track the Sun if above the horizon">Sun</button>
+                            <button id="track_button" type="submit" onclick="send_track_az()" title="Peka mot mål">Track</button>
+                            <button id="calibrate_button" type="button" onclick="send_calibrate()" title="Kalibrera antennindikatorn mot rotorstopp">Kalibrera</button>
+                            <button id="stop_button" type="button" onclick="send_stop()" title="Stoppa vridning">Stoppa</button>
+                            <button id="release_button" type="button" onclick="send_release()" title="Sluta följa">Release</button>
+                            <button id="pointing_north_button" type="button" onclick="send_az()" title="Justera för att antennen nu pekar rakt norrut">Norrut</button>
+                            <button id="track_wind_button" type="button" onclick="send_track_wind()" title="Följ vindriktningen"> Vind</button>
+                            <button id="track_moon_button" type="button" onclick="send_track_moon()" title="Följ månen så länge den är uppe" >Månen</button>
+                            <button id="track_sun_button" type="button" onclick="send_track_sun()" title="Följ solen så länge den är uppe">Solen</button>
                             <br/>
-                            Az scan
+                            Skanna av:
                             <input id="az_scan_start" type="text" class="az_scan_start" size=10 placeholder="Från"/>
                             <input id="az_scan_stop" type="text" class="az_scan_stop" size=10 placeholder="Till"/>
                             <input id="az_scan_increment" type="text" class="az_scan_increment" size=4 placeholder="Steg"/>
@@ -293,7 +293,7 @@
                     <td>
                         <fieldset>
                             <legend>Stationsdata</legend>
-                            <label>Callsign: </label> <span id="my_callsign"></span> <br/>
+                            <label>Anropssignal: </label> <span id="my_callsign"></span> <br/>
                             <label>Lokator:</label> <span id="my_qth">JO67BQ</span><br/>
                             <label>Antenn:</label> <span id="my_ant"></span><br/>
                             <label>Höjd över havet:</label> <span id="my_ant_asl"></span> m ASL<br/>
