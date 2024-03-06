@@ -34,9 +34,10 @@ class AzelController:
 		self.ham_op = self.app.ham_op # type: hamop.HamOp
 		self.logger=logger
 		self.socket_io = socket_io
-		self.az_hysteresis = hysteresis
+		self.az_hysteresis:int = hysteresis
 		self.target_stack = TargetStack(self, logger)
-		self.az_rotation_err_count = 0
+		self.az_rotation_err_count:int = 0
+		self.disable_tracking:bool = False
 
 		try:
 			self.p21 = PCF(self.logger, P21_I2C_ADDRESS,
@@ -175,6 +176,16 @@ class AzelController:
 				self.logger.debug("%d %d %d", deg, self.az, self.az2ticks(Degree(deg)))
 
 			self.az = 0
+
+	def disable_control(self):
+		self.stop_azimuth_control()
+		self.az_stop()
+		self.disable_tracking = True  # This even disables the azimuth indication tracking
+
+	def enable_control(self):
+		self.disable_tracking = False  # This even disables the azimuth indication tracking
+		self.start_azimuth_control()
+
 	def az_nudge(self, current_diff)-> bool:
 		if current_diff < 0:
 			self.notify_stop = True
@@ -495,10 +506,16 @@ class AzelController:
 				self.az_target = self.az2ticks(target)
 				self.logger.info("Tracking azimuth %d degrees = %d ticks" % (target, self.az_target))
 
+		self.start_azimuth_control()
+
+	def start_azimuth_control(self):
 		if not self.az_control_active:
 			self.az_control_thread = threading.Thread(target=self.az_control_loop, args=(), daemon=True)
 			self.az_control_active = True
 			self.az_control_thread.start()
+
+	def stop_azimuth_control(self):
+		self.az_control_active = False  # This makes the tracking thread quit.
 
 	def az_stop(self):
 		self.logger.debug("Stop azimuth rotation")
@@ -622,14 +639,17 @@ class AzelController:
 
 		if diff & AZ_MASK:
 			# self.logger.debug("Dispatching to az_interrupt")
-			self.az_interrupt(self.last_sense & AZ_MASK, current_sense & AZ_MASK)
+			if not self.disable_tracking:
+				self.az_interrupt(self.last_sense & AZ_MASK, current_sense & AZ_MASK)
 		if diff & EL_MASK:
-			self.logger.debug("Dispatching to el_interrupt")
-			self.el_interrupt(self.last_sense & EL_MASK, current_sense & EL_MASK)
+			if not self.disable_tracking:
+				self.logger.debug("Dispatching to el_interrupt")
+				self.el_interrupt(self.last_sense & EL_MASK, current_sense & EL_MASK)
 		if diff & STOP_MASK and (current_sense & STOP_MASK == 0):
-			self.logger.debug("Dispatching to stop_interrupt, diff=%x, current_sense=%x, last_sense=%x" %
-			      (diff, current_sense, self.last_sense))
-			self.stop_interrupt(self.last_sense & STOP_MASK, current_sense & STOP_MASK)
+			if not self.disable_tracking:
+				self.logger.debug("Dispatching to stop_interrupt, diff=%x, current_sense=%x, last_sense=%x" %
+				      (diff, current_sense, self.last_sense))
+				self.stop_interrupt(self.last_sense & STOP_MASK, current_sense & STOP_MASK)
 
 		if diff & MANUAL_MASK and (current_sense & MANUAL_MASK != MANUAL_MASK):
 			self.logger.warning("Manual intervention detected: diff=%s, current_sense=%s, manual_mask=%s" % (bin(diff), bin(current_sense), bin(MANUAL_MASK)))

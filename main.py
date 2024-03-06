@@ -523,6 +523,10 @@ def handle_toggle_tx70(_json):
 def handle_toggle_auto_track(_json):
     app.client_mgr.toggle_auto_track()
 
+@socket_io.on("toggle_antenna_freeze")
+def handle_toggle_auto_track(_json):
+    app.client_mgr.toggle_antenna_freeze()
+
 @socket_io.on("toggle_rx70")
 def handle_toggle_rx70(_json):
     app.ham_op.toggle_rx70()

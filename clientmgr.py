@@ -106,6 +106,7 @@ class ClientMgr:
         self.show_log_until = None
         self.current_log_scope = "Forever"
         self.hiding_logged_stations = False
+        self.antenna_freeze:bool = False
 
         self.auto_track = False
 
@@ -340,7 +341,8 @@ class ClientMgr:
     def status_update(self, force=False):
         current_p2_sense = self.app.ham_op.get_status()
         self.status_push(current_p2_sense, force=force)
-        send_update_class("auto_track", "active", self.auto_track)
+        send_update_class("auto_track_button", "active", self.auto_track)
+        send_update_class("antenna_freeze_button", "active", self.antenna_freeze)
         send_update_class("show_hide_stations", "active", not self.station_layer)
         send_update_class("show_hide_logged_stations", "active", self.hiding_logged_stations)
         # emit("hiding_logged_stations", self.hiding_logged_stations)
@@ -684,8 +686,17 @@ class ClientMgr:
 
     def toggle_auto_track(self):
         self.auto_track = not self.auto_track
-        emit("Auto track", self.auto_track)
-        send_update_class("auto_track", "active", self.auto_track)
+        # emit("Auto track", self.auto_track)
+        send_update_class("auto_track_button", "active", self.auto_track)
+        self.status_update(force=True)
+
+    def toggle_antenna_freeze(self):
+        self.antenna_freeze = not self.antenna_freeze
+        if self.antenna_freeze:
+            self.app.azel.disable_control()
+        else:
+            self.app.azel.enable_control()
+        send_update_class("antenna_freeze_button", "active", self.antenna_freeze)
         self.status_update(force=True)
 
     def set_dx_call(self, callsign, locator):

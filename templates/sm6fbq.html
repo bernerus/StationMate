@@ -203,10 +203,11 @@
                             </div>
                             <!--suppress HtmlFormInputWithoutLabel -->
 
-                            <button id="direct_cw" type="button" onmousedown="send_manual('cw')"  onmouseup="send_manual('stop')"  onmouseout="send_manual('stop')">CW</button>
-                            <button id="direct_ccw" type="button" onmousedown="send_manual('ccw')" onmouseup="send_manual('stop')"  onmouseout="send_manual('stop')">CCW</button>
+                            <button id="direct_cw" type="button" onmousedown="send_manual('cw')"  onmouseup="send_manual('stop')"  onmouseout="send_manual('stop')" title="Vrid antennen medurs">CW</button>
+                            <button id="direct_ccw" type="button" onmousedown="send_manual('ccw')" onmouseup="send_manual('stop')"  onmouseout="send_manual('stop')"title="Vrid antennen moturs" >CCW</button>
+                            <button id="antenna_freeze_button" type="button" onclick="send_toggle('antenna_freeze')" title="Stoppa styrning och indikering av antennens läge">Frys</button>
                             <br/>
-                            <button id="auto_track" type="button" onclick="send_toggle_auto_track()" title="Auto track new entered objects">Auto</button>
+                            <button id="auto_track_button" type="button" onclick="send_toggle('auto_track')" title="Auto track new entered objects">Auto</button>
                             <input id="track_input" style="text-transform: uppercase; width:6em;" type="text" class="trkaz" placeholder="Track az"
                                 onkeydown="if (event.keyCode === 13) { send_track_az(); return false; }"/>
                             <button id="track_button" type="submit" onclick="send_track_az()" title="Track azimuth of object entered">Track</button>
@@ -243,12 +244,12 @@
                     Az: <span id="myaz"></span>
                     El: <span id="myel"></span>
                 </label>
-                <button id="pa_ready_led" onclick="send_toggle_pa()">PA Redo</button>
-                <button id="pa_active_led" onclick="send_toggle_qro()">QRO</button>
+                <button id="pa_ready_led" onclick="send_toggle('pa')">PA Redo</button>
+                <button id="pa_active_led" onclick="send_toggle('qro')">QRO</button>
                 <button id="trx_rx_led">RX</button>
                 <button id="trx_tx_led">TX</button>
-                <button id="rx70_led" onclick="send_toggle_rx70()">RX70</button>
-                <button id="tx70_led" onclick="send_toggle_tx70()">TX70</button>
+                <button id="rx70_led" onclick="send_toggle('rx70')">RX70</button>
+                <button id="tx70_led" onclick="send_toggle('tx70')">TX70</button>
             </fieldset>
         </td>
         <td>
@@ -261,7 +262,7 @@
             <fieldset>
                 <legend>Karta</legend>
                 <div id="locatorButtons">
-                    <button id="loc_distinct_led" onclick="send_toggle_distinct()">Distinkt</button>
+                    <button id="loc_distinct_led" onclick="send_toggle('distinct')">Distinkt</button>
                     <button id="loc_fields" onclick="send_set_map_mh_length(2)">Fält</button>
                     <button id="loc_squares" onclick="send_set_map_mh_length(4)">Rutor</button>
                     <button id="loc_locators" onclick="send_set_map_mh_length(6)">Lokatorer</button>
@@ -270,9 +271,9 @@
                     <button id="loc_12char" onclick="send_set_map_mh_length(12)">12ch</button>
                 </div>
 
-                <button id="show_hide_aircraft" style="float: right;" onclick="send_toggle_aircraft_layer()">Göm flygplan</button>
-                <button id="show_hide_logged_stations" style="float: right;" onclick="send_toggle_hide_logged_stations()">Göm loggade</button>
-                <button id="show_hide_stations" style="float: right;" onclick="send_toggle_station_layer()">Göm stationer</button>
+                <button id="show_hide_aircraft" style="float: right;" onclick="send_toggle('aircraft_layer')">Göm flygplan</button>
+                <button id="show_hide_logged_stations" style="float: right;" onclick="send_toggle('hide_logged_stations')">Göm loggade</button>
+                <button id="show_hide_stations" style="float: right;" onclick="send_toggle('station_layer')">Göm stationer</button>
 
                 <button id="store_map_settings"
                         style="align-content: end;"
@@ -610,6 +611,11 @@
     function send_toggle_auto_track() {
         console.log("Toggling auto-track")
         socket.emit("toggle_auto_track", {});
+    }
+
+    function send_toggle(what) {
+        console.log("Toggling " + what);
+        socket.emit("toggle_" + what, {});
     }
 
     function make_log() {
