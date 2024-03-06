@@ -664,7 +664,7 @@ class MhTarget(Target):
 		try:
 			(az, _dist) = ham_op.distance_to( what)
 			self._active=True
-			azel.app.client_mgr.add_mh_on_map(what)
+			azel.app.client_mgr.add_locator_rect_to_map(what)
 		except (TypeError, ValueError):
 			error=True
 			return

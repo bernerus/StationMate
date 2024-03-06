@@ -444,7 +444,7 @@ class HamOp:
         cur.close()
 
         if "augmented_locator" in qso and qso["augmented_locator"]:
-            self.app.client_mgr.add_mh_on_map(qso["augmented_locator"])
+            self.app.client_mgr.add_locator_rect_to_map(qso["augmented_locator"])
         if "id" in qso and qso["id"]:
             return qso["id"]
         else:
@@ -872,7 +872,7 @@ class HamOp:
         try:
             _dummy = mh.to_rect(what)  # Checks if it is a valid MH locator
             self.app.azel.az_track_loc(what)
-            self.app.client_mgr.add_mh_on_map(what)
+            self.app.client_mgr.add_locator_rect_to_map(what)
         except (TypeError, ValueError):
             pass
 
