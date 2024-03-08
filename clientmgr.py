@@ -712,7 +712,7 @@ class ClientMgr:
         else:
             emit("fill_dx_grid", locator)
             if self.auto_track:
-                self.app.azel.az_track_loc(locator)
+                self.app.azel.az_track_loc(locator, auto=True)
 
 
 

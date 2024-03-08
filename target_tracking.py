@@ -662,13 +662,13 @@ class MhTarget(Target):
 		self._active=False
 		ham_op = azel.app.ham_op
 		try:
-			(az, _dist) = ham_op.distance_to( what)
+			(az, dist) = ham_op.distance_to( what)
 			self._active=True
 			azel.app.client_mgr.add_locator_rect_to_map(what)
 		except (TypeError, ValueError):
 			error=True
 			return
-		super().__init__(azel, what, round(az), Degree(5), ttl=3600)
+		super().__init__(azel, what, round(az), Degree(5), distance=dist, ttl=3600)
 
 		self.led_classes = "fas fa-globe"
 

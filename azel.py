@@ -478,8 +478,11 @@ class AzelController:
 		target = AzTarget(self, bearing)
 		self.target_stack.push(target)
 
-	def az_track_loc(self, loc:str) -> None:
+	def az_track_loc(self, loc:str, auto=False) -> None:
 		target = MhTarget(self, loc)
+		if auto and target.distance < 100.0:
+				self.logger.warning("Distance to %s is too close for auto-tracking" % loc)
+				return
 		self.target_stack.push(target)
 
 	def az_track_station(self, who:str, auto=False) -> None:
