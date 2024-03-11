@@ -522,13 +522,6 @@ class AzelController:
 
 	def az_stop(self):
 		self.logger.debug("Stop azimuth rotation")
-		#self.rotating_ccw = False
-		#self.rotating_cw = False
-		# self.p20.byte_write(0xff, ~self.STOP_AZ)
-		# self.p20.bit_write(P20_STOP_AZ_L, LOW)
-		# self.p20.bit_write(P20_ROTATE_CW, HIGH)
-
-		#self.p20.byte_write(P20_STOP_AZ_L  | P20_ROTATE_CW , P20_ROTATE_CW)
 		self.rotate_stop()
 		time.sleep(0.4)  # Allow mechanics to settle
 		self.logger.debug("Stopped azimuth rotation at %d ticks"% self.az)
@@ -537,42 +530,22 @@ class AzelController:
 	def az_ccw(self):
 		self.logger.debug("Rotate anticlockwise")
 		self.az_rotation_err_count = 0
-		#self.rotating_ccw = True
-		#self.rotating_cw = False
-		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ_L, HIGH)
 		time.sleep(0.1)
 		self.rotate_start_az = self.az
-		#self.p20.byte_write(P20_AZ_TIMER_L  | P20_ROTATE_CW, P20_ROTATE_CW)
 		self.rotate_ccw()
-
-		#self.rotating_ccw = False
-		#self.rotating_cw = False
-
-		#self.p20.bit_write(P20_ROTATE_CW, HIGH)
-		#self.p20.bit_write(P20_AZ_TIMER_L, LOW)
 		self.logger.debug("Rotating anticlockwise")
 
 	def nudge_ccw(self, diff):
 		self.logger.debug("Nudging anticlockwise")
 		self.az_rotation_err_count = 0
-		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ_L, HIGH)
 		time.sleep(0.1)
 		self.rotate_start_az = self.az
-		#self.rotating_ccw = True
-		#self.rotating_cw = False
 		nudge_time = float((abs(diff)/3) * self.seconds_per_tick_ccw)
 		self.rotate_ccw()
-		#self.p20.byte_write(P20_AZ_TIMER_L | P20_ROTATE_CW, P20_ROTATE_CW) # Start ccw
 		time.sleep(nudge_time)
 		self.rotate_stop()
-		#self.p20.byte_write(P20_STOP_AZ_L | P20_ROTATE_CW, P20_ROTATE_CW) # Stop
-		#self.rotating_ccw = False
-		#self.rotating_cw = False
-
-		# self.p20.bit_write(P20_ROTATE_CW, HIGH)
-		# self.p20.bit_write(P20_AZ_TIMER_L, LOW)
 		self.logger.debug("Nudged anticlockwise for %f seconds" % nudge_time)
 
 
@@ -580,37 +553,23 @@ class AzelController:
 		self.logger.debug("Rotate clockwise")
 		self.az_rotation_err_count = 0
 		self.rotating_cw = True
-		#self.rotating_ccw = False
-		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ_L, HIGH)
 		time.sleep(0.1)
-		#self.p20.bit_write(P20_ROTATE_CW, LOW)
-		#self.p20.bit_write(P20_AZ_TIMER_L, LOW)
 		self.rotate_start_az = self.az
 		self.rotate_cw()
-		#self.p20.byte_write(P20_AZ_TIMER_L  | P20_ROTATE_CW, 0)
 		self.logger.debug("Rotating clockwise")
 
 
 	def nudge_cw(self,diff):
 		self.logger.debug("Nudging clockwise")
 		self.az_rotation_err_count = 0
-		# self.p20.byte_write(0xff, self.STOP_AZ)
 		self.p20.bit_write(P20_STOP_AZ_L, HIGH)
 		time.sleep(0.1)
-		#self.p20.bit_write(P20_ROTATE_CW, LOW)
-		#self.p20.bit_write(P20_AZ_TIMER_L, LOW)
 		self.rotate_start_az = self.az
-		#self.rotating_cw = True
-		#self.rotating_ccw = False
 		nudge_time = float((abs(diff)/3) * self.seconds_per_tick_cw + 0.2)
 		self.rotate_cw()
-		#self.p20.byte_write(P20_AZ_TIMER_L  | P20_ROTATE_CW, 0)
 		time.sleep(nudge_time)
 		self.rotate_stop()
-		#self.p20.byte_write(P20_STOP_AZ_L | P20_ROTATE_CW, P20_ROTATE_CW)  # Stop
-		#self.rotating_ccw = False
-		#self.rotating_cw = False
 		self.logger.debug("Nudged clockwise for %f seconds" % nudge_time)
 
 	def rotate_cw(self):
@@ -683,10 +642,8 @@ class AzelController:
 	def store_az(self):
 		cur = self.ham_op.db.cursor()
 		cur.execute("UPDATE azel_current set az = %s WHERE ID=0", (self.az,))
-		# self.ham_op.set_config_data("int", "latest_az_stop", self.az)
 		cur.close()
 		self.ham_op.db.commit()
-	# self.app.ham_op.db.close()
 
 	def startup(self):
 		"""
@@ -694,7 +651,7 @@ class AzelController:
 
 		:return: None
 		"""
-		self.logger.debug("Restoring last saved azimuth")
+		self.logger.debug("Restoring at last saved azimuth")
 		self.restore_az()
 		self.logger.info("Azimuth restored to %d ticks at %d degrees" % (self.az, self.ticks2az(self.az)))
 		self.last_sense = self.p21.byte_read(0xff)
