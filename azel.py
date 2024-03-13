@@ -25,6 +25,25 @@ def sense2str(value):
 		x = x << 1
 	return ret
 
+class AbortableSleep:
+	def __init__(self):
+		import threading
+		self._condition = threading.Condition()
+		self._aborted = None
+
+	def __call__(self, secs):
+		with self._condition:
+			self._aborted = False
+			self._condition.wait(timeout=secs)
+			return not self._aborted
+
+	def abort(self):
+		with self._condition:
+			self._condition.notify()
+			self._aborted = True
+
+az_sleep = AbortableSleep()
+el_sleep = AbortableSleep()
 
 class AzelController:
 
@@ -80,8 +99,9 @@ class AzelController:
 		self.AZ_CCW_MECH_STOP: int = 0
 		self.AZ_CW_MECH_STOP: int = 734
 
-		self.CCW_BEARING_STOP: Degree = Degree(293)  # 278   273 270
-		self.CW_BEARING_STOP: Degree = Degree(302)  # 283   278 273
+		self.CCW_BEARING_STOP: Degree = Degree(315)  # 278   273 270
+		# self.CW_BEARING_STOP: Degree = Degree(302)  # 283   278 273
+		self.CW_BEARING_STOP: Degree = self.CCW_BEARING_STOP + 9
 
 		self.BEARING_OVERLAP:Degree = Degree(self.CW_BEARING_STOP - self.CCW_BEARING_STOP)
 
@@ -207,7 +227,7 @@ class AzelController:
 		return False
 
 	def az_rotate(self, current_diff)->int:
-		if current_diff < 0:
+		if current_diff < 0:  # We need to go clockwise
 			self.notify_stop = True
 			if not self.rotating_cw:
 				if self.rotated_ccw:
@@ -218,9 +238,9 @@ class AzelController:
 				to_sleep = (abs(current_diff) - self.az_hysteresis) * self.seconds_per_tick_cw
 				self.logger.debug("Sleeping for %s seconds for diff=%s rotating cw" % (to_sleep, current_diff))
 				if to_sleep > 0:
-					time.sleep(to_sleep)
+					az_sleep(to_sleep)
 				return to_sleep
-		if current_diff > 0:
+		if current_diff > 0: # We need to go counterclockwise
 			self.notify_stop = True
 			if self.rotated_cw:
 				self.az_stop()
@@ -231,8 +251,9 @@ class AzelController:
 				to_sleep = (abs(current_diff) - self.az_hysteresis) * self.seconds_per_tick_cw
 				self.logger.debug("Sleeping for %s seconds for diff=%s rotating ccw" % (to_sleep, current_diff))
 				if to_sleep > 0:
-					time.sleep(to_sleep)
+					az_sleep(to_sleep)
 				return to_sleep
+		# We need to go nowhere
 		return 0
 
 	def az_control_loop(self)->None:
@@ -254,8 +275,6 @@ class AzelController:
 						self.logger.info("Speed adaption not performed")
 					self.logger.debug("New Azimuth diff = %s", current_diff)
 					self.notify_stop = True
-				#self.rotated_cw = False
-				#self.rotated_ccw = False
 				if abs(current_diff) < self.az_hysteresis:
 					previous_diff = 0
 					if self.rotating_ccw or self.rotating_cw:
@@ -502,11 +521,14 @@ class AzelController:
 			target.set_led_classes(classes)
 		self.logger.info("az_track %s" % az)
 		self.target_stack.push(target)
+		self._az_track(self.az_target_degrees)
 
 	def _az_track(self, target:Degree=None):
 		if target is not None:
 			if self.az2ticks(target) != self.az_target:
+
 				self.az_target = self.az2ticks(target)
+				az_sleep.abort()
 				self.logger.info("Tracking azimuth %d degrees = %d ticks" % (target, self.az_target))
 
 		self.start_azimuth_control()
