@@ -6,8 +6,9 @@ import locator.src.maidenhead as mh
 import math
 from geo import sphere
 
-def get_nth_tuesday(n, today=date.today()):
-
+def get_nth_tuesday(n, today=None):
+    if today is None:
+        today = date.today()
     d = today.replace(day=1)
     offset = 1 - d.weekday()
     if offset < 0:
@@ -16,8 +17,9 @@ def get_nth_tuesday(n, today=date.today()):
 
     return d + timedelta(offset)
 
-def get_nth_thursday(n, today=date.today()):
-
+def get_nth_thursday(n, today=None):
+    if today is None:
+        today = date.today()
     d = today.replace(day=3)
     offset = 3 - d.weekday()
     if offset < 0:
