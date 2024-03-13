@@ -52,9 +52,11 @@ def get_test_data(tuesday_number, today, thursday_number = None):
 
     return test_date, t_date_start, t_date_stop
 
-def get_contest_times(band_and_mode, tuesday_number=None, today=datetime.now()):
+def get_contest_times(band_and_mode, tuesday_number=None, today=None):
 
     t_date_start, t_date_stop, test_date = None, None, None
+    if today is None:
+        today = datetime.now()
     if tuesday_number is None:
         try:
             tuesday_number = band_on_tuesday_number[band_and_mode]
