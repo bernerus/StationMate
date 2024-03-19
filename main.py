@@ -505,18 +505,18 @@ def handle_pop_target(_json):
     return app.azel.pop_target()
 
 
-@socket_io.on("toggle_qro")
-def handle_toggle_qro(_json):
-    app.ham_op.toggle_qro()
+# @socket_io.on("toggle_qro")
+# def handle_toggle_qro(_json):
+#     app.ham_op.toggle_qro()
 
 
-@socket_io.on("toggle_pa")
-def handle_toggle_pa(_json):
-    app.ham_op.toggle_pa()
-
-@socket_io.on("toggle_tx70")
-def handle_toggle_tx70(_json):
-    app.ham_op.toggle_tx70()
+# @socket_io.on("toggle_pa")
+# def handle_toggle_pa(_json):
+#     app.ham_op.toggle_pa()
+#
+# @socket_io.on("toggle_tx70")
+# def handle_toggle_tx70(_json):
+#     app.ham_op.toggle_tx70()
 
 
 @socket_io.on("toggle_auto_track")
@@ -527,13 +527,13 @@ def handle_toggle_auto_track(_json):
 def handle_toggle_auto_track(_json):
     app.client_mgr.toggle_antenna_freeze()
 
-@socket_io.on("toggle_rx70")
-def handle_toggle_rx70(_json):
-    app.ham_op.toggle_rx70()
+# @socket_io.on("toggle_rx70")
+# def handle_toggle_rx70(_json):
+#     app.ham_op.toggle_rx70()
 
-@socket_io.on("toggle_distinct")
-def handle_toggle_rx70(_json):
-    app.client_mgr.toggle_distinct()
+# @socket_io.on("toggle_distinct")
+# def handle_toggle_rx70(_json):
+#     app.client_mgr.toggle_distinct()
 
 @socket_io.on("toggle_hide_logged_stations")
 def handle_toggle_hide_logged_stations(_json):

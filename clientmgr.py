@@ -342,15 +342,15 @@ class ClientMgr:
 
         self.app.azel.status_update()
 
-    def status_update(self, force=False):
-        current_p2_sense = self.app.ham_op.get_status()
-        self.status_push(current_p2_sense, force=force)
-        send_update_class("auto_track_button", "active", self.auto_track)
-        send_update_class("antenna_freeze_button", "active", self.antenna_freeze)
-        send_update_class("show_hide_stations", "active", not self.station_layer)
-        send_update_class("show_hide_logged_stations", "active", self.hiding_logged_stations)
-        # emit("hiding_logged_stations", self.hiding_logged_stations)
-        send_update_class("show_hide_aircraft", "active", not self.aircraft_layer)
+    # def status_update(self, force=False):
+    #     current_p2_sense = self.app.ham_op.get_status()
+    #     self.status_push(current_p2_sense, force=force)
+    #     send_update_class("auto_track_button", "active", self.auto_track)
+    #     send_update_class("antenna_freeze_button", "active", self.antenna_freeze)
+    #     send_update_class("show_hide_stations", "active", not self.station_layer)
+    #     send_update_class("show_hide_logged_stations", "active", self.hiding_logged_stations)
+    #     # emit("hiding_logged_stations", self.hiding_logged_stations)
+    #     send_update_class("show_hide_aircraft", "active", not self.aircraft_layer)
 
     def send_my_data(self):
         rows = self.app.ham_op.fetch_my_current_data(self.current_band)
@@ -415,7 +415,7 @@ class ClientMgr:
                 self.logger.debug("Adding %d qso:s from %s to %s" % (len(qsos), qsos[0]["callsign"], qsos[-1]["callsign"]))
             self.push_locator_rects_to_map(mhs)
             self.app.azel.target_stack.update_ui(force=True)
-            self.status_update(force=True)
+            # self.status_update(force=True)
 
         else:
             self.app.socket_io.emit('my_response', {'data': 'Connected', 'count': 0}, namespace=namespace)

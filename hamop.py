@@ -28,50 +28,50 @@ def commit_qso(request):
 
 class HamOp:
     """ Handles all data and functions pertaining to the ham operator and station"""
-    def try_init_p27(self):
-        if not self.p27:
-            try:
-                self.p27 = PCF(self.logger, P27_I2C_ADDRESS, {P27_PA_OFF_L: (0, OUTPUT),
-                                                              P27_UNUSED_1: (1, INPUT),
-                                                              P27_PA_ON_L: (2, OUTPUT),
-                                                              P27_UNUSED_3: (3, INPUT),
-                                                              P27_RX_432_L: (4, OUTPUT),
-                                                              P27_TX_432_L: (5, OUTPUT),
-                                                              P27_UNUSED_6: (6, INPUT),
-                                                              P27_UNUSED_7: (7, INPUT),
-                                                              })
-                self.p27.bit_write(P27_PA_OFF_L, HIGH)
-                # self.p27.bit_write(P27_PA_ON_L, HIGH)
-                self.p27.bit_write(P27_RX_432_L, HIGH)
-                self.p27.bit_write(P27_TX_432_L, HIGH)
-                self.logger.info("Found I2C port %x" % P27_I2C_ADDRESS)
-
-            except OSError:
-                self.logger.error("I2C port %x not found" % P27_I2C_ADDRESS)
-                self.p27 = None
-                self.disable_core_controls()
-        return self.p27
-
-    def try_init_p26(self):
-        if not self.p26:
-            try:
-                self.p26 = PCF(self.logger, P26_I2C_ADDRESS, {P26_PA_PWR_ON_L: (0, INPUT),
-                                                 P26_PA_READY: (1, INPUT),
-                                                 P26_PA_QRO_ACTIVE: (2, OUTPUT),
-                                                 P26_XRX_432_L: (3, INPUT),
-                                                 P26_RX_432_L: (4, OUTPUT),
-                                                 P26_TX_432_L: (5, OUTPUT),
-                                                 P26_TRX_RX_ACTIVE_L: (6, INPUT),
-                                                 P26_TRX_TX_ACTIVE_L: (7, INPUT),
-                                                 })
-                self.p26.bit_read(P26_PA_READY)
-                self.logger.info("Found I2C port %x" % P26_I2C_ADDRESS)
-
-            except OSError:
-                self.logger.error("I2C port %x not found" % P26_I2C_ADDRESS)
-                self.p26 = None
-                self.disable_core_controls()
-        return self.p26
+    # def try_init_p27(self):
+    #     if not self.p27:
+    #         try:
+    #             self.p27 = PCF(self.logger, P27_I2C_ADDRESS, {P27_PA_OFF_L: (0, OUTPUT),
+    #                                                           P27_UNUSED_1: (1, INPUT),
+    #                                                           P27_PA_ON_L: (2, OUTPUT),
+    #                                                           P27_UNUSED_3: (3, INPUT),
+    #                                                           P27_RX_432_L: (4, OUTPUT),
+    #                                                           P27_TX_432_L: (5, OUTPUT),
+    #                                                           P27_UNUSED_6: (6, INPUT),
+    #                                                           P27_UNUSED_7: (7, INPUT),
+    #                                                           })
+    #             self.p27.bit_write(P27_PA_OFF_L, HIGH)
+    #             # self.p27.bit_write(P27_PA_ON_L, HIGH)
+    #             self.p27.bit_write(P27_RX_432_L, HIGH)
+    #             self.p27.bit_write(P27_TX_432_L, HIGH)
+    #             self.logger.info("Found I2C port %x" % P27_I2C_ADDRESS)
+    #
+    #         except OSError:
+    #             self.logger.error("I2C port %x not found" % P27_I2C_ADDRESS)
+    #             self.p27 = None
+    #             self.disable_core_controls()
+    #     return self.p27
+    #
+    # def try_init_p26(self):
+    #     if not self.p26:
+    #         try:
+    #             self.p26 = PCF(self.logger, P26_I2C_ADDRESS, {P26_PA_PWR_ON_L: (0, INPUT),
+    #                                              P26_PA_READY: (1, INPUT),
+    #                                              P26_PA_QRO_ACTIVE: (2, OUTPUT),
+    #                                              P26_XRX_432_L: (3, INPUT),
+    #                                              P26_RX_432_L: (4, OUTPUT),
+    #                                              P26_TX_432_L: (5, OUTPUT),
+    #                                              P26_TRX_RX_ACTIVE_L: (6, INPUT),
+    #                                              P26_TRX_TX_ACTIVE_L: (7, INPUT),
+    #                                              })
+    #             self.p26.bit_read(P26_PA_READY)
+    #             self.logger.info("Found I2C port %x" % P26_I2C_ADDRESS)
+    #
+    #         except OSError:
+    #             self.logger.error("I2C port %x not found" % P26_I2C_ADDRESS)
+    #             self.p26 = None
+    #             self.disable_core_controls()
+    #     return self.p26
 
 
     def __init__(self, app:'MyApp', logger, db: psycopg2):
@@ -82,11 +82,11 @@ class HamOp:
         self.p27 = None
         self.p26 = None
 
-        self.try_init_p27()
-        self.try_init_p26()
+        # self.try_init_p27()
+        # self.try_init_p26()
 
-        self.last_p26_sense = None
-        self.pa_running = None
+        # self.last_p26_sense = None
+        # self.pa_running = None
         self.last_status = 0xff
 
         pass
@@ -94,54 +94,54 @@ class HamOp:
         self.core_controls=False
 
     def enable_core_controls(self):
-        self.core_controls = True
+        self.core_controls = False
 
-    def p26_byte_read(self, xx):
-        try:
-            return self.p26.byte_read(xx)
-        except IOError:
-            #self.p26 = None
-            #self.try_init_p26()
-            return self.p26.byte_read(xx)
-
-    def p27_byte_read(self, xx):
-        try:
-            return self.p27.byte_read(xx)
-        except IOError:
-            #self.p27 = None
-           # self.p27 = self.try_init_p27()
-            if not self.p27:
-                return
-            return self.p27.byte_read(xx)
-
-    def p26_bit_read(self, xx):
-        try:
-            return self.p26.bit_read(xx)
-        except IOError:
-            #self.p26 = None
-            #self.p26 = self.try_init_p26()
-            return self.p26.bit_read(xx)
-
-    def p27_bit_read(self, xx):
-        try:
-            return self.p27.bit_read(xx)
-        except IOError:
-            #self.p27 = None
-            #self.try_init_p27()
-            if not self.p27:
-                return
-            return self.p27.bit_read(xx)
-
-    def status_sense(self):
-        #self.try_init_p26()
-        if not self.p26:
-            return
-        current_p26_sense = self.p26_byte_read(0xff)
-
-        if current_p26_sense != self.last_p26_sense or self.last_p26_sense is None:
-            self.app.client_mgr.status_push(current_p26_sense)
-
-        self.last_p26_sense = current_p26_sense
+    # def p26_byte_read(self, xx):
+    #     try:
+    #         return self.p26.byte_read(xx)
+    #     except IOError:
+    #         #self.p26 = None
+    #         #self.try_init_p26()
+    #         return self.p26.byte_read(xx)
+    #
+    # def p27_byte_read(self, xx):
+    #     try:
+    #         return self.p27.byte_read(xx)
+    #     except IOError:
+    #         #self.p27 = None
+    #        # self.p27 = self.try_init_p27()
+    #         if not self.p27:
+    #             return
+    #         return self.p27.byte_read(xx)
+    #
+    # def p26_bit_read(self, xx):
+    #     try:
+    #         return self.p26.bit_read(xx)
+    #     except IOError:
+    #         #self.p26 = None
+    #         #self.p26 = self.try_init_p26()
+    #         return self.p26.bit_read(xx)
+    #
+    # def p27_bit_read(self, xx):
+    #     try:
+    #         return self.p27.bit_read(xx)
+    #     except IOError:
+    #         #self.p27 = None
+    #         #self.try_init_p27()
+    #         if not self.p27:
+    #             return
+    #         return self.p27.bit_read(xx)
+    #
+    # def status_sense(self):
+    #     #self.try_init_p26()
+    #     if not self.p26:
+    #         return
+    #     current_p26_sense = self.p26_byte_read(0xff)
+    #
+    #     if current_p26_sense != self.last_p26_sense or self.last_p26_sense is None:
+    #         self.app.client_mgr.status_push(current_p26_sense)
+    #
+    #     self.last_p26_sense = current_p26_sense
 
     def get_mydata(self, band="144"):
         cur = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -158,38 +158,38 @@ class HamOp:
         msg = {x["key"]: x["value"] for x in rows}
         return msg
 
-    def get_status(self):
-        #self.try_init_p26()
-        #self.try_init_p27()
-        if not self.p26:
-            return
-        current_p26_sense = self.p26_byte_read(0xff)
-        return current_p26_sense
-
-    def my_status(self):
-        #self.try_init_p26()
-        #self.try_init_p27()
-        if self.p27 and self.p26:
-            pa_rdy = self.p26_bit_read(P26_PA_READY)
-            pa_pwr_on = not self.p26_bit_read(P26_PA_PWR_ON_L)
-            trx_tx = not self.p26_bit_read(P26_TRX_TX_ACTIVE_L)
-            trx_rx = not self.p26_bit_read(P26_TRX_RX_ACTIVE_L)
-            pa_active = not self.p26_bit_read(P26_PA_QRO_ACTIVE)
-            rx70 = not self.p26_bit_read(P26_RX_432_L)
-            tx70 = not self.p26_bit_read(P26_TX_432_L)
-            s = ""
-            s += "Transceiver is receiving<br/>" if trx_rx else "Transceiver is not receiving.<br/>"
-            s += "Transceiver is transmitting<br/>" if trx_tx else "Transceiver is not transmitting.<br/>"
-            s += "Power accelerator on<br/>" if pa_pwr_on else "Power accelerator off<br/>"
-            s += "Power accelerator ready<br/>" if pa_rdy else "Power accelerator is not ready<br/>"
-            s += "Power accelerator active<br/>" if pa_active else "Power accelerator is inactive.<br/>"
-            s += "RX 70cm active<br/>" if rx70 else "RX 70cm is inactive.<br/>"
-            s += "TX 70cm active<br/>" if tx70 else "TX 70cm is inactive.<br/>"
-        else:
-            s = "Core station info is not available<br/>"
-
-
-        return s
+    # def get_status(self):
+    #     #self.try_init_p26()
+    #     #self.try_init_p27()
+    #     if not self.p26:
+    #         return
+    #     current_p26_sense = self.p26_byte_read(0xff)
+    #     return current_p26_sense
+    #
+    # def my_status(self):
+    #     #self.try_init_p26()
+    #     #self.try_init_p27()
+    #     if self.p27 and self.p26:
+    #         pa_rdy = self.p26_bit_read(P26_PA_READY)
+    #         pa_pwr_on = not self.p26_bit_read(P26_PA_PWR_ON_L)
+    #         trx_tx = not self.p26_bit_read(P26_TRX_TX_ACTIVE_L)
+    #         trx_rx = not self.p26_bit_read(P26_TRX_RX_ACTIVE_L)
+    #         pa_active = not self.p26_bit_read(P26_PA_QRO_ACTIVE)
+    #         rx70 = not self.p26_bit_read(P26_RX_432_L)
+    #         tx70 = not self.p26_bit_read(P26_TX_432_L)
+    #         s = ""
+    #         s += "Transceiver is receiving<br/>" if trx_rx else "Transceiver is not receiving.<br/>"
+    #         s += "Transceiver is transmitting<br/>" if trx_tx else "Transceiver is not transmitting.<br/>"
+    #         s += "Power accelerator on<br/>" if pa_pwr_on else "Power accelerator off<br/>"
+    #         s += "Power accelerator ready<br/>" if pa_rdy else "Power accelerator is not ready<br/>"
+    #         s += "Power accelerator active<br/>" if pa_active else "Power accelerator is inactive.<br/>"
+    #         s += "RX 70cm active<br/>" if rx70 else "RX 70cm is inactive.<br/>"
+    #         s += "TX 70cm active<br/>" if tx70 else "TX 70cm is inactive.<br/>"
+    #     else:
+    #         s = "Core station info is not available<br/>"
+    #
+    #
+    #     return s
 
     def fetch_my_current_data(self, band="144"):
         return self.fetch_config_data(type="str", band=band)
@@ -466,68 +466,68 @@ class HamOp:
         myqth = my_data["my_locator"]
         return myqth
 
-    def my_pa_on(self):
-        if not self.p27:
-            return "Core station out of control"
-
-        pa_rdy = self.p26_bit_read(P26_PA_READY)
-        if not pa_rdy:
-            self.logger.info("Igniting booster")
-            self.p27.bit_write(P27_PA_ON_L, LOW)
-            time.sleep(0.1)
-            self.p27.bit_write(P27_PA_ON_L, HIGH)
-            return "Ignition sequence started"
-        else:
-            return "Power booster is ready<br/>"
-
-    def my_pa_off(self):
-        if not self.p27:
-            return "Core station out of control"
-        self.logger.info("Shutting down PA")
-        self.p27.bit_write(P27_PA_ON_L, HIGH)
-        self.p27.bit_write(P27_PA_OFF_L, LOW)
-        time.sleep(0.1)
-        self.p27.bit_write(P27_PA_OFF_L, HIGH)
-        return "PA is shut down"
-
-    def my_qro_on(self):
-        if not self.p27:
-            return "Core station out of control"
-        pa_rdy = self.p26_bit_read(P26_PA_READY)
-        if not pa_rdy:
-            return "Power booster is not ready<br/>"
-        self.p27.bit_write(P27_PA_ON_L, LOW)
-        return "Power booster enabled"
-
-    def my_qro_off(self):
-        if not self.p27:
-            return "Core station out of control"
-        self.p27.bit_write(P27_PA_ON_L, HIGH)
-        return "Power booster disabled"
-
-    def my_rx70_on(self):
-        if not self.p27:
-            return "Core station out of control"
-        self.p27.bit_write(P27_RX_432_L, LOW)
-        return "70cm rx enabled"
-
-    def my_rx70_off(self):
-        if not self.p27:
-            return "Core station out of control"
-        self.p27.bit_write(P27_RX_432_L, HIGH)
-        return "70cm rx disabled"
-
-    def my_tx70_on(self):
-        if not self.p27:
-            return "Core station out of control"
-        self.p27.bit_write(P27_TX_432_L, LOW)
-        return "70cm tx enabled"
-
-    def my_tx70_off(self):
-        if not self.p27:
-            return "Core station out of control"
-        self.p27.bit_write(P27_TX_432_L, HIGH)
-        return "70cm tx disabled"
+   # < def my_pa_on(self):
+   #      if not self.p27:
+   #          return "Core station out of control"
+   #
+   #      pa_rdy = self.p26_bit_read(P26_PA_READY)
+   #      if not pa_rdy:
+   #          self.logger.info("Igniting booster")
+   #          self.p27.bit_write(P27_PA_ON_L, LOW)
+   #          time.sleep(0.1)
+   #          self.p27.bit_write(P27_PA_ON_L, HIGH)
+   #          return "Ignition sequence started"
+   #      else:
+   #          return "Power booster is ready<br/>>"
+   #
+   #  def my_pa_off(self):
+   #      if not self.p27:
+   #          return "Core station out of control"
+   #      self.logger.info("Shutting down PA")
+   #      self.p27.bit_write(P27_PA_ON_L, HIGH)
+   #      self.p27.bit_write(P27_PA_OFF_L, LOW)
+   #      time.sleep(0.1)
+   #      self.p27.bit_write(P27_PA_OFF_L, HIGH)
+   #      return "PA is shut down"
+   #
+   #  def my_qro_on(self):
+   #      if not self.p27:
+   #          return "Core station out of control"
+   #      pa_rdy = self.p26_bit_read(P26_PA_READY)
+   #      if not pa_rdy:
+   #          return "Power booster is not ready<br/>"
+   #      self.p27.bit_write(P27_PA_ON_L, LOW)
+   #      return "Power booster enabled"
+   #
+   #  def my_qro_off(self):
+   #      if not self.p27:
+   #          return "Core station out of control"
+   #      self.p27.bit_write(P27_PA_ON_L, HIGH)
+   #      return "Power booster disabled"
+   #
+   #  def my_rx70_on(self):
+   #      if not self.p27:
+   #          return "Core station out of control"
+   #      self.p27.bit_write(P27_RX_432_L, LOW)
+   #      return "70cm rx enabled"
+   #
+   #  def my_rx70_off(self):
+   #      if not self.p27:
+   #          return "Core station out of control"
+   #      self.p27.bit_write(P27_RX_432_L, HIGH)
+   #      return "70cm rx disabled"
+   #
+   #  def my_tx70_on(self):
+   #      if not self.p27:
+   #          return "Core station out of control"
+   #      self.p27.bit_write(P27_TX_432_L, LOW)
+   #      return "70cm tx enabled"
+   #
+   #  def my_tx70_off(self):
+   #      if not self.p27:
+   #          return "Core station out of control"
+   #      self.p27.bit_write(P27_TX_432_L, HIGH)
+   #      return "70cm tx disabled"
 
     def merge_into_log_db(self, cur, ret, qso):
 
@@ -791,83 +791,83 @@ class HamOp:
             self.app.client_mgr.emit_log(json)
 
 
-    def toggle_qro(self):
-        if self.p27 and self.p26:
-            # pa_rdy = self.p26_bit_read(P26_PA_READY)
-            pa_pwr_on = not self.p26_bit_read(P26_PA_PWR_ON_L)
-            if pa_pwr_on:
-                pa_on = not self.p26_bit_read(P26_PA_QRO_ACTIVE)
-                if pa_on:
-                    self.p27.bit_write(P27_PA_ON_L, HIGH)
-                else:
-                    self.p27.bit_write(P27_PA_ON_L, LOW)
-            else:
-                self.p27.bit_write(P27_PA_ON_L, HIGH)
-            self.app.client_mgr.status_update(force=True)
+    # def toggle_qro(self):
+    #     if self.p27 and self.p26:
+    #         # pa_rdy = self.p26_bit_read(P26_PA_READY)
+    #         pa_pwr_on = not self.p26_bit_read(P26_PA_PWR_ON_L)
+    #         if pa_pwr_on:
+    #             pa_on = not self.p26_bit_read(P26_PA_QRO_ACTIVE)
+    #             if pa_on:
+    #                 self.p27.bit_write(P27_PA_ON_L, HIGH)
+    #             else:
+    #                 self.p27.bit_write(P27_PA_ON_L, LOW)
+    #         else:
+    #             self.p27.bit_write(P27_PA_ON_L, HIGH)
+    #         self.app.client_mgr.status_update(force=True)
 
 
-    def toggle_rx70(self):
-        if self.p27 and self.p26:
-
-            rx70_on = not self.p26_bit_read(P26_RX_432_L)
-            if rx70_on:
-                self.p27.bit_write(P27_RX_432_L, HIGH)
-            else:
-                self.p27.bit_write(P27_RX_432_L, LOW)
-
-            self.app.client_mgr.status_update(force=True)
-
-    def toggle_tx70(self):
-        if self.p27 and self.p26:
-
-            tx70_on = not self.p26_bit_read(P26_TX_432_L)
-            if tx70_on:
-                self.p27.bit_write(P27_TX_432_L, HIGH)
-            else:
-                self.p27.bit_write(P27_TX_432_L, LOW)
-
-            self.app.client_mgr.status_update(force=True)
-
-    def set_trx70(self, json):
-        if self.p27 and self.p26:
-
-            if "tx" in json:
-                if json["tx"]:
-                    self.p27.bit_write(P27_TX_432_L, LOW)
-                else:
-                    self.p27.bit_write(P27_TX_432_L, HIGH)
-
-            if "rx" in json:
-                if json["rx"]:
-                    self.p27.bit_write(P27_RX_432_L, LOW)
-                else:
-                    self.p27.bit_write(P27_RX_432_L, HIGH)
-
-            self.app.client_mgr.status_update(force=True)
-
-    def toggle_pa(self):
-        if self.p27 and self.p26:
-
-            if self.pa_running is None:
-                pa_rdy = self.p26_bit_read(P26_PA_READY)
-                self.pa_running = pa_rdy
-
-            rx_on = not self.p26_bit_read(P26_TRX_RX_ACTIVE_L)
-            tx_on = not self.p26_bit_read(P26_TRX_TX_ACTIVE_L)
-
-            if self.pa_running:
-                self.p27.bit_write(P27_PA_OFF_L, LOW)
-                time.sleep(0.1)
-                self.p27.bit_write(P27_PA_OFF_L, HIGH)
-                self.pa_running = False
-            else:
-                if rx_on or tx_on:
-                    self.p27.bit_write(P27_PA_ON_L, LOW)
-                    time.sleep(0.1)
-                    self.p27.bit_write(P27_PA_ON_L, HIGH)
-                    self.pa_running = True
-
-            self.app.client_mgr.status_update(force=True)
+    # def toggle_rx70(self):
+    #     if self.p27 and self.p26:
+    #
+    #         rx70_on = not self.p26_bit_read(P26_RX_432_L)
+    #         if rx70_on:
+    #             self.p27.bit_write(P27_RX_432_L, HIGH)
+    #         else:
+    #             self.p27.bit_write(P27_RX_432_L, LOW)
+    #
+    #         self.app.client_mgr.status_update(force=True)
+    #
+    # def toggle_tx70(self):
+    #     if self.p27 and self.p26:
+    #
+    #         tx70_on = not self.p26_bit_read(P26_TX_432_L)
+    #         if tx70_on:
+    #             self.p27.bit_write(P27_TX_432_L, HIGH)
+    #         else:
+    #             self.p27.bit_write(P27_TX_432_L, LOW)
+    #
+    #         self.app.client_mgr.status_update(force=True)
+    #
+    # def set_trx70(self, json):
+    #     if self.p27 and self.p26:
+    #
+    #         if "tx" in json:
+    #             if json["tx"]:
+    #                 self.p27.bit_write(P27_TX_432_L, LOW)
+    #             else:
+    #                 self.p27.bit_write(P27_TX_432_L, HIGH)
+    #
+    #         if "rx" in json:
+    #             if json["rx"]:
+    #                 self.p27.bit_write(P27_RX_432_L, LOW)
+    #             else:
+    #                 self.p27.bit_write(P27_RX_432_L, HIGH)
+    #
+    #         self.app.client_mgr.status_update(force=True)
+    #
+    # def toggle_pa(self):
+    #     if self.p27 and self.p26:
+    #
+    #         if self.pa_running is None:
+    #             pa_rdy = self.p26_bit_read(P26_PA_READY)
+    #             self.pa_running = pa_rdy
+    #
+    #         rx_on = not self.p26_bit_read(P26_TRX_RX_ACTIVE_L)
+    #         tx_on = not self.p26_bit_read(P26_TRX_TX_ACTIVE_L)
+    #
+    #         if self.pa_running:
+    #             self.p27.bit_write(P27_PA_OFF_L, LOW)
+    #             time.sleep(0.1)
+    #             self.p27.bit_write(P27_PA_OFF_L, HIGH)
+    #             self.pa_running = False
+    #         else:
+    #             if rx_on or tx_on:
+    #                 self.p27.bit_write(P27_PA_ON_L, LOW)
+    #                 time.sleep(0.1)
+    #                 self.p27.bit_write(P27_PA_ON_L, HIGH)
+    #                 self.pa_running = True
+    #
+    #         self.app.client_mgr.status_update(force=True)
 
     def az_track(self, what):
 

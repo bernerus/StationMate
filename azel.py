@@ -640,7 +640,7 @@ class AzelController:
 			self.manual_interrupt()
 
 		self.last_sense = current_sense
-		self.app.ham_op.status_sense()
+		# self.app.ham_op.status_sense()
 
 	def retrigger_az_timer(self):
 		self.retriggering = True
