@@ -10,8 +10,8 @@ import re
 from flask import current_app
 from datetime import date, datetime
 
-import locator.src.maidenhead as mh
-from contest_log import get_contest_times
+#import locator.src.maidenhead as mh
+# from contest_log import get_contest_times
 
 msg_q = queue.Queue()
 thread_lock = Lock()
@@ -175,100 +175,100 @@ class ClientMgr:
         locators, _qsqs = self.get_mhs()
         self.push_locator_rects_to_map(locators)
 
-    def set_log_scope(self, scope):
-        """
-        Set the log scope for logging.
+    # def set_log_scope(self, scope):
+    #     """
+    #     Set the log scope for logging.
+    #
+    #     :param scope: The new log scope.
+    #     :type scope: str
+    #     :return: None
+    #     :rtype: None
+    #     """
+    #     if scope != self.current_log_scope:
+    #         self.current_log_scope = scope
+    #         if scope == "Forever":
+    #             self.show_log_since = None
+    #             self.show_log_until = None
+    #         elif scope == "Today":
+    #             self.show_log_since = datetime.combine(date.today(), datetime.min.time())
+    #             self.show_log_until = None
+    #         elif scope == "Contest":
+    #             _dt, fr, to = get_contest_times(self.current_band)
+    #             self.show_log_since = datetime.strptime(fr, "%Y-%m-%d %H:%M:%S")
+    #             self.show_log_until = datetime.strptime(to, "%Y-%m-%d %H:%M:%S")
+    #         send_reload()
 
-        :param scope: The new log scope.
-        :type scope: str
-        :return: None
-        :rtype: None
-        """
-        if scope != self.current_log_scope:
-            self.current_log_scope = scope
-            if scope == "Forever":
-                self.show_log_since = None
-                self.show_log_until = None
-            elif scope == "Today":
-                self.show_log_since = datetime.combine(date.today(), datetime.min.time())
-                self.show_log_until = None
-            elif scope == "Contest":
-                _dt, fr, to = get_contest_times(self.current_band)
-                self.show_log_since = datetime.strptime(fr, "%Y-%m-%d %H:%M:%S")
-                self.show_log_until = datetime.strptime(to, "%Y-%m-%d %H:%M:%S")
-            send_reload()
 
-
-    def push_locator_rects_to_map(self, locators):
-        """
-        :param locators: A list of locators that need to be pushed to the map.
-        :return: None
-
-        This method takes a list of locators and pushes rects outlining them to the map.
-
-        It first retrieves the locator precision used on the map through the method `get_locator_precision_used_on_map()`.
-        Then, it processes each locator in the list by truncating it to the retrieved locator precision. If distinct locators are required on the map, it removes any duplicate locators from the list.
-
-        For each remaining locator, it attempts to convert it to a rectangle (rect) using the `mh.to_rect()` method. If the conversion is successful, the locator is added to the list of locators on
-        * the map. If the conversion fails, the locator is ignored.
-
-        Next, the method retrieves a list of callsigns associated with the locator using the `callsigns_in_locator()` method from the `ham_op` manager. Based on the length
-        * of the locator, the method determines the title and hover_info properties. If the locator length is less than 6, the title is set to "Ruta" and hover_info is set to False. If the locator
-        * length is less than 4, the title is set to "Fält".
-
-        The method then builds an info string containing the title and the locator. It constructs an HTML table for displaying the callsigns associated with the locator. The callsigns are divided
-        * into columns, with the number of columns determined based on the number of callsigns. Each callsign is appended to the appropriate column in the table.
-
-        Finally, the method constructs a dictionary containing the id, north, south, west, east, info, and hover_info properties for each locator. This dictionary is added to a list called `
-        *to_send`. The list of dictionaries is then passed to the `add_rects` method of the `msg_q` object for further processing.
-        """
-        locator_precision = self.get_locator_precision_used_on_map()
-        to_send = []
-
-        locators = [x[0:locator_precision] if x else None for x in locators]
-        if self.distinct_locators_on_map:
-            locators = set(locators) - set(self.locators_on_map)
-        for locator in locators:
-            n, s, w, e, lat, long = None, None, None, None, None, None
-            try:
-                n, s, w, e, lat, lon = mh.to_rect(locator)
-                self.locators_on_map.append(locator)
-            except (TypeError, ValueError):
-                pass
-
-            callsigns = self.app.ham_op.callsigns_in_locator(locator)
-            title = "Lokator"
-            hover_info=True
-            if len(locator) < 6:
-                hover_info=False
-                title="Ruta"
-            if len(locator) < 4:
-                title = "Fält"
-            info = "%s <b>%s</b>:<br/>" % (title, locator)
-            info += "<table id=\"loctable_%s\" class=\"locator_callsigns\">" % locator
-            callsign_array = ([],[],[],[])
-            callsign_count=0
-            callsigns_per_column = int(len(callsigns)/len(callsign_array))+1
-            for cs in callsigns:
-                column_number = int(callsign_count / callsigns_per_column)
-                try:
-                    callsign_array[column_number].append(cs)
-                except IndexError as e:
-                    pass
-                callsign_count += 1
-            for row in range(max([len(x) for x in callsign_array])):
-                info+="<tr>"
-                for column_number in callsign_array:
-                        try:
-                            info +="<td>"+column_number[row]+"</td>"
-                        except IndexError:
-                            info += "<td/>"
-                info += "</tr>"
-
-            info += "</table>"
-            to_send.append({"id": locator, "n": n, "s": s, "w": w, "e": e, 'info':info, 'hover_info': hover_info})
-
-        msg_q.put(("add_rects", to_send))
+    # def push_locator_rects_to_map(self, locators):
+    #     """
+    #     :param locators: A list of locators that need to be pushed to the map.
+    #     :return: None
+    #
+    #     This method takes a list of locators and pushes rects outlining them to the map.
+    #
+    #     It first retrieves the locator precision used on the map through the method `get_locator_precision_used_on_map()`.
+    #     Then, it processes each locator in the list by truncating it to the retrieved locator precision. If distinct locators are required on the map, it removes any duplicate locators from the list.
+    #
+    #     For each remaining locator, it attempts to convert it to a rectangle (rect) using the `mh.to_rect()` method. If the conversion is successful, the locator is added to the list of locators on
+    #     * the map. If the conversion fails, the locator is ignored.
+    #
+    #     Next, the method retrieves a list of callsigns associated with the locator using the `callsigns_in_locator()` method from the `ham_op` manager. Based on the length
+    #     * of the locator, the method determines the title and hover_info properties. If the locator length is less than 6, the title is set to "Ruta" and hover_info is set to False. If the locator
+    #     * length is less than 4, the title is set to "Fält".
+    #
+    #     The method then builds an info string containing the title and the locator. It constructs an HTML table for displaying the callsigns associated with the locator. The callsigns are divided
+    #     * into columns, with the number of columns determined based on the number of callsigns. Each callsign is appended to the appropriate column in the table.
+    #
+    #     Finally, the method constructs a dictionary containing the id, north, south, west, east, info, and hover_info properties for each locator. This dictionary is added to a list called `
+    #     *to_send`. The list of dictionaries is then passed to the `add_rects` method of the `msg_q` object for further processing.
+    #     """
+    #     locator_precision = self.get_locator_precision_used_on_map()
+    #     to_send = []
+    #
+    #     locators = [x[0:locator_precision] if x else None for x in locators]
+    #     if self.distinct_locators_on_map:
+    #         locators = set(locators) - set(self.locators_on_map)
+    #     for locator in locators:
+    #         n, s, w, e, lat, long = None, None, None, None, None, None
+    #         try:
+    #             n, s, w, e, lat, lon = mh.to_rect(locator)
+    #             self.locators_on_map.append(locator)
+    #         except (TypeError, ValueError):
+    #             pass
+    #
+    #         callsigns = self.app.ham_op.callsigns_in_locator(locator)
+    #         title = "Lokator"
+    #         hover_info=True
+    #         if len(locator) < 6:
+    #             hover_info=False
+    #             title="Ruta"
+    #         if len(locator) < 4:
+    #             title = "Fält"
+    #         info = "%s <b>%s</b>:<br/>" % (title, locator)
+    #         info += "<table id=\"loctable_%s\" class=\"locator_callsigns\">" % locator
+    #         callsign_array = ([],[],[],[])
+    #         callsign_count=0
+    #         callsigns_per_column = int(len(callsigns)/len(callsign_array))+1
+    #         for cs in callsigns:
+    #             column_number = int(callsign_count / callsigns_per_column)
+    #             try:
+    #                 callsign_array[column_number].append(cs)
+    #             except IndexError as e:
+    #                 pass
+    #             callsign_count += 1
+    #         for row in range(max([len(x) for x in callsign_array])):
+    #             info+="<tr>"
+    #             for column_number in callsign_array:
+    #                     try:
+    #                         info +="<td>"+column_number[row]+"</td>"
+    #                     except IndexError:
+    #                         info += "<td/>"
+    #             info += "</tr>"
+    #
+    #         info += "</table>"
+    #         to_send.append({"id": locator, "n": n, "s": s, "w": w, "e": e, 'info':info, 'hover_info': hover_info})
+    #
+    #     msg_q.put(("add_rects", to_send))
 
     def add_locator_rect_to_map(self, loc):
         locators, _qsqs = self.get_mhs()
@@ -469,29 +469,29 @@ class ClientMgr:
             msg_q.put(("set_origo", {"lon": lon, "lat": lat, "zoom": zoom}))
 
 
-    def send_origo(self):
-        rows = self.app.ham_op.fetch_my_current_data(self.current_band)
-        my_data = {x["key"]: x["value"] for x in rows}
-        myqth = my_data["my_locator"]
-        n, s, w, e, lat, lon = mh.to_rect(myqth)
-        zoom=8
+    # def send_origo(self):
+    #     rows = self.app.ham_op.fetch_my_current_data(self.current_band)
+    #     my_data = {x["key"]: x["value"] for x in rows}
+    #     myqth = my_data["my_locator"]
+    #     n, s, w, e, lat, lon = mh.to_rect(myqth)
+    #     zoom=8
+    #
+    #     settings = self.app.ham_op.get_map_setting(self.current_band, self.map_locator_precision, self.current_log_scope)
+    #     if settings:
+    #         lon, lat, zoom = settings
+    #
+    #     #print("Queueing origo %f %f, zoom=%d" % (lon, lat, zoom))
+    #     msg_q.put(("set_origo", {"lon": lon, "lat": lat, "zoom": zoom}))
 
-        settings = self.app.ham_op.get_map_setting(self.current_band, self.map_locator_precision, self.current_log_scope)
-        if settings:
-            lon, lat, zoom = settings
 
-        #print("Queueing origo %f %f, zoom=%d" % (lon, lat, zoom))
-        msg_q.put(("set_origo", {"lon": lon, "lat": lat, "zoom": zoom}))
-
-
-    def send_qth(self):
-        rows = self.app.ham_op.fetch_my_current_data(self.current_band)
-        my_data = {x["key"]: x["value"] for x in rows}
-        my_qth = my_data["my_locator"]
-        n, s, w, e, lat, lon = mh.to_rect(my_qth)
-
-        #print("Queueing qth %f %f" % (lon, lat))
-        msg_q.put(("set_qth", {"lon": lon, "lat": lat, "qth": my_qth, "n": n, "s": s, "w": w, "e": e}))
+    # def send_qth(self):
+    #     rows = self.app.ham_op.fetch_my_current_data(self.current_band)
+    #     my_data = {x["key"]: x["value"] for x in rows}
+    #     my_qth = my_data["my_locator"]
+    #     n, s, w, e, lat, lon = mh.to_rect(my_qth)
+    #
+    #     #print("Queueing qth %f %f" % (lon, lat))
+    #     msg_q.put(("set_qth", {"lon": lon, "lat": lat, "qth": my_qth, "n": n, "s": s, "w": w, "e": e}))
 
 
     def send_mydata(self):
@@ -568,170 +568,170 @@ class ClientMgr:
 
         msg_q.put(("update_planes", planes2))
 
-    def update_reachable_stations(self, beaming, other):
-        """
-        :param beaming: A dictionary of stations that are beaming towards the user's location. Each key-value pair in the dictionary represents a unique station, where the key is the station
-        *'s unique identifier and the value is a dictionary containing station information.
-        :param other: A dictionary of other stations that are not beaming towards the user's location. Each key-value pair in the dictionary represents a unique station, where the key is the
-        * station's unique identifier and the value is a dictionary containing station information.
-        :return: None
-
-        This method updates the list of reachable stations based on the provided dictionaries of beaming and other stations. It uses the provided information to create a JSON object representing
-        * each station and stores them in a dictionary. The resulting dictionary is then sent to a message queue for further processing and communication with the client application.
-        """
-        json={}
-
-        worked_callsigns = set()
-        if self.hiding_logged_stations:
-            rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
-            for row in rows:
-                cs = row[3].upper()
-                worked_callsigns.add(cs)
-
-        for s in beaming:
-            station = beaming[s]
-            callsign = station['callsign'].upper()
-            if callsign in worked_callsigns:
-                continue
-            locator = station.get('locator','').upper()
-            antaz = station.get('az', 0)
-            dist = station.get('dist', 0)
-            age = float(station.get('age_minutes', 0))
-            myaz = station.get('my_az', 0)
-            dx_callsign = station.get("dx_callsign", '')
-            dx_loc=station.get("dx_loc", '')
-            freq = station["frequency"]
-            txmode = station["txmode"]
-            antwidth=30
-
-            info = f"""<span style=\"font-size:12pt\"> 
-                        <b>{callsign}:</b><br/>
-                        Locator:{locator}<br/>
-                        QTF:{antaz}<br/>
-                        Last report {age:2.1f} min ago with {dx_callsign}@{dx_loc}<br/>
-                        Distance:{dist} km<br/>
-                        QRG: {freq}, "txmode: {txmode}</span>
-                    """
-            try:
-                txmode = station['txmode']
-            except IndexError:
-                txmode = "FT8"
-            #antwidth = station["antwidth"] if "antwidth" in station else 30
-            _n, _s, _w, _e, latitude, longitude = mh.to_rect(locator)
-            if dist > 10:
-                json[callsign] = {"callsign":callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az":myaz, "txmode": txmode, "age": age, "distance": dist, "info":info}
-        for s in other:
-            station = other[s]
-            callsign = station['callsign'].upper()
-            if callsign in json or callsign in worked_callsigns:
-                continue
-            locator = station['locator'].upper()
-            antaz = station.get('az', 0)
-            dist = station.get('dist', 0)
-            age = float(station.get('age_minutes',0))
-            myaz = station.get('my_az',0)
-            dx_callsign = station.get("dx_callsign",'')
-            dx_loc=station.get("dx_loc",'')
-            freq = station["frequency"]
-            txmode = station["txmode"]
-            antwidth = 360
-            info = f"""<span style=\"font-size:12pt\"> 
-                                    <b>{callsign}:</b><br/>
-                                    Locator:{locator}<br/>
-                                    QTF:{antaz}<br/>
-                                    Last report {age:2.1f} min ago with {dx_callsign}@{dx_loc}<br/>
-                                    Distance:{dist} km<br/>
-                                    QRG: {freq}, "txmode: {txmode}</span>
-                                """
-            try:
-                txmode = station['txmode']
-            except IndexError:
-                txmode = "FT8"
-            _n, _s, _w, _e, latitude, longitude = mh.to_rect(locator)
-            json[callsign] = {"callsign": callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az": myaz, "txmode": txmode,"age": age,"distance":dist, "info": info}
-        #import pprint
-        #pprint.pprint(json)
-        # self.logger.info("Pushing %d stations to client" % (len(json)))
-        msg_q.put(("update_reachable_stations", json))
-
-    def map_settings(self, json):
-        self.logger.debug("Map settings received: %s", json)
-        self.app.ham_op.store_map_setting(json, self.current_band, self.map_locator_precision, self.current_log_scope)
-
-    def toggle_distinct(self):
-        self.distinct_locators_on_map = not self.distinct_locators_on_map
-        send_update_class("loc_distinct_led", "active", self.distinct_locators_on_map)
-        self.update_locator_rects_on_map()
-
-    def toggle_hide_logged_stations(self):
-        self.hiding_logged_stations = not self.hiding_logged_stations
-        # emit("hiding_logged_stations", self.hiding_logged_stations)
-        self.app.station_tracker.refresh()
-        self.status_update(force=True)
-
-    def toggle_aircraft_layer(self):
-        self.aircraft_layer = not self.aircraft_layer
-        emit("aircraft_layer", self.aircraft_layer)
-        if self.aircraft_layer:
-            self.app.aircraft_tracker.startup()
-        else:
-            self.app.aircraft_tracker.shutdown()
-        self.status_update(force=True)
-
-    def toggle_station_layer(self):
-        self.station_layer = not self.station_layer
-        emit("station_layer", self.station_layer)
-        if self.station_layer:
-            self.app.station_tracker.startup()
-        else:
-            self.app.station_tracker.shutdown()
-
-        self.status_update(force=True)
-
-    def toggle_auto_track(self):
-        self.auto_track = not self.auto_track
-        # emit("Auto track", self.auto_track)
-        send_update_class("auto_track_button", "active", self.auto_track)
-        self.status_update(force=True)
-
-    def toggle_antenna_freeze(self):
-        self.antenna_freeze = not self.antenna_freeze
-        if self.antenna_freeze:
-            self.app.azel.disable_control()
-        else:
-            self.app.azel.enable_control()
-        send_update_class("antenna_freeze_button", "active", self.antenna_freeze)
-        self.status_update(force=True)
-
-    def set_dx_call(self, callsign, locator):
-        knowns = self.app.ham_op.callsigns_in_locator(locator)
-        if callsign in knowns:
-            emit("fill_dx_grid", callsign)
-            if self.auto_track:
-                self.app.azel.az_track_station(callsign, auto=True)
-        else:
-            emit("fill_dx_grid", locator)
-            if self.auto_track:
-                self.app.azel.az_track_loc(locator, auto=True)
-
-
-
-def circle(size, user_location):
-    c = {  # draw circle on map (user_location as center)
-        'stroke_color': '#0000FF',
-        'stroke_opacity': .5,
-        'stroke_weight': 1,
-        # line(stroke) style
-        'fill_color': '#FFFFFF',
-        'fill_opacity': 0,
-        # fill style
-        'center': {  # set circle to user_location
-            'lat': user_location[0],
-            'lng': user_location[1]
-        },
-        'radius': size
-    }
-    return c
+#     def update_reachable_stations(self, beaming, other):
+#         """
+#         :param beaming: A dictionary of stations that are beaming towards the user's location. Each key-value pair in the dictionary represents a unique station, where the key is the station
+#         *'s unique identifier and the value is a dictionary containing station information.
+#         :param other: A dictionary of other stations that are not beaming towards the user's location. Each key-value pair in the dictionary represents a unique station, where the key is the
+#         * station's unique identifier and the value is a dictionary containing station information.
+#         :return: None
+#
+#         This method updates the list of reachable stations based on the provided dictionaries of beaming and other stations. It uses the provided information to create a JSON object representing
+#         * each station and stores them in a dictionary. The resulting dictionary is then sent to a message queue for further processing and communication with the client application.
+#         """
+#         json={}
+#
+#         worked_callsigns = set()
+#         if self.hiding_logged_stations:
+#             rows = self.app.ham_op.get_log_rows(self.show_log_since, self.show_log_until)
+#             for row in rows:
+#                 cs = row[3].upper()
+#                 worked_callsigns.add(cs)
+#
+#         for s in beaming:
+#             station = beaming[s]
+#             callsign = station['callsign'].upper()
+#             if callsign in worked_callsigns:
+#                 continue
+#             locator = station.get('locator','').upper()
+#             antaz = station.get('az', 0)
+#             dist = station.get('dist', 0)
+#             age = float(station.get('age_minutes', 0))
+#             myaz = station.get('my_az', 0)
+#             dx_callsign = station.get("dx_callsign", '')
+#             dx_loc=station.get("dx_loc", '')
+#             freq = station["frequency"]
+#             txmode = station["txmode"]
+#             antwidth=30
+#
+#             info = f"""<span style=\"font-size:12pt\">
+#                         <b>{callsign}:</b><br/>
+#                         Locator:{locator}<br/>
+#                         QTF:{antaz}<br/>
+#                         Last report {age:2.1f} min ago with {dx_callsign}@{dx_loc}<br/>
+#                         Distance:{dist} km<br/>
+#                         QRG: {freq}, "txmode: {txmode}</span>
+#                     """
+#             try:
+#                 txmode = station['txmode']
+#             except IndexError:
+#                 txmode = "FT8"
+#             #antwidth = station["antwidth"] if "antwidth" in station else 30
+#             _n, _s, _w, _e, latitude, longitude = mh.to_rect(locator)
+#             if dist > 10:
+#                 json[callsign] = {"callsign":callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az":myaz, "txmode": txmode, "age": age, "distance": dist, "info":info}
+#         for s in other:
+#             station = other[s]
+#             callsign = station['callsign'].upper()
+#             if callsign in json or callsign in worked_callsigns:
+#                 continue
+#             locator = station['locator'].upper()
+#             antaz = station.get('az', 0)
+#             dist = station.get('dist', 0)
+#             age = float(station.get('age_minutes',0))
+#             myaz = station.get('my_az',0)
+#             dx_callsign = station.get("dx_callsign",'')
+#             dx_loc=station.get("dx_loc",'')
+#             freq = station["frequency"]
+#             txmode = station["txmode"]
+#             antwidth = 360
+#             info = f"""<span style=\"font-size:12pt\">
+#                                     <b>{callsign}:</b><br/>
+#                                     Locator:{locator}<br/>
+#                                     QTF:{antaz}<br/>
+#                                     Last report {age:2.1f} min ago with {dx_callsign}@{dx_loc}<br/>
+#                                     Distance:{dist} km<br/>
+#                                     QRG: {freq}, "txmode: {txmode}</span>
+#                                 """
+#             try:
+#                 txmode = station['txmode']
+#             except IndexError:
+#                 txmode = "FT8"
+#             _n, _s, _w, _e, latitude, longitude = mh.to_rect(locator)
+#             json[callsign] = {"callsign": callsign, "locator": locator, "position": {"lat": latitude, "lng": longitude}, "antenna_azimuth": antaz, "antenna_width": antwidth, "my_az": myaz, "txmode": txmode,"age": age,"distance":dist, "info": info}
+#         #import pprint
+#         #pprint.pprint(json)
+#         # self.logger.info("Pushing %d stations to client" % (len(json)))
+#         msg_q.put(("update_reachable_stations", json))
+#
+#     def map_settings(self, json):
+#         self.logger.debug("Map settings received: %s", json)
+#         self.app.ham_op.store_map_setting(json, self.current_band, self.map_locator_precision, self.current_log_scope)
+#
+#     def toggle_distinct(self):
+#         self.distinct_locators_on_map = not self.distinct_locators_on_map
+#         send_update_class("loc_distinct_led", "active", self.distinct_locators_on_map)
+#         self.update_locator_rects_on_map()
+#
+#     def toggle_hide_logged_stations(self):
+#         self.hiding_logged_stations = not self.hiding_logged_stations
+#         # emit("hiding_logged_stations", self.hiding_logged_stations)
+#         self.app.station_tracker.refresh()
+#         self.status_update(force=True)
+#
+#     def toggle_aircraft_layer(self):
+#         self.aircraft_layer = not self.aircraft_layer
+#         emit("aircraft_layer", self.aircraft_layer)
+#         if self.aircraft_layer:
+#             self.app.aircraft_tracker.startup()
+#         else:
+#             self.app.aircraft_tracker.shutdown()
+#         self.status_update(force=True)
+#
+#     def toggle_station_layer(self):
+#         self.station_layer = not self.station_layer
+#         emit("station_layer", self.station_layer)
+#         if self.station_layer:
+#             self.app.station_tracker.startup()
+#         else:
+#             self.app.station_tracker.shutdown()
+#
+#         self.status_update(force=True)
+#
+#     def toggle_auto_track(self):
+#         self.auto_track = not self.auto_track
+#         # emit("Auto track", self.auto_track)
+#         send_update_class("auto_track_button", "active", self.auto_track)
+#         self.status_update(force=True)
+#
+#     def toggle_antenna_freeze(self):
+#         self.antenna_freeze = not self.antenna_freeze
+#         if self.antenna_freeze:
+#             self.app.azel.disable_control()
+#         else:
+#             self.app.azel.enable_control()
+#         send_update_class("antenna_freeze_button", "active", self.antenna_freeze)
+#         self.status_update(force=True)
+#
+#     def set_dx_call(self, callsign, locator):
+#         knowns = self.app.ham_op.callsigns_in_locator(locator)
+#         if callsign in knowns:
+#             emit("fill_dx_grid", callsign)
+#             if self.auto_track:
+#                 self.app.azel.az_track_station(callsign, auto=True)
+#         else:
+#             emit("fill_dx_grid", locator)
+#             if self.auto_track:
+#                 self.app.azel.az_track_loc(locator, auto=True)
+#
+#
+#
+# def circle(size, user_location):
+#     c = {  # draw circle on map (user_location as center)
+#         'stroke_color': '#0000FF',
+#         'stroke_opacity': .5,
+#         'stroke_weight': 1,
+#         # line(stroke) style
+#         'fill_color': '#FFFFFF',
+#         'fill_opacity': 0,
+#         # fill style
+#         'center': {  # set circle to user_location
+#             'lat': user_location[0],
+#             'lng': user_location[1]
+#         },
+#         'radius': size
+#     }
+#     return c
 
 def message_received():
     print('message was received!!!')
