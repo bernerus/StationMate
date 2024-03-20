@@ -102,7 +102,7 @@ class MyApp(Flask):
 
         self.socket_io = socket_io
 
-        self._db = psycopg2.connect(dbname='ham_station')
+        # self._db = psycopg2.connect(dbname='ham_station')
 
         from hamop import HamOp
         self.ham_op = HamOp(self, logger, self._db)
@@ -110,22 +110,22 @@ class MyApp(Flask):
         from clientmgr import ClientMgr
         self.client_mgr = ClientMgr(self, logger, socket_io)
 
-        from azel import AzelController
-        self.azel = AzelController(self, logger, socket_io, hysteresis=14)
+        # from azel import AzelController
+        # self.azel = AzelController(self, logger, socket_io, hysteresis=14)
+        #
+        # from aircraft_tracker import AircraftTracker
+        # self.aircraft_tracker = AircraftTracker(self, logger, socket_io, url="http://192.168.1.129:8754")
+        #
+        # from station_tracker import StationTracker
+        # self.station_tracker = StationTracker(self, logger, socket_io)
 
-        from aircraft_tracker import AircraftTracker
-        self.aircraft_tracker = AircraftTracker(self, logger, socket_io, url="http://192.168.1.129:8754")
-
-        from station_tracker import StationTracker
-        self.station_tracker = StationTracker(self, logger, socket_io)
-
-        rows = self.ham_op.fetch_my_current_data("144")
-        self.my_data = {x["key"]: x["value"] for x in rows}
-
-        self.keyer = Morser(logger, speed=None, p20=self.azel.p20)
-        self.keyer_thread = threading.Thread(target=self.keyer.background_thread, args=())
-        self.keyer_thread.daemon = True  # Daemonize keyer_thread
-        self.keyer_thread.start()
+        # rows = self.ham_op.fetch_my_current_data("144")
+        # self.my_data = {x["key"]: x["value"] for x in rows}
+        #
+        # self.keyer = Morser(logger, speed=None, p20=self.azel.p20)
+        # self.keyer_thread = threading.Thread(target=self.keyer.background_thread, args=())
+        # self.keyer_thread.daemon = True  # Daemonize keyer_thread
+        # self.keyer_thread.start()
 
 app=MyApp(__name__)
 class WsjtxNamespace(Namespace):
